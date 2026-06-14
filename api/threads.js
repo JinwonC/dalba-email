@@ -5,6 +5,7 @@
 //  - 미열람(unread): 스레드에 안 읽은 메시지 있음
 // 환경변수: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN
 // (선택) ANTHROPIC_API_KEY → 있으면 요약을 한국어로, 없으면 영어 스니펫.
+// (선택) DASHBOARD_PASSWORD → 설정하면 비밀번호가 맞아야 데이터 반환(401 보호).
 
 const { google } = require("googleapis");
 
@@ -92,6 +93,14 @@ async function summarizeKo(items) {
 
 module.exports = async (req, res) => {
   try {
+    // --- 비밀번호 보호 (DASHBOARD_PASSWORD 설정 시에만 동작) ---
+    const PW = process.env.DASHBOARD_PASSWORD;
+    if (PW) {
+      const given = req.headers["x-dashboard-password"] ||
+                    (req.query && req.query.pw) || "";
+      if (given !== PW) { res.status(401).json({ error: "unauthorized" }); return; }
+    }
+
     const oauth2 = new google.auth.OAuth2(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET);
     oauth2.setCredentials({ refresh_token: process.env.GOOGLE_REFRESH_TOKEN });
     const gmail = google.gmail({ version: "v1", auth: oauth2 });
@@ -153,7 +162,7 @@ module.exports = async (req, res) => {
       unread: rows.filter(r => r.unread).length
     };
 
-    res.setHeader("Cache-Control", "s-maxage=600, stale-while-revalidate");
+    res.setHeader("Cache-Control", "no-store");
     res.status(200).json({ updated: new Date().toISOString(), stats, rows });
   } catch (e) {
     res.status(500).json({ error: String((e && e.message) || e) });

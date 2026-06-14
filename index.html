@@ -15,6 +15,7 @@
   .right { text-align:right; }
   button.reload { border:1px solid #d8d8d4; background:#fff; border-radius:8px; padding:6px 13px; cursor:pointer; font-size:12.5px; }
   button.reload:hover { background:#f0f0ee; }
+  .logout { border:none; background:none; color:#999; font-size:11.5px; cursor:pointer; margin-left:8px; text-decoration:underline; }
 
   .stats { display:flex; gap:12px; margin:18px 0 6px; flex-wrap:wrap; }
   .stat { background:#fff; border:1px solid #ececec; border-radius:14px; padding:12px 20px; min-width:120px; }
@@ -45,9 +46,30 @@
   a.open { color:#1a73e8; text-decoration:none; font-size:12px; white-space:nowrap; }
   .msg { text-align:center; padding:48px; color:#999; }
   .err { background:#fff3f2; border:1px solid #f3c4bf; color:#b3322a; padding:12px 14px; border-radius:10px; margin:12px 0; font-size:13px; }
+
+  /* 로그인 화면 */
+  #gate { position:fixed; inset:0; background:#f7f7f5; display:none; align-items:center; justify-content:center; z-index:50; }
+  .gate-card { background:#fff; border:1px solid #ececec; border-radius:16px; padding:34px 32px; width:340px; max-width:90%; text-align:center; box-shadow:0 8px 30px rgba(0,0,0,.06); }
+  .gate-card h2 { font-size:17px; margin:0 0 6px; }
+  .gate-card p { font-size:12.5px; color:#888; margin:0 0 18px; }
+  .gate-card input { width:100%; padding:11px 13px; border:1px solid #ddd; border-radius:9px; font-size:14px; margin-bottom:10px; }
+  .gate-card button { width:100%; padding:11px; background:#1d1d1f; color:#fff; border:none; border-radius:9px; font-size:13.5px; cursor:pointer; }
+  .gate-err { color:#c0392b; font-size:12px; min-height:16px; margin-bottom:4px; }
 </style>
 </head>
 <body>
+
+<!-- 비밀번호 게이트 -->
+<div id="gate">
+  <div class="gate-card">
+    <h2>🔒 협업 메일 트래커</h2>
+    <p>비밀번호를 입력하세요</p>
+    <div class="gate-err" id="gateErr"></div>
+    <input id="gatePw" type="password" placeholder="비밀번호" onkeydown="if(event.key==='Enter')submitPw()" />
+    <button onclick="submitPw()">들어가기</button>
+  </div>
+</div>
+
 <div class="wrap">
   <div class="top">
     <div>
@@ -56,6 +78,7 @@
     </div>
     <div class="right">
       <button class="reload" onclick="load()">새로고침</button>
+      <button class="logout" onclick="logout()">로그아웃</button>
       <div class="sub" id="updated"></div>
     </div>
   </div>
@@ -75,13 +98,24 @@ const TABS = [
   { key:"unread",  label:"미열람" }
 ];
 function esc(s){ return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function pw(){ return localStorage.getItem("dpw") || ""; }
+function showGate(msg){ document.getElementById("gateErr").textContent = msg||""; document.getElementById("gate").style.display="flex"; document.getElementById("gatePw").focus(); }
+function hideGate(){ document.getElementById("gate").style.display="none"; }
+function submitPw(){
+  const v = document.getElementById("gatePw").value;
+  localStorage.setItem("dpw", v);
+  hideGate(); load();
+}
+function logout(){ localStorage.removeItem("dpw"); showGate(); }
 
 async function load(){
   document.getElementById("content").innerHTML = '<div class="msg">불러오는 중…</div>';
   try {
-    const r = await fetch('/api/threads', { cache:'no-store' });
+    const r = await fetch('/api/threads', { cache:'no-store', headers:{ 'x-dashboard-password': pw() } });
+    if(r.status === 401){ showGate("비밀번호가 올바르지 않습니다."); return; }
     const data = await r.json();
     if(data.error) throw new Error(data.error);
+    hideGate();
     DATA = data;
     renderStats(); renderTabs(); renderTable();
   } catch(e){
@@ -143,7 +177,9 @@ function renderTable(){
   }).join("");
   document.getElementById("content").innerHTML='<table><thead>'+head+'</thead><tbody>'+body+'</tbody></table>';
 }
-load();
+
+// 시작: 저장된 비번 있으면 바로 시도, 없으면 게이트 표시
+if(pw()) load(); else showGate();
 </script>
 </body>
 </html>
