@@ -1,0 +1,7 @@
+node_modules/
+.vercel/
+.env
+.env.*
+service_account.json
+tokens.json
+ads_tokens.json
