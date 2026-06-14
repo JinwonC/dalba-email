@@ -3,28 +3,45 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>이메일 회신 트래커 (라이브)</title>
+<title>크리에이터 협업 메일 트래커</title>
 <style>
   :root { color-scheme: light; }
   * { box-sizing: border-box; }
   body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Apple SD Gothic Neo","Malgun Gothic",sans-serif; background:#f7f7f5; color:#1d1d1f; font-size:14px; }
-  .wrap { padding:20px 18px 48px; max-width:1180px; margin:0 auto; }
-  .top { display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:8px; }
-  h1 { font-size:20px; margin:0; font-weight:680; }
-  .sub { color:#6b6b6b; font-size:12.5px; }
-  button.reload { border:1px solid #d8d8d4; background:#fff; border-radius:8px; padding:6px 12px; cursor:pointer; font-size:12.5px; }
-  .stats { display:flex; gap:12px; margin:14px 0; flex-wrap:wrap; }
-  .stat { background:#fff; border:1px solid #ececec; border-radius:12px; padding:10px 16px; min-width:110px; }
-  .stat .n { font-size:23px; font-weight:750; }
-  .stat .l { font-size:11.5px; color:#888; margin-top:2px; }
-  table { width:100%; border-collapse:collapse; background:#fff; border:1px solid #ececec; border-radius:12px; overflow:hidden; }
-  th,td { text-align:left; padding:11px 12px; vertical-align:top; border-bottom:1px solid #f0f0ee; }
-  th { font-size:11.5px; color:#888; font-weight:600; text-transform:uppercase; letter-spacing:.03em; background:#fafafa; }
+  .wrap { padding:22px 20px 56px; max-width:1240px; margin:0 auto; }
+  .top { display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:10px; }
+  h1 { font-size:21px; margin:0; font-weight:720; display:flex; align-items:center; gap:8px; }
+  .sub { color:#6b6b6b; font-size:12.5px; margin-top:3px; }
+  .right { text-align:right; }
+  button.reload { border:1px solid #d8d8d4; background:#fff; border-radius:8px; padding:6px 13px; cursor:pointer; font-size:12.5px; }
+  button.reload:hover { background:#f0f0ee; }
+
+  .stats { display:flex; gap:12px; margin:18px 0 6px; flex-wrap:wrap; }
+  .stat { background:#fff; border:1px solid #ececec; border-radius:14px; padding:12px 20px; min-width:120px; }
+  .stat .n { font-size:26px; font-weight:760; line-height:1.1; }
+  .stat .l { font-size:11.5px; color:#888; margin-top:3px; }
+
+  .tabs { display:flex; gap:8px; margin:16px 0 12px; flex-wrap:wrap; }
+  .tab { border:1px solid #e2e2de; background:#fff; color:#444; border-radius:999px; padding:6px 15px; cursor:pointer; font-size:12.5px; }
+  .tab.active { background:#1d1d1f; color:#fff; border-color:#1d1d1f; }
+
+  table { width:100%; border-collapse:collapse; background:#fff; border:1px solid #ececec; border-radius:14px; overflow:hidden; }
+  th,td { text-align:left; padding:12px 13px; vertical-align:top; border-bottom:1px solid #f0f0ee; }
+  th { font-size:11px; color:#999; font-weight:600; text-transform:uppercase; letter-spacing:.03em; background:#fafafa; }
   tr:last-child td { border-bottom:none; }
   tr td { background:#fffaf6; }
-  td.date { white-space:nowrap; color:#777; font-size:12px; }
+  tr.waiting td { background:#fff; }
+  td.date { white-space:nowrap; color:#888; font-size:12px; }
   .rep,.creator { font-weight:600; }
-  .summary { color:#444; font-size:12.5px; line-height:1.5; max-width:480px; }
+  .creator .em { display:block; font-weight:400; color:#999; font-size:11.5px; }
+  .subj { font-weight:600; color:#222; }
+  .subj .who { display:block; font-weight:400; color:#999; font-size:11px; margin-top:2px; }
+  .summary { color:#444; font-size:12.5px; line-height:1.55; max-width:430px; }
+  .badges { display:flex; flex-direction:column; gap:4px; align-items:flex-start; }
+  .badge { font-size:10.5px; font-weight:600; padding:2px 9px; border-radius:999px; white-space:nowrap; }
+  .b-ours { background:#fdecea; color:#c0392b; }
+  .b-wait { background:#eef2f7; color:#5a6b80; }
+  .b-unread { background:#fef3d6; color:#9a6b00; }
   a.open { color:#1a73e8; text-decoration:none; font-size:12px; white-space:nowrap; }
   .msg { text-align:center; padding:48px; color:#999; }
   .err { background:#fff3f2; border:1px solid #f3c4bf; color:#b3322a; padding:12px 14px; border-radius:10px; margin:12px 0; font-size:13px; }
@@ -34,51 +51,96 @@
 <div class="wrap">
   <div class="top">
     <div>
-      <h1>📩 이메일 회신 트래커 <span style="font-size:12px;color:#2e7d32;font-weight:600">● LIVE</span></h1>
-      <div class="sub">크리에이터가 보내 <b>우리 차례</b>인 메일 — Gmail 실시간 연동</div>
+      <h1>🤝 크리에이터 협업 메일 트래커</h1>
+      <div class="sub">dalbatiktokshopofficial@gmail.com · 받은편지함 — Gmail 실시간 연동</div>
     </div>
-    <div style="text-align:right">
+    <div class="right">
       <button class="reload" onclick="load()">새로고침</button>
       <div class="sub" id="updated"></div>
     </div>
   </div>
 
   <div class="stats" id="stats"></div>
+  <div class="tabs" id="tabs"></div>
   <div id="content"><div class="msg">불러오는 중…</div></div>
 </div>
 
 <script>
+let DATA = { rows: [], stats: {} };
+let FILTER = "ours";
+const TABS = [
+  { key:"all",     label:"전체" },
+  { key:"ours",    label:"우리 차례(답장 필요)" },
+  { key:"waiting", label:"크리에이터 회신 대기" },
+  { key:"unread",  label:"미열람" }
+];
 function esc(s){ return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
 async function load(){
   document.getElementById("content").innerHTML = '<div class="msg">불러오는 중…</div>';
   try {
     const r = await fetch('/api/threads', { cache:'no-store' });
     const data = await r.json();
     if(data.error) throw new Error(data.error);
-    render(data);
+    DATA = data;
+    renderStats(); renderTabs(); renderTable();
   } catch(e){
     document.getElementById("content").innerHTML =
       '<div class="err">불러오지 못했습니다: '+esc(String(e.message||e))+'</div>';
   }
 }
-function render(data){
-  const rows = data.rows || [];
+function renderStats(){
+  const s = DATA.stats || {};
   document.getElementById("updated").textContent =
-    '업데이트 ' + new Date(data.updated).toLocaleString('ko-KR');
+    DATA.updated ? '업데이트 ' + new Date(DATA.updated).toLocaleString('ko-KR') : '';
   document.getElementById("stats").innerHTML =
-    '<div class="stat"><div class="n" style="color:#c0392b">'+rows.length+'</div><div class="l">회신 필요</div></div>';
+    card(s.total||0,"협업 스레드","#1d1d1f") +
+    card(s.ours||0,"우리 차례","#c0392b") +
+    card(s.waiting||0,"회신 대기","#5a6b80") +
+    card(s.unread||0,"미열람","#9a6b00");
+}
+function card(n,l,color){
+  return '<div class="stat"><div class="n" style="color:'+color+'">'+n+'</div><div class="l">'+l+'</div></div>';
+}
+function renderTabs(){
+  const s = DATA.stats || {};
+  const cnt = { all:s.total||0, ours:s.ours||0, waiting:s.waiting||0, unread:s.unread||0 };
+  document.getElementById("tabs").innerHTML = TABS.map(t =>
+    '<div class="tab'+(FILTER===t.key?' active':'')+'" onclick="setFilter(\''+t.key+'\')">'+
+    esc(t.label)+' '+(cnt[t.key]!==undefined?('· '+cnt[t.key]):'')+'</div>'
+  ).join("");
+}
+function setFilter(k){ FILTER=k; renderTabs(); renderTable(); }
+function filtered(){
+  const rows = DATA.rows || [];
+  if(FILTER==="all") return rows;
+  if(FILTER==="unread") return rows.filter(r=>r.unread);
+  return rows.filter(r=>r.status===FILTER);
+}
+function renderTable(){
+  const rows = filtered();
   if(!rows.length){
-    document.getElementById("content").innerHTML='<div class="msg">✅ 현재 회신 대기 중인 크리에이터 메일이 없습니다.</div>';
+    document.getElementById("content").innerHTML='<div class="msg">✅ 해당 조건의 메일이 없습니다.</div>';
     return;
   }
-  const head='<tr><th>날짜</th><th>담당자</th><th>크리에이터</th><th>요약</th><th></th></tr>';
-  const body=rows.map(r=>'<tr>'+
-    '<td class="date">'+esc(r.date)+'</td>'+
-    '<td class="rep">'+esc(r.rep)+'</td>'+
-    '<td class="creator">'+esc(r.creator)+'</td>'+
-    '<td class="summary">'+esc(r.summary)+'</td>'+
-    '<td><a class="open" href="'+esc(r.link)+'" target="_blank" rel="noopener">열기 ↗</a></td>'+
-    '</tr>').join("");
+  const head='<tr><th>최근</th><th>크리에이터</th><th>우리측 담당</th><th>제목</th><th>요약</th><th>상태</th><th></th></tr>';
+  const body=rows.map(r=>{
+    let badges='<div class="badges">';
+    badges += r.status==="ours" ? '<span class="badge b-ours">우리 차례</span>'
+                                : '<span class="badge b-wait">크리에이터 회신 대기</span>';
+    if(r.unread) badges += '<span class="badge b-unread">미열람</span>';
+    badges += '</div>';
+    const who = r.lastFromCreator ? '크리에이터가 보냄' : '우리가 보냄';
+    return '<tr class="'+(r.status)+'">'+
+      '<td class="date">'+esc(r.date)+'</td>'+
+      '<td class="creator">'+esc(r.creator)+'<span class="em">'+esc(r.creatorEmail)+'</span></td>'+
+      '<td class="rep">'+esc(r.rep)+'</td>'+
+      '<td><span class="subj">'+esc(r.subject)+'</span><span class="who">✓ '+esc(who)+'</span></td>'+
+      '<td class="summary">'+esc(r.summary)+'</td>'+
+      '<td>'+badges+'</td>'+
+      '<td><a class="open" href="'+esc(r.link)+'" target="_blank" rel="noopener">열기 ↗</a></td>'+
+    '</tr>';
+  }).join("");
   document.getElementById("content").innerHTML='<table><thead>'+head+'</thead><tbody>'+body+'</tbody></table>';
 }
 load();
