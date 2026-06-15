@@ -175,9 +175,56 @@ function aggregateVideos(vidByDate, targetKey) {
   return { dateKey: parseDate(useKey), key: useKey, plist, totalPay, videoPay };
 }
 
+// ── AI 인사이트 한줄평 (ANTHROPIC_API_KEY 있을 때만) ───────────
+async function generateInsights(a, vid) {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) return null;
+  const g = a.g, topVid = vid && vid.plist[0];
+  const ctx = {
+    날짜: a.date.label,
+    GMV: { 당일: Math.round(g.gmv), 전일: a.p ? Math.round(a.p.gmv) : null, 전주: a.w ? Math.round(a.w.gmv) : null, DoD: a.dd("gmv"), WoW: a.ww("gmv") },
+    채널: a.channels.map(c => ({ 채널: c.t, GMV: Math.round(c.v), 비중: +c.share.toFixed(1), DoD: c.dod, WoW: c.wow })),
+    제품TOP: a.top.map(x => ({ 제품: x.name.slice(0, 40), GMV: Math.round(x.gmv), DoD: x.dod, WoW: x.wow, 주문: x.sku })),
+    콘텐츠: {
+      신규영상: g.newVid, 영상당매출: +(g.affVidG / (g.newVid || 1)).toFixed(2),
+      전일영상당: a.p ? +(a.p.affVidG / (a.p.newVid || 1)).toFixed(2) : null,
+      전주영상당: a.w ? +(a.w.affVidG / (a.w.newVid || 1)).toFixed(2) : null,
+      라이브당매출: +(g.affLiveG / (g.newLive || 1)).toFixed(2),
+      매출1위영상: topVid ? { 제품: topVid.name.slice(0, 30), 크리에이터: topVid.items[0] && topVid.items[0].creator, 매출: Math.round(topVid.items[0] && topVid.items[0].pay) } : null
+    },
+    퍼널: {
+      노출: g.imp, 클릭: g.clk, CTR: ratePct(g.clk, g.imp),
+      장바구니율_당일: ratePct(g.atc, g.clk), 장바구니율_전일: a.p ? ratePct(a.p.atc, a.p.clk) : null, 장바구니율_전주: a.w ? ratePct(a.w.atc, a.w.clk) : null,
+      주문전환: ratePct(g.sku, g.clk)
+    }
+  };
+  const prompt =
+    "너는 d'Alba TikTok Shop 데이터 분석가다. 아래 일일 지표(JSON)를 보고 보고서 각 섹션의 핵심 인사이트를 " +
+    "한국어 한 문장으로 작성하라. 규칙: (1) 반드시 수치 근거 포함, (2) 일반론·뻔한 말 금지, " +
+    "(3) 하락/이상 신호엔 추정 원인이나 액션 1개 덧붙이기, (4) 각 문장 60자 내외.\n" +
+    "출력은 JSON만: {\"overview\":\"\",\"channel\":\"\",\"product\":\"\",\"content\":\"\",\"funnel\":\"\"}\n\n" +
+    JSON.stringify(ctx);
+  try {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({
+        model: process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001",
+        max_tokens: 900,
+        messages: [{ role: "user", content: prompt }]
+      })
+    });
+    const data = await r.json();
+    const txt = (data.content && data.content[0] && data.content[0].text) || "";
+    const m = txt.match(/\{[\s\S]*\}/);
+    return m ? JSON.parse(m[0]) : null;
+  } catch (e) { return null; }
+}
+
 // ── Slack mrkdwn 빌더 ─────────────────────────────────────────
-function buildMain(a) {
+function buildMain(a, ins) {
   const g = a.g;
+  const tip = k => (ins && ins[k]) ? `🗒 _${ins[k]}_\n` : "";
   let o = `*📊 d'Alba 데일리 매출 리포트 — ${a.date.label}*\n`;
   o += `_전일(${a.prevDay ? a.prevDay.md : "–"}) · 전주(${a.prevWeek ? a.prevWeek.md : "–"}) 대비_\n\n`;
   // 1
@@ -186,12 +233,14 @@ function buildMain(a) {
   o += a.p ? ` — 전일 ${money(a.p.gmv)} · 전주 ${a.w ? money(a.w.gmv) : "–"}\n` : `\n`;
   for (const [lbl, k] of a.metrics)
     o += `• ${lbl} ${Math.round(g[k]).toLocaleString()} (${a.dd(k)} / ${a.ww(k)})\n`;
-  o += `• AOV $${(g.gmv / (g.sku || 1)).toFixed(2)} · 구매전환율(방문→구매) ${ratePct(g.cust, g.uclk)}\n\n`;
+  o += `• AOV $${(g.gmv / (g.sku || 1)).toFixed(2)} · 구매전환율(방문→구매) ${ratePct(g.cust, g.uclk)}\n`;
+  o += tip("overview") + `\n`;
   // 2
   o += `*2. 채널별 매출* _(귀속 기준, 합 100%)_\n`;
   for (const c of a.channels)
     o += `• ${c.t} *${money(c.v)}* (${c.share.toFixed(1)}%) · DoD ${c.dod} / WoW ${c.wow}\n`;
-  o += `   └ Affiliate 내부: Video ${money(g.affVidG)} · LIVE ${money(g.affLiveG)}  |  오가닉 스토어탭 ${money(g.shopGmv)}\n\n`;
+  o += `   └ Affiliate 내부: Video ${money(g.affVidG)} · LIVE ${money(g.affLiveG)}  |  오가닉 스토어탭 ${money(g.shopGmv)}\n`;
+  o += tip("channel") + `\n`;
   // 3
   o += `*3. 제품별 매출 TOP ${a.top.length}* _(TOP${a.top.length} = 전체의 ${(a.totGmv ? a.topShare / a.totGmv * 100 : 0).toFixed(0)}%)_\n`;
   o += "```\n#   GMV     DoD    WoW    주문  제품\n";
@@ -199,17 +248,20 @@ function buildMain(a) {
     o += `${String(i + 1).padStart(2)}  ${money(x.gmv).padStart(6)}  ${x.dod.padStart(5)}  ${x.wow.padStart(5)}  ${(x.sku + "(" + x.pSku + ")").padStart(6)}  ${x.name.slice(0, 30)}\n`;
   });
   o += "```\n";
+  o += tip("product") + `\n`;
   // 4
   o += `*4. 크리에이터·콘텐츠 효율*\n`;
   o += `• 신규 영상 ${g.newVid}건 · 라이브 ${g.newLive}건\n`;
   o += `• 영상 1건당 매출 *$${(g.affVidG / (g.newVid || 1)).toFixed(2)}*`;
   o += a.p ? ` (전일 $${(a.p.affVidG / (a.p.newVid || 1)).toFixed(2)}${a.w ? ` / 전주 $${(a.w.affVidG / (a.w.newVid || 1)).toFixed(2)}` : ""})\n` : `\n`;
-  o += `• 라이브 1건당 $${(g.affLiveG / (g.newLive || 1)).toFixed(2)}\n\n`;
+  o += `• 라이브 1건당 $${(g.affLiveG / (g.newLive || 1)).toFixed(2)}\n`;
+  o += tip("content") + `\n`;
   // 5
   o += `*5. 전환 퍼널*\n`;
   o += `노출 ${g.imp.toLocaleString()} → 클릭 ${g.clk.toLocaleString()} (CTR ${ratePct(g.clk, g.imp)}) → 장바구니 ${Math.round(g.atc)} (장바구니율 ${ratePct(g.atc, g.clk)}) → 주문 ${Math.round(g.sku)} (주문전환 ${ratePct(g.sku, g.clk)})\n`;
   if (a.w && a.p)
     o += `• 장바구니율 추이 ${a.prevWeek.md}→${a.prevDay.md}→${a.date.md}: ${ratePct(a.w.atc, a.w.clk)} → ${ratePct(a.p.atc, a.p.clk)} → ${ratePct(g.atc, g.clk)}\n`;
+  o += tip("funnel");
   return o;
 }
 
@@ -296,7 +348,8 @@ module.exports = async (req, res) => {
 
     const agg = aggregate(raw, targetKey, topN);
     const vid = aggregateVideos(parseVideos(vidRows), targetKey);
-    const mainText = buildMain(agg);
+    const insights = await generateInsights(agg, vid);
+    const mainText = buildMain(agg, insights);
     const chunks = videoChunks(vid, targetKey);
 
     const dryRun = req.query && (req.query.dryRun === "1" || req.query.dryRun === "true");
@@ -325,4 +378,4 @@ module.exports = async (req, res) => {
 };
 
 // 테스트용 내부 노출
-module.exports._internals = { num, parseDate, parseRaw, aggregate, parseVideos, aggregateVideos, buildMain, videoChunks };
+module.exports._internals = { num, parseDate, parseRaw, aggregate, parseVideos, aggregateVideos, buildMain, videoChunks, generateInsights };
