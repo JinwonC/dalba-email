@@ -12,7 +12,9 @@
 //   6. 매출 발생 영상 (제품별 전체, Content ID·크리에이터·TikTok 링크) → 스레드 분할
 //
 // 환경변수:
-//   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN  (Sheets readonly 스코프)
+//   인증(둘 중 하나):
+//     GOOGLE_SERVICE_ACCOUNT  ← 서비스계정 JSON 전체(권장). 시트를 이 계정 이메일에 공유만 하면 됨
+//     또는 GOOGLE_CLIENT_ID/SECRET/REFRESH_TOKEN (Sheets readonly 스코프 포함된 OAuth 토큰)
 //   SHEET_ID                  ← 스프레드시트 ID (필수)
 //   (선택) RAW_SHEET   기본 "매출raw"
 //   (선택) VIDEO_SHEET 기본 "매출발생영상"
@@ -330,9 +332,21 @@ module.exports = async (req, res) => {
     const wantDate = parseDate(rawDate);
 
     const { google } = require("googleapis");
-    const oauth2 = new google.auth.OAuth2(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET);
-    oauth2.setCredentials({ refresh_token: process.env.GOOGLE_REFRESH_TOKEN });
-    const sheets = google.sheets({ version: "v4", auth: oauth2 });
+    // 인증: GOOGLE_SERVICE_ACCOUNT(JSON) 있으면 서비스계정(권장, 시트 공유만 하면 됨),
+    //       없으면 기존 OAuth refresh token 사용
+    let auth;
+    if (process.env.GOOGLE_SERVICE_ACCOUNT) {
+      const creds = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT);
+      auth = new google.auth.GoogleAuth({
+        credentials: creds,
+        scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"]
+      });
+    } else {
+      const oauth2 = new google.auth.OAuth2(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET);
+      oauth2.setCredentials({ refresh_token: process.env.GOOGLE_REFRESH_TOKEN });
+      auth = oauth2;
+    }
+    const sheets = google.sheets({ version: "v4", auth });
 
     const resp = await sheets.spreadsheets.values.batchGet({
       spreadsheetId: sheetId,
