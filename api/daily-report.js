@@ -102,14 +102,20 @@ function pickComparisons(byDate, targetKey) {
   return { prevDay, prevWeek };
 }
 
-// ── 광고 탭(날짜·캠페인ID·지출금액C) → 일자별 광고비 합 ──────────
-const AD = { date: 0, spend: 2 };
+// ── 광고 탭(날짜·캠페인ID·지출금액C·…·PRODUCT ID G) → 일자별 광고비 ──
+// byDate[key] = { total, live(=product id 없는 행=라이브), pid:{ productId: spend } }
+const AD = { date: 0, spend: 2, pid: 6 };
 function parseAds(rows) {
   const byDate = {};
   for (const r of rows) {
     const d = parseDate(r[AD.date]);
     if (!d) continue;
-    byDate[d.key] = (byDate[d.key] || 0) + num(r[AD.spend]);
+    const e = byDate[d.key] || (byDate[d.key] = { total: 0, live: 0, pid: {} });
+    const s = num(r[AD.spend]);
+    e.total += s;
+    const pid = String(r[AD.pid] || "").trim();
+    if (pid) e.pid[pid] = (e.pid[pid] || 0) + s;
+    else e.live += s;
   }
   return byDate;
 }
@@ -127,25 +133,31 @@ function aggregate(raw, targetKey, topN, adByDate) {
     ["Seller Video", "sellerVideo"], ["Seller LIVE", "sellerLive"]
   ].map(([t, k]) => ({ t, v: g[k], share: g.gmv ? g[k] / g.gmv * 100 : 0, dod: dd(k), wow: ww(k) }));
 
+  const adCur = adByDate ? adByDate[targetKey] : null;
   const prodCur = prod[targetKey];
   const totGmv = Object.values(prodCur).reduce((s, x) => s + x.gmv, 0);
   const prodPrev = prevDay ? prod[prevDay.date.key] : {}, prodW = prevWeek ? prod[prevWeek.date.key] : {};
   const ddp = (a, b) => (b ? sg((a - b) / b * 100) : (a > 0 ? "신규" : "–"));
   const top = Object.entries(prodCur).map(([id, v]) => ({ id, ...v }))
     .sort((a, b) => b.gmv - a.gmv).slice(0, topN)
-    .map(x => ({
-      ...x, share: totGmv ? x.gmv / totGmv * 100 : 0,
-      dod: ddp(x.gmv, prodPrev[x.id] && prodPrev[x.id].gmv),
-      wow: ddp(x.gmv, prodW[x.id] && prodW[x.id].gmv),
-      pSku: prodPrev[x.id] ? prodPrev[x.id].sku : 0
-    }));
+    .map(x => {
+      const c = adCur && adCur.pid[x.id] != null ? adCur.pid[x.id] : null;
+      return {
+        ...x, share: totGmv ? x.gmv / totGmv * 100 : 0,
+        dod: ddp(x.gmv, prodPrev[x.id] && prodPrev[x.id].gmv),
+        wow: ddp(x.gmv, prodW[x.id] && prodW[x.id].gmv),
+        pSku: prodPrev[x.id] ? prodPrev[x.id].sku : 0,
+        cost: c, roi: c ? x.gmv / c : null
+      };
+    });
   const topShare = top.reduce((s, x) => s + x.gmv, 0);
 
   // 광고비 & 스토어 ROI (= 전체 GMV ÷ 광고비)
-  const spend = k => (adByDate && adByDate[k] != null) ? adByDate[k] : null;
+  const spend = k => (adByDate && adByDate[k]) ? adByDate[k].total : null;
   const cCur = spend(targetKey), cPrev = prevDay ? spend(prevDay.date.key) : null, cWeek = prevWeek ? spend(prevWeek.date.key) : null;
   const cost = (cCur != null) ? {
     cur: cCur, prev: cPrev, week: cWeek,
+    live: adCur ? adCur.live : 0, product: cCur - (adCur ? adCur.live : 0),
     dod: cPrev ? sg(pct(cCur, cPrev)) : "–",
     wow: cWeek ? sg(pct(cCur, cWeek)) : "–"
   } : null;
@@ -211,9 +223,9 @@ async function generateInsights(a, vid) {
   const ctx = {
     날짜: a.date.label,
     GMV: { 당일: Math.round(g.gmv), 전일: a.p ? Math.round(a.p.gmv) : null, 전주: a.w ? Math.round(a.w.gmv) : null, DoD: a.dd("gmv"), WoW: a.ww("gmv") },
-    광고: a.cost ? { 광고비: Math.round(a.cost.cur), DoD: a.cost.dod, WoW: a.cost.wow, "ROI(전체GMV/광고비)": +a.roi.cur.toFixed(2), 전일ROI: a.roi.prev != null ? +a.roi.prev.toFixed(2) : null } : null,
+    광고: a.cost ? { 광고비: Math.round(a.cost.cur), 제품광고비: Math.round(a.cost.product), 라이브광고비: Math.round(a.cost.live), DoD: a.cost.dod, WoW: a.cost.wow, "ROI(전체GMV/광고비)": +a.roi.cur.toFixed(2), 전일ROI: a.roi.prev != null ? +a.roi.prev.toFixed(2) : null } : null,
     채널: a.channels.map(c => ({ 채널: c.t, GMV: Math.round(c.v), 비중: +c.share.toFixed(1), DoD: c.dod, WoW: c.wow })),
-    제품TOP: a.top.map(x => ({ 제품: x.name.slice(0, 40), GMV: Math.round(x.gmv), DoD: x.dod, WoW: x.wow, 주문: x.sku })),
+    제품TOP: a.top.map(x => ({ 제품: x.name.slice(0, 40), GMV: Math.round(x.gmv), 광고비: x.cost != null ? Math.round(x.cost) : null, ROI: x.roi != null ? +x.roi.toFixed(1) : null, DoD: x.dod, WoW: x.wow, 주문: x.sku })),
     콘텐츠: {
       신규영상: g.newVid, 영상당매출: +(g.affVidG / (g.newVid || 1)).toFixed(2),
       전일영상당: a.p ? +(a.p.affVidG / (a.p.newVid || 1)).toFixed(2) : null,
@@ -267,6 +279,7 @@ function buildMain(a, ins) {
   if (a.cost) {
     o += `• 광고비 ${money(a.cost.cur)} (${a.cost.dod} / ${a.cost.wow}) · *ROI ${a.roi.cur.toFixed(2)}x* _(전체 GMV ÷ 광고비)_`;
     o += (a.roi.prev != null) ? ` — 전일 ${a.roi.prev.toFixed(2)}x${a.roi.week != null ? ` · 전주 ${a.roi.week.toFixed(2)}x` : ""}\n` : `\n`;
+    o += `   └ 제품 광고비 ${money(a.cost.product)} · 라이브(비제품) 광고비 ${money(a.cost.live)}\n`;
   }
   o += tip("overview") + `\n`;
   // 2
@@ -277,9 +290,11 @@ function buildMain(a, ins) {
   o += tip("channel") + `\n`;
   // 3
   o += `*3. 제품별 매출 TOP ${a.top.length}* _(TOP${a.top.length} = 전체의 ${(a.totGmv ? a.topShare / a.totGmv * 100 : 0).toFixed(0)}%)_\n`;
-  o += "```\n#   GMV     DoD    WoW    주문  제품\n";
+  o += "```\n#   GMV     광고비   ROI    DoD    WoW    제품\n";
   a.top.forEach((x, i) => {
-    o += `${String(i + 1).padStart(2)}  ${money(x.gmv).padStart(6)}  ${x.dod.padStart(5)}  ${x.wow.padStart(5)}  ${(x.sku + "(" + x.pSku + ")").padStart(6)}  ${x.name.slice(0, 30)}\n`;
+    const c = x.cost != null ? money(x.cost) : "-";
+    const r = x.roi != null ? x.roi.toFixed(1) + "x" : "-";
+    o += `${String(i + 1).padStart(2)}  ${money(x.gmv).padStart(6)}  ${c.padStart(6)}  ${r.padStart(5)}  ${x.dod.padStart(5)}  ${x.wow.padStart(5)}  ${x.name.slice(0, 24)}\n`;
   });
   o += "```\n";
   o += tip("product") + `\n`;
@@ -383,7 +398,7 @@ module.exports = async (req, res) => {
 
     const resp = await sheets.spreadsheets.values.batchGet({
       spreadsheetId: sheetId,
-      ranges: [`'${rawSheet}'!A:GZ`, `'${vidSheet}'!A:AE`, `'${adSheet}'!A:F`]
+      ranges: [`'${rawSheet}'!A:GZ`, `'${vidSheet}'!A:AE`, `'${adSheet}'!A:J`]
     });
     const rawRows = (resp.data.valueRanges[0] && resp.data.valueRanges[0].values) || [];
     const vidRows = (resp.data.valueRanges[1] && resp.data.valueRanges[1].values) || [];
