@@ -119,7 +119,7 @@ function parseAds(rows) {
   }
   return byDate;
 }
-function aggregate(raw, targetKey, topN, adByDate) {
+function aggregate(raw, targetKey, topN, adByDate, commCur) {
   const { byDate, prod } = raw;
   if (!byDate[targetKey]) throw new Error("해당 날짜 데이터가 없습니다: " + targetKey);
   const cur = byDate[targetKey], g = cur.t;
@@ -142,12 +142,14 @@ function aggregate(raw, targetKey, topN, adByDate) {
     .sort((a, b) => b.gmv - a.gmv).slice(0, topN)
     .map(x => {
       const c = adCur && adCur.pid[x.id] != null ? adCur.pid[x.id] : null;
+      const cm = commCur && commCur[x.id];
       return {
         ...x, share: totGmv ? x.gmv / totGmv * 100 : 0,
         dod: ddp(x.gmv, prodPrev[x.id] && prodPrev[x.id].gmv),
         wow: ddp(x.gmv, prodW[x.id] && prodW[x.id].gmv),
         pSku: prodPrev[x.id] ? prodPrev[x.id].sku : 0,
-        cost: c, roi: c ? x.gmv / c : null
+        cost: c, roi: c ? x.gmv / c : null,
+        stdRate: cm ? cm.std : null, adRate: cm ? cm.ad : null
       };
     });
   const topShare = top.reduce((s, x) => s + x.gmv, 0);
@@ -215,6 +217,25 @@ function aggregateVideos(vidByDate, targetKey) {
   return { dateKey: parseDate(useKey), key: useKey, plist, totalPay, videoPay };
 }
 
+// ── 매출발생영상 커미션율 (제품별 대표=최빈값) ─────────────────
+//   Standard commission rate(16) / Shop Ads commission rate(21)
+const VC = { date: 0, pid: 2, std: 16, adrate: 21 };
+function parseCommissions(rows) {
+  const tmp = {};
+  for (const r of rows) {
+    const d = parseDate(r[VC.date]); if (!d) continue;
+    const pid = String(r[VC.pid] || "").trim(); if (!pid) continue;
+    const e = tmp[d.key] || (tmp[d.key] = {});
+    const p = e[pid] || (e[pid] = { std: {}, ad: {} });
+    const s = String(r[VC.std] || "").trim(); if (s.includes("%")) p.std[s] = (p.std[s] || 0) + 1;
+    const a = String(r[VC.adrate] || "").trim(); if (a.includes("%")) p.ad[a] = (p.ad[a] || 0) + 1;
+  }
+  const mode = o => { let b = null, m = 0; for (const k in o) if (o[k] > m) { m = o[k]; b = k; } return b; };
+  const out = {};
+  for (const dk in tmp) { out[dk] = {}; for (const pid in tmp[dk]) out[dk][pid] = { std: mode(tmp[dk][pid].std), ad: mode(tmp[dk][pid].ad) }; }
+  return out;
+}
+
 // ── AI 인사이트 한줄평 (ANTHROPIC_API_KEY 있을 때만) ───────────
 async function generateInsights(a, vid) {
   const key = process.env.ANTHROPIC_API_KEY;
@@ -225,7 +246,7 @@ async function generateInsights(a, vid) {
     GMV: { 당일: Math.round(g.gmv), 전일: a.p ? Math.round(a.p.gmv) : null, 전주: a.w ? Math.round(a.w.gmv) : null, DoD: a.dd("gmv"), WoW: a.ww("gmv") },
     광고: a.cost ? { 광고비: Math.round(a.cost.cur), 제품광고비: Math.round(a.cost.product), 라이브광고비: Math.round(a.cost.live), DoD: a.cost.dod, WoW: a.cost.wow, "ROI(전체GMV/광고비)": +a.roi.cur.toFixed(2), 전일ROI: a.roi.prev != null ? +a.roi.prev.toFixed(2) : null } : null,
     채널: a.channels.map(c => ({ 채널: c.t, GMV: Math.round(c.v), 비중: +c.share.toFixed(1), DoD: c.dod, WoW: c.wow })),
-    제품TOP: a.top.map(x => ({ 제품: x.name.slice(0, 40), GMV: Math.round(x.gmv), 광고비: x.cost != null ? Math.round(x.cost) : null, ROI: x.roi != null ? +x.roi.toFixed(1) : null, DoD: x.dod, WoW: x.wow, 주문: x.sku })),
+    제품TOP: a.top.map(x => ({ 제품: x.name.slice(0, 40), GMV: Math.round(x.gmv), 광고비: x.cost != null ? Math.round(x.cost) : null, ROI: x.roi != null ? +x.roi.toFixed(1) : null, Std커미션: x.stdRate, 샵애즈커미션: x.adRate, DoD: x.dod, WoW: x.wow, 주문: x.sku })),
     콘텐츠: {
       신규영상: g.newVid, 영상당매출: +(g.affVidG / (g.newVid || 1)).toFixed(2),
       전일영상당: a.p ? +(a.p.affVidG / (a.p.newVid || 1)).toFixed(2) : null,
@@ -290,13 +311,13 @@ function buildMain(a, ins) {
   o += tip("channel") + `\n`;
   // 3
   o += `*3. 제품별 매출 TOP ${a.top.length}* _(TOP${a.top.length} = 전체의 ${(a.totGmv ? a.topShare / a.totGmv * 100 : 0).toFixed(0)}%)_\n`;
-  o += "```\n#   GMV     광고비   ROI    DoD    WoW    제품\n";
   a.top.forEach((x, i) => {
     const c = x.cost != null ? money(x.cost) : "-";
     const r = x.roi != null ? x.roi.toFixed(1) + "x" : "-";
-    o += `${String(i + 1).padStart(2)}  ${money(x.gmv).padStart(6)}  ${c.padStart(6)}  ${r.padStart(5)}  ${x.dod.padStart(5)}  ${x.wow.padStart(5)}  ${x.name.slice(0, 24)}\n`;
+    const cm = (x.stdRate || x.adRate) ? `커미션 Std ${x.stdRate || "-"}·샵애즈 ${x.adRate || "-"}` : "커미션 -";
+    o += `\`${i + 1}.\` ${x.name.slice(0, 40)} — *${money(x.gmv)}* · ${x.sku}주문 (DoD ${x.dod} / WoW ${x.wow})\n`;
+    o += `      광고비 ${c} · ROI ${r} · ${cm}\n`;
   });
-  o += "```\n";
   o += tip("product") + `\n`;
   // 4
   o += `*4. 크리에이터·콘텐츠 효율*\n`;
@@ -409,7 +430,10 @@ module.exports = async (req, res) => {
     if (!keys.length) throw new Error("매출raw 데이터가 없습니다.");
     const targetKey = wantDate ? wantDate.key : keys[keys.length - 1];
 
-    const agg = aggregate(raw, targetKey, topN, parseAds(adRows));
+    const commByDate = parseCommissions(vidRows);
+    let commCur = commByDate[targetKey];
+    if (!commCur) { const ek = Object.keys(commByDate).filter(k => k <= targetKey).sort(); commCur = ek.length ? commByDate[ek[ek.length - 1]] : null; }
+    const agg = aggregate(raw, targetKey, topN, parseAds(adRows), commCur);
     const vid = aggregateVideos(parseVideos(vidRows), targetKey);
     const insights = await generateInsights(agg, vid);
     const mainText = buildMain(agg, insights);
@@ -441,4 +465,4 @@ module.exports = async (req, res) => {
 };
 
 // 테스트용 내부 노출
-module.exports._internals = { num, parseDate, parseRaw, parseAds, aggregate, parseVideos, aggregateVideos, buildMain, videoChunks, generateInsights };
+module.exports._internals = { num, parseDate, parseRaw, parseAds, parseCommissions, aggregate, parseVideos, aggregateVideos, buildMain, videoChunks, generateInsights };
