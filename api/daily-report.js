@@ -101,7 +101,19 @@ function pickComparisons(byDate, targetKey) {
   }
   return { prevDay, prevWeek };
 }
-function aggregate(raw, targetKey, topN) {
+
+// ── 광고 탭(날짜·캠페인ID·지출금액C) → 일자별 광고비 합 ──────────
+const AD = { date: 0, spend: 2 };
+function parseAds(rows) {
+  const byDate = {};
+  for (const r of rows) {
+    const d = parseDate(r[AD.date]);
+    if (!d) continue;
+    byDate[d.key] = (byDate[d.key] || 0) + num(r[AD.spend]);
+  }
+  return byDate;
+}
+function aggregate(raw, targetKey, topN, adByDate) {
   const { byDate, prod } = raw;
   if (!byDate[targetKey]) throw new Error("해당 날짜 데이터가 없습니다: " + targetKey);
   const cur = byDate[targetKey], g = cur.t;
@@ -129,8 +141,22 @@ function aggregate(raw, targetKey, topN) {
     }));
   const topShare = top.reduce((s, x) => s + x.gmv, 0);
 
+  // 광고비 & 스토어 ROI (= 전체 GMV ÷ 광고비)
+  const spend = k => (adByDate && adByDate[k] != null) ? adByDate[k] : null;
+  const cCur = spend(targetKey), cPrev = prevDay ? spend(prevDay.date.key) : null, cWeek = prevWeek ? spend(prevWeek.date.key) : null;
+  const cost = (cCur != null) ? {
+    cur: cCur, prev: cPrev, week: cWeek,
+    dod: cPrev ? sg(pct(cCur, cPrev)) : "–",
+    wow: cWeek ? sg(pct(cCur, cWeek)) : "–"
+  } : null;
+  const roi = cost ? {
+    cur: cCur ? g.gmv / cCur : 0,
+    prev: cPrev ? (p ? p.gmv / cPrev : 0) : null,
+    week: cWeek ? (w ? w.gmv / cWeek : 0) : null
+  } : null;
+
   return {
-    date: cur.date, g, p, w,
+    date: cur.date, g, p, w, cost, roi,
     prevDay: prevDay && prevDay.date, prevWeek: prevWeek && prevWeek.date,
     dd, ww, channels, top, totGmv, topShare,
     metrics: [
@@ -185,6 +211,7 @@ async function generateInsights(a, vid) {
   const ctx = {
     날짜: a.date.label,
     GMV: { 당일: Math.round(g.gmv), 전일: a.p ? Math.round(a.p.gmv) : null, 전주: a.w ? Math.round(a.w.gmv) : null, DoD: a.dd("gmv"), WoW: a.ww("gmv") },
+    광고: a.cost ? { 광고비: Math.round(a.cost.cur), DoD: a.cost.dod, WoW: a.cost.wow, "ROI(전체GMV/광고비)": +a.roi.cur.toFixed(2), 전일ROI: a.roi.prev != null ? +a.roi.prev.toFixed(2) : null } : null,
     채널: a.channels.map(c => ({ 채널: c.t, GMV: Math.round(c.v), 비중: +c.share.toFixed(1), DoD: c.dod, WoW: c.wow })),
     제품TOP: a.top.map(x => ({ 제품: x.name.slice(0, 40), GMV: Math.round(x.gmv), DoD: x.dod, WoW: x.wow, 주문: x.sku })),
     콘텐츠: {
@@ -237,6 +264,10 @@ function buildMain(a, ins) {
   for (const [lbl, k] of a.metrics)
     o += `• ${lbl} ${Math.round(g[k]).toLocaleString()} (${a.dd(k)} / ${a.ww(k)})\n`;
   o += `• AOV $${(g.gmv / (g.sku || 1)).toFixed(2)} · 구매전환율(방문→구매) ${ratePct(g.cust, g.uclk)}\n`;
+  if (a.cost) {
+    o += `• 광고비 ${money(a.cost.cur)} (${a.cost.dod} / ${a.cost.wow}) · *ROI ${a.roi.cur.toFixed(2)}x* _(전체 GMV ÷ 광고비)_`;
+    o += (a.roi.prev != null) ? ` — 전일 ${a.roi.prev.toFixed(2)}x${a.roi.week != null ? ` · 전주 ${a.roi.week.toFixed(2)}x` : ""}\n` : `\n`;
+  }
   o += tip("overview") + `\n`;
   // 2
   o += `*2. 채널별 매출* _(귀속 기준, 합 100%)_\n`;
@@ -326,6 +357,7 @@ module.exports = async (req, res) => {
     if (!sheetId) throw new Error("SHEET_ID 환경변수가 필요합니다.");
     const rawSheet = process.env.RAW_SHEET || "매출raw";
     const vidSheet = process.env.VIDEO_SHEET || "매출발생영상";
+    const adSheet = process.env.AD_SHEET || "광고";
     const topN = Math.max(1, parseInt(process.env.TOP_N, 10) || DEFAULT_TOP_N);
 
     // 날짜 파라미터 (쿼리 ?date= 또는 슬래시 커맨드 text)
@@ -351,17 +383,18 @@ module.exports = async (req, res) => {
 
     const resp = await sheets.spreadsheets.values.batchGet({
       spreadsheetId: sheetId,
-      ranges: [`'${rawSheet}'!A:GZ`, `'${vidSheet}'!A:AE`]
+      ranges: [`'${rawSheet}'!A:GZ`, `'${vidSheet}'!A:AE`, `'${adSheet}'!A:F`]
     });
     const rawRows = (resp.data.valueRanges[0] && resp.data.valueRanges[0].values) || [];
     const vidRows = (resp.data.valueRanges[1] && resp.data.valueRanges[1].values) || [];
+    const adRows = (resp.data.valueRanges[2] && resp.data.valueRanges[2].values) || [];
 
     const raw = parseRaw(rawRows);
     const keys = Object.keys(raw.byDate).sort();
     if (!keys.length) throw new Error("매출raw 데이터가 없습니다.");
     const targetKey = wantDate ? wantDate.key : keys[keys.length - 1];
 
-    const agg = aggregate(raw, targetKey, topN);
+    const agg = aggregate(raw, targetKey, topN, parseAds(adRows));
     const vid = aggregateVideos(parseVideos(vidRows), targetKey);
     const insights = await generateInsights(agg, vid);
     const mainText = buildMain(agg, insights);
@@ -393,4 +426,4 @@ module.exports = async (req, res) => {
 };
 
 // 테스트용 내부 노출
-module.exports._internals = { num, parseDate, parseRaw, aggregate, parseVideos, aggregateVideos, buildMain, videoChunks, generateInsights };
+module.exports._internals = { num, parseDate, parseRaw, parseAds, aggregate, parseVideos, aggregateVideos, buildMain, videoChunks, generateInsights };
