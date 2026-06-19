@@ -187,6 +187,7 @@ function parseVideos(rows) {
     const d = parseDate(r[V.date]);
     if (!d) continue;
     if (!(r[V.pid] || r[V.pname])) continue;
+    if (String(r[V.pname]).trim() === "Product Name" || String(r[V.pid]).trim() === "Product ID") continue; // 헤더 잔재 제외
     (byDate[d.key] || (byDate[d.key] = [])).push(r);
   }
   return byDate;
@@ -224,7 +225,7 @@ function parseCommissions(rows) {
   const tmp = {};
   for (const r of rows) {
     const d = parseDate(r[VC.date]); if (!d) continue;
-    const pid = String(r[VC.pid] || "").trim(); if (!pid) continue;
+    const pid = String(r[VC.pid] || "").trim(); if (!pid || pid === "Product ID") continue;
     const e = tmp[d.key] || (tmp[d.key] = {});
     const p = e[pid] || (e[pid] = { std: {}, ad: {} });
     const s = String(r[VC.std] || "").trim(); if (s.includes("%")) p.std[s] = (p.std[s] || 0) + 1;
