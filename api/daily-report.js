@@ -390,6 +390,19 @@ module.exports = async (req, res) => {
       if (given !== secret) { res.status(401).json({ error: "unauthorized" }); return; }
     }
 
+    // 슬래시 커맨드: Slack 3초 제한 → 즉시 ACK하고 실제 작업은 자기 자신을 재호출(백그라운드)로 처리
+    if (isSlash) {
+      const day = String((req.body && req.body.text) || "").trim();
+      const host = req.headers["x-forwarded-host"] || req.headers.host;
+      const qs = "date=" + encodeURIComponent(day) + (secret ? "&secret=" + encodeURIComponent(secret) : "");
+      try {
+        const trigger = fetch(`https://${host}/api/daily-report?${qs}`).catch(() => {});
+        await Promise.race([trigger, new Promise(r => setTimeout(r, 600))]); // 요청 발사 보장
+      } catch (e) { /* 무시 */ }
+      res.status(200).json({ response_type: "ephemeral", text: `⏳ ${day || "최신일"} 리포트 생성 중… 곧 #데일리-분석 채널에 올라갑니다.` });
+      return;
+    }
+
     const sheetId = process.env.SHEET_ID;
     if (!sheetId) throw new Error("SHEET_ID 환경변수가 필요합니다.");
     const rawSheet = process.env.RAW_SHEET || "매출raw";
