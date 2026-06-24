@@ -298,7 +298,7 @@ async function generateInsights(a, vid) {
     환불: a.refund ? { 금액: Math.round(a.refund.amt), 율: +a.refund.rate.toFixed(1), 순매출: Math.round(a.refund.net) } : null,
     크리에이터생산성: a.creators ? { 게시: a.creators.posted, 판매발생: a.creators.withSales, 영상: a.creators.videos, 판매영상: a.creators.vidSales } : null,
     채널: a.channels.map(c => ({ 채널: c.t, GMV: Math.round(c.v), 비중: +c.share.toFixed(1), DoD: c.dod, WoW: c.wow })),
-    제품TOP: a.top.map(x => ({ 제품: x.name.slice(0, 40), GMV: Math.round(x.gmv), 광고비: x.cost != null ? Math.round(x.cost) : null, ROI: x.roi != null ? +x.roi.toFixed(1) : null, Std커미션: x.stdRate, 샵애즈커미션: x.adRate, DoD: x.dod, WoW: x.wow, 주문: x.sku })),
+    제품TOP: a.top.map(x => ({ 제품: x.name.slice(0, 40), GMV: Math.round(x.gmv), 광고비: x.cost != null ? Math.round(x.cost) : null, 커미션: x.comm != null ? Math.round(x.comm) : null, "진짜ROI(GMV/광고+커미션)": x.trueRoi != null ? +x.trueRoi.toFixed(1) : null, 환불: x.refundP != null ? Math.round(x.refundP) : null, Std커미션: x.stdRate, 샵애즈커미션: x.adRate, DoD: x.dod, WoW: x.wow, 주문: x.sku })),
     콘텐츠: {
       신규영상: g.newVid, 영상당매출: +(g.affVidG / (g.newVid || 1)).toFixed(2),
       전일영상당: a.p ? +(a.p.affVidG / (a.p.newVid || 1)).toFixed(2) : null,
