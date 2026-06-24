@@ -379,6 +379,22 @@ async function postReport(token, channel, mainText, chunks) {
   return { parent, threadCount: chunks.length };
 }
 
+// 탭을 이름이 아니라 헤더 내용으로 식별 (탭 rename에 견고)
+async function resolveTabs(sheets, sheetId) {
+  const meta = await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: "sheets.properties.title" });
+  const titles = (meta.data.sheets || []).map(s => s.properties.title);
+  const ranges = titles.map(t => `'${t}'!A1:BZ1`);
+  const hb = await sheets.spreadsheets.values.batchGet({ spreadsheetId: sheetId, ranges });
+  const headers = (hb.data.valueRanges || []).map(v => ((v.values && v.values[0]) || []).map(x => String(x).toLowerCase()));
+  const has = (h, kw) => h.some(c => c.includes(kw));
+  const find = pred => { for (let i = 0; i < titles.length; i++) if (headers[i] && pred(headers[i], titles[i])) return titles[i]; return null; };
+  return {
+    raw: find(h => has(h, "gmv range") && has(h, "listing status")),
+    vid: find(h => has(h, "content type") && has(h, "creator username")),
+    ad: find(h => has(h, "지출금액")) || (titles.includes("광고") ? "광고" : null)
+  };
+}
+
 module.exports = async (req, res) => {
   try {
     const isSlash = req.method === "POST" && req.body && (req.body.command || req.body.response_url);
@@ -405,9 +421,6 @@ module.exports = async (req, res) => {
 
     const sheetId = process.env.SHEET_ID;
     if (!sheetId) throw new Error("SHEET_ID 환경변수가 필요합니다.");
-    const rawSheet = process.env.RAW_SHEET || "매출raw";
-    const vidSheet = process.env.VIDEO_SHEET || "매출발생영상";
-    const adSheet = process.env.AD_SHEET || "광고";
     const topN = Math.max(1, parseInt(process.env.TOP_N, 10) || DEFAULT_TOP_N);
 
     // 날짜 파라미터 (쿼리 ?date= 또는 슬래시 커맨드 text)
@@ -431,13 +444,23 @@ module.exports = async (req, res) => {
     }
     const sheets = google.sheets({ version: "v4", auth });
 
-    const resp = await sheets.spreadsheets.values.batchGet({
-      spreadsheetId: sheetId,
-      ranges: [`'${rawSheet}'!A:GZ`, `'${vidSheet}'!A:AE`, `'${adSheet}'!A:J`]
-    });
+    // 탭 이름이 자주 바뀌므로 헤더 내용으로 자동 인식 (env 지정 시 그 값 우선)
+    let rawSheet = process.env.RAW_SHEET, vidSheet = process.env.VIDEO_SHEET, adSheet = process.env.AD_SHEET;
+    if (!rawSheet || !vidSheet || !adSheet) {
+      const det = await resolveTabs(sheets, sheetId);
+      rawSheet = rawSheet || det.raw;
+      vidSheet = vidSheet || det.vid;
+      adSheet = adSheet || det.ad;
+    }
+    if (!rawSheet) throw new Error("제품×일자 매출 탭(헤더에 'GMV range','Listing status')을 찾지 못했습니다.");
+    if (!vidSheet) throw new Error("주문/콘텐츠 매출 탭(헤더에 'Content Type','Creator Username')을 찾지 못했습니다.");
+
+    const ranges = [`'${rawSheet}'!A:GZ`, `'${vidSheet}'!A:AE`];
+    if (adSheet) ranges.push(`'${adSheet}'!A:J`);
+    const resp = await sheets.spreadsheets.values.batchGet({ spreadsheetId: sheetId, ranges });
     const rawRows = (resp.data.valueRanges[0] && resp.data.valueRanges[0].values) || [];
     const vidRows = (resp.data.valueRanges[1] && resp.data.valueRanges[1].values) || [];
-    const adRows = (resp.data.valueRanges[2] && resp.data.valueRanges[2].values) || [];
+    const adRows = (adSheet && resp.data.valueRanges[2] && resp.data.valueRanges[2].values) || [];
 
     const raw = parseRaw(rawRows);
     const keys = Object.keys(raw.byDate).sort();
