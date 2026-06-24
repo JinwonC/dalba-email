@@ -119,7 +119,13 @@ function parseAds(rows) {
   }
   return byDate;
 }
-function aggregate(raw, targetKey, topN, adByDate, commCur) {
+function nearest(map, targetKey) {
+  if (!map) return null;
+  if (map[targetKey]) return map[targetKey];
+  const ek = Object.keys(map).filter(k => k <= targetKey).sort();
+  return ek.length ? map[ek[ek.length - 1]] : null;
+}
+function aggregate(raw, targetKey, topN, adByDate, commCur, afByDate) {
   const { byDate, prod } = raw;
   if (!byDate[targetKey]) throw new Error("해당 날짜 데이터가 없습니다: " + targetKey);
   const cur = byDate[targetKey], g = cur.t;
@@ -134,6 +140,7 @@ function aggregate(raw, targetKey, topN, adByDate, commCur) {
   ].map(([t, k]) => ({ t, v: g[k], share: g.gmv ? g[k] / g.gmv * 100 : 0, dod: dd(k), wow: ww(k) }));
 
   const adCur = adByDate ? adByDate[targetKey] : null;
+  const afCur = nearest(afByDate, targetKey);
   const prodCur = prod[targetKey];
   const totGmv = Object.values(prodCur).reduce((s, x) => s + x.gmv, 0);
   const prodPrev = prevDay ? prod[prevDay.date.key] : {}, prodW = prevWeek ? prod[prevWeek.date.key] : {};
@@ -143,12 +150,16 @@ function aggregate(raw, targetKey, topN, adByDate, commCur) {
     .map(x => {
       const c = adCur && adCur.pid[x.id] != null ? adCur.pid[x.id] : null;
       const cm = commCur && commCur[x.id];
+      const af = afCur && afCur.pid[x.id];
+      const comm = af ? af.comm : null;
+      const mkt = (c || 0) + (comm || 0);
       return {
         ...x, share: totGmv ? x.gmv / totGmv * 100 : 0,
         dod: ddp(x.gmv, prodPrev[x.id] && prodPrev[x.id].gmv),
         wow: ddp(x.gmv, prodW[x.id] && prodW[x.id].gmv),
         pSku: prodPrev[x.id] ? prodPrev[x.id].sku : 0,
         cost: c, roi: c ? x.gmv / c : null,
+        comm, refundP: af ? af.refund : null, trueRoi: mkt ? x.gmv / mkt : null,
         stdRate: cm ? cm.std : null, adRate: cm ? cm.ad : null
       };
     });
@@ -169,8 +180,26 @@ function aggregate(raw, targetKey, topN, adByDate, commCur) {
     week: cWeek ? (w ? w.gmv / cWeek : 0) : null
   } : null;
 
+  // 어필리에이트 비용·환불·크리에이터 생산성 + 통합(진짜) ROI
+  let mkt = null, refund = null, creators = null;
+  if (afCur) {
+    const t = afCur.t, ad = cCur || 0;
+    const total = ad + t.comm + t.flat;
+    const afPrev = prevDay ? nearest(afByDate, prevDay.date.key) : null;
+    const adPrev = cPrev || 0;
+    const prevTotal = afPrev ? adPrev + afPrev.t.comm + afPrev.t.flat : null;
+    mkt = {
+      ad, comm: t.comm, flat: t.flat, samples: t.samples, total,
+      trueRoi: total ? g.gmv / total : null,
+      prevTrueRoi: prevTotal ? (p ? p.gmv / prevTotal : null) : null,
+      commRate: t.afgmv ? t.comm / t.afgmv * 100 : null
+    };
+    refund = { amt: t.refund, rate: g.gmv ? t.refund / g.gmv * 100 : 0, net: g.gmv - t.refund };
+    creators = { posted: t.crPosted, withSales: t.crSales, videos: t.videos, vidSales: t.vidSales, lives: t.lives, liveSales: t.liveSales };
+  }
+
   return {
-    date: cur.date, g, p, w, cost, roi,
+    date: cur.date, g, p, w, cost, roi, mkt, refund, creators,
     prevDay: prevDay && prevDay.date, prevWeek: prevWeek && prevWeek.date,
     dd, ww, channels, top, totGmv, topShare,
     metrics: [
@@ -237,6 +266,25 @@ function parseCommissions(rows) {
   return out;
 }
 
+// ── 제품별 AF(어필리에이트) RAW: 커미션·플랫피·샘플·환불·크리에이터수 ──
+const AF = { date: 0, pid: 2, afgmv: 4, refund: 5, crSales: 10, crPosted: 11, vidSales: 12, liveSales: 13, videos: 14, lives: 15, comm: 16, samples: 17, flat: 18 };
+function parseAffiliate(rows) {
+  const byDate = {};
+  for (const r of rows) {
+    const d = parseDate(r[AF.date]); if (!d) continue;
+    const e = byDate[d.key] || (byDate[d.key] = { t: { comm: 0, flat: 0, samples: 0, refund: 0, afgmv: 0, crPosted: 0, crSales: 0, videos: 0, vidSales: 0, lives: 0, liveSales: 0 }, pid: {} });
+    const t = e.t;
+    t.comm += num(r[AF.comm]); t.flat += num(r[AF.flat]); t.samples += num(r[AF.samples]); t.refund += num(r[AF.refund]); t.afgmv += num(r[AF.afgmv]);
+    t.crPosted += num(r[AF.crPosted]); t.crSales += num(r[AF.crSales]); t.videos += num(r[AF.videos]); t.vidSales += num(r[AF.vidSales]); t.lives += num(r[AF.lives]); t.liveSales += num(r[AF.liveSales]);
+    const pid = String(r[AF.pid] || "").trim();
+    if (pid && pid !== "Product ID") {
+      const p = e.pid[pid] || (e.pid[pid] = { comm: 0, refund: 0, afgmv: 0 });
+      p.comm += num(r[AF.comm]); p.refund += num(r[AF.refund]); p.afgmv += num(r[AF.afgmv]);
+    }
+  }
+  return byDate;
+}
+
 // ── AI 인사이트 한줄평 (ANTHROPIC_API_KEY 있을 때만) ───────────
 async function generateInsights(a, vid) {
   const key = process.env.ANTHROPIC_API_KEY;
@@ -246,6 +294,9 @@ async function generateInsights(a, vid) {
     날짜: a.date.label,
     GMV: { 당일: Math.round(g.gmv), 전일: a.p ? Math.round(a.p.gmv) : null, 전주: a.w ? Math.round(a.w.gmv) : null, DoD: a.dd("gmv"), WoW: a.ww("gmv") },
     광고: a.cost ? { 광고비: Math.round(a.cost.cur), 제품광고비: Math.round(a.cost.product), 라이브광고비: Math.round(a.cost.live), DoD: a.cost.dod, WoW: a.cost.wow, "ROI(전체GMV/광고비)": +a.roi.cur.toFixed(2), 전일ROI: a.roi.prev != null ? +a.roi.prev.toFixed(2) : null } : null,
+    마케팅: a.mkt ? { 총비용: Math.round(a.mkt.total), 광고: Math.round(a.mkt.ad), 커미션: Math.round(a.mkt.comm), "진짜ROI(GMV/마케팅비)": +a.mkt.trueRoi.toFixed(2), 커미션율: a.mkt.commRate != null ? +a.mkt.commRate.toFixed(1) : null } : null,
+    환불: a.refund ? { 금액: Math.round(a.refund.amt), 율: +a.refund.rate.toFixed(1), 순매출: Math.round(a.refund.net) } : null,
+    크리에이터생산성: a.creators ? { 게시: a.creators.posted, 판매발생: a.creators.withSales, 영상: a.creators.videos, 판매영상: a.creators.vidSales } : null,
     채널: a.channels.map(c => ({ 채널: c.t, GMV: Math.round(c.v), 비중: +c.share.toFixed(1), DoD: c.dod, WoW: c.wow })),
     제품TOP: a.top.map(x => ({ 제품: x.name.slice(0, 40), GMV: Math.round(x.gmv), 광고비: x.cost != null ? Math.round(x.cost) : null, ROI: x.roi != null ? +x.roi.toFixed(1) : null, Std커미션: x.stdRate, 샵애즈커미션: x.adRate, DoD: x.dod, WoW: x.wow, 주문: x.sku })),
     콘텐츠: {
@@ -303,6 +354,12 @@ function buildMain(a, ins) {
     o += (a.roi.prev != null) ? ` — 전일 ${a.roi.prev.toFixed(2)}x${a.roi.week != null ? ` · 전주 ${a.roi.week.toFixed(2)}x` : ""}\n` : `\n`;
     o += `   └ 제품 광고비 ${money(a.cost.product)} · 라이브(비제품) 광고비 ${money(a.cost.live)}\n`;
   }
+  if (a.refund) o += `• 순매출 ${money(a.refund.net)} (환불 ${money(a.refund.amt)} · ${a.refund.rate.toFixed(1)}%, AF기준)\n`;
+  if (a.mkt) {
+    o += `• 마케팅비 *${money(a.mkt.total)}* = 광고 ${money(a.mkt.ad)} + 커미션 ${money(a.mkt.comm)}${a.mkt.flat ? ` + 플랫피 ${money(a.mkt.flat)}` : ""}\n`;
+    const contrib = (a.refund ? a.refund.net : g.gmv) - a.mkt.total;
+    o += `• *진짜 ROI ${a.mkt.trueRoi.toFixed(2)}x* _(GMV ÷ 마케팅비)_${a.mkt.prevTrueRoi != null ? ` — 전일 ${a.mkt.prevTrueRoi.toFixed(2)}x` : ""} · 마케팅후 기여 ${money(contrib)}\n`;
+  }
   o += tip("overview") + `\n`;
   // 2
   o += `*2. 채널별 매출* _(귀속 기준, 합 100%)_\n`;
@@ -314,10 +371,12 @@ function buildMain(a, ins) {
   o += `*3. 제품별 매출 TOP ${a.top.length}* _(TOP${a.top.length} = 전체의 ${(a.totGmv ? a.topShare / a.totGmv * 100 : 0).toFixed(0)}%)_\n`;
   a.top.forEach((x, i) => {
     const c = x.cost != null ? money(x.cost) : "-";
-    const r = x.roi != null ? x.roi.toFixed(1) + "x" : "-";
-    const cm = (x.stdRate || x.adRate) ? `커미션 Std ${x.stdRate || "-"}·샵애즈 ${x.adRate || "-"}` : "커미션 -";
+    const cmm = x.comm != null ? money(x.comm) : "-";
+    const tr = x.trueRoi != null ? x.trueRoi.toFixed(1) + "x" : "-";
+    const rf = x.refundP ? money(x.refundP) : "-";
+    const rate = (x.stdRate || x.adRate) ? `${x.stdRate || "-"}/${x.adRate || "-"}` : "-";
     o += `\`${i + 1}.\` ${x.name.slice(0, 40)} — *${money(x.gmv)}* · ${x.sku}주문 (DoD ${x.dod} / WoW ${x.wow})\n`;
-    o += `      광고비 ${c} · ROI ${r} · ${cm}\n`;
+    o += `      광고 ${c} · 커미션 ${cmm} · *진짜ROI ${tr}* · 환불 ${rf} · 요율 ${rate}\n`;
   });
   o += tip("product") + `\n`;
   // 4
@@ -326,6 +385,12 @@ function buildMain(a, ins) {
   o += `• 영상 1건당 매출 *$${(g.affVidG / (g.newVid || 1)).toFixed(2)}*`;
   o += a.p ? ` (전일 $${(a.p.affVidG / (a.p.newVid || 1)).toFixed(2)}${a.w ? ` / 전주 $${(a.w.affVidG / (a.w.newVid || 1)).toFixed(2)}` : ""})\n` : `\n`;
   o += `• 라이브 1건당 $${(g.affLiveG / (g.newLive || 1)).toFixed(2)}\n`;
+  if (a.creators) {
+    const cv = a.creators.posted ? (a.creators.withSales / a.creators.posted * 100).toFixed(0) : "0";
+    o += `• 콘텐츠 게시 크리에이터 ${a.creators.posted}명 → 판매발생 *${a.creators.withSales}명* (${cv}%)\n`;
+    o += `• 영상 ${a.creators.videos}개 중 판매발생 ${a.creators.vidSales}개 · 라이브 ${a.creators.lives}개 중 ${a.creators.liveSales}개\n`;
+  }
+  if (a.mkt) o += `• 어필 커미션 ${money(a.mkt.comm)}${a.mkt.commRate != null ? ` (AF GMV의 ${a.mkt.commRate.toFixed(1)}%)` : ""} · 샘플 발송 ${a.mkt.samples}개\n`;
   o += tip("content") + `\n`;
   // 5
   o += `*5. 전환 퍼널*\n`;
@@ -391,7 +456,8 @@ async function resolveTabs(sheets, sheetId) {
   return {
     raw: find(h => has(h, "gmv range") && has(h, "listing status")),
     vid: find(h => has(h, "content type") && has(h, "creator username")),
-    ad: find(h => has(h, "지출금액")) || (titles.includes("광고") ? "광고" : null)
+    ad: find(h => has(h, "지출금액")) || (titles.includes("광고") ? "광고" : null),
+    af: find(h => has(h, "samples shipped") || (has(h, "est. commission") && has(h, "creators posted content")))
   };
 }
 
@@ -445,22 +511,26 @@ module.exports = async (req, res) => {
     const sheets = google.sheets({ version: "v4", auth });
 
     // 탭 이름이 자주 바뀌므로 헤더 내용으로 자동 인식 (env 지정 시 그 값 우선)
-    let rawSheet = process.env.RAW_SHEET, vidSheet = process.env.VIDEO_SHEET, adSheet = process.env.AD_SHEET;
-    if (!rawSheet || !vidSheet || !adSheet) {
+    let rawSheet = process.env.RAW_SHEET, vidSheet = process.env.VIDEO_SHEET, adSheet = process.env.AD_SHEET, afSheet = process.env.AF_SHEET;
+    if (!rawSheet || !vidSheet || !adSheet || !afSheet) {
       const det = await resolveTabs(sheets, sheetId);
       rawSheet = rawSheet || det.raw;
       vidSheet = vidSheet || det.vid;
       adSheet = adSheet || det.ad;
+      afSheet = afSheet || det.af;
     }
     if (!rawSheet) throw new Error("제품×일자 매출 탭(헤더에 'GMV range','Listing status')을 찾지 못했습니다.");
     if (!vidSheet) throw new Error("주문/콘텐츠 매출 탭(헤더에 'Content Type','Creator Username')을 찾지 못했습니다.");
 
     const ranges = [`'${rawSheet}'!A:GZ`, `'${vidSheet}'!A:AE`];
-    if (adSheet) ranges.push(`'${adSheet}'!A:J`);
+    const adIdx = adSheet ? ranges.push(`'${adSheet}'!A:J`) - 1 : -1;
+    const afIdx = afSheet ? ranges.push(`'${afSheet}'!A:S`) - 1 : -1;
     const resp = await sheets.spreadsheets.values.batchGet({ spreadsheetId: sheetId, ranges });
-    const rawRows = (resp.data.valueRanges[0] && resp.data.valueRanges[0].values) || [];
-    const vidRows = (resp.data.valueRanges[1] && resp.data.valueRanges[1].values) || [];
-    const adRows = (adSheet && resp.data.valueRanges[2] && resp.data.valueRanges[2].values) || [];
+    const vrs = resp.data.valueRanges;
+    const rawRows = (vrs[0] && vrs[0].values) || [];
+    const vidRows = (vrs[1] && vrs[1].values) || [];
+    const adRows = (adIdx >= 0 && vrs[adIdx] && vrs[adIdx].values) || [];
+    const afRows = (afIdx >= 0 && vrs[afIdx] && vrs[afIdx].values) || [];
 
     const raw = parseRaw(rawRows);
     const keys = Object.keys(raw.byDate).sort();
@@ -470,7 +540,7 @@ module.exports = async (req, res) => {
     const commByDate = parseCommissions(vidRows);
     let commCur = commByDate[targetKey];
     if (!commCur) { const ek = Object.keys(commByDate).filter(k => k <= targetKey).sort(); commCur = ek.length ? commByDate[ek[ek.length - 1]] : null; }
-    const agg = aggregate(raw, targetKey, topN, parseAds(adRows), commCur);
+    const agg = aggregate(raw, targetKey, topN, parseAds(adRows), commCur, parseAffiliate(afRows));
     const vid = aggregateVideos(parseVideos(vidRows), targetKey);
     const insights = await generateInsights(agg, vid);
     const mainText = buildMain(agg, insights);
@@ -502,4 +572,4 @@ module.exports = async (req, res) => {
 };
 
 // 테스트용 내부 노출
-module.exports._internals = { num, parseDate, parseRaw, parseAds, parseCommissions, aggregate, parseVideos, aggregateVideos, buildMain, videoChunks, generateInsights };
+module.exports._internals = { num, parseDate, parseRaw, parseAds, parseCommissions, parseAffiliate, aggregate, parseVideos, aggregateVideos, buildMain, videoChunks, generateInsights };
