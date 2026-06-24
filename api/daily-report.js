@@ -29,7 +29,7 @@
 //   POST (Slack 슬래시 커맨드)             → body.text 를 날짜로 사용, 채널에 게시
 
 const DEFAULT_CHANNEL = "C0BAEH36VDX"; // #데일리-분석
-const DEFAULT_TOP_N = 10;
+const DEFAULT_TOP_N = 15;
 const CHUNK_LIMIT = 3800; // Slack 메시지 1건 안전 길이
 
 // ── 매출raw 컬럼 인덱스(고정 레이아웃, 검증됨) ──────────────────
@@ -41,7 +41,7 @@ const R = {
   affLiveG: 103, affVidG: 106, newLive: 115, newVid: 116
 };
 // ── 매출발생영상 컬럼 인덱스 ────────────────────────────────────
-const V = { date: 0, pid: 2, pname: 3, pay: 6, creator: 12, ctype: 13, cid: 14 };
+const V = { date: 0, pid: 2, pname: 3, pay: 6, creator: 12, ctype: 13, cid: 14, std: 16, shop: 21 };
 
 // ── 파서/포맷 헬퍼 ─────────────────────────────────────────────
 function num(v) {
@@ -66,6 +66,7 @@ const clean = s => String(s || "")
   .replace(/\[TikTok Exclusive\]\s*/ig, "")
   .replace(/\[Tiktok Exclusive\]\s*/ig, "").trim();
 const money = x => "$" + Math.round(x || 0).toLocaleString("en-US");
+function modeOf(o) { let b = "-", m = 0; for (const k in o) if (o[k] > m) { m = o[k]; b = k; } return b; }
 const sg = x => (x >= 0 ? "+" : "") + (x || 0).toFixed(0) + "%";
 const pct = (a, b) => (b ? (a - b) / b * 100 : 0);
 const ratePct = (a, b) => (b ? (a / b * 100).toFixed(2) + "%" : "0.00%");
@@ -82,8 +83,8 @@ function parseRaw(rows) {
       t[k] = (t[k] || 0) + num(r[R[k]]);
     const id = String(r[R.id] || "").trim();
     if (id) {
-      const p = prod[d.key][id] || (prod[d.key][id] = { name: clean(r[R.name]), gmv: 0, sku: 0 });
-      p.gmv += num(r[R.gmv]); p.sku += num(r[R.sku]);
+      const p = prod[d.key][id] || (prod[d.key][id] = { name: clean(r[R.name]), gmv: 0, sku: 0, sl: 0 });
+      p.gmv += num(r[R.gmv]); p.sku += num(r[R.sku]); p.sl += num(r[R.sellerLive]);
     }
   }
   return { byDate, prod };
@@ -125,7 +126,7 @@ function nearest(map, targetKey) {
   const ek = Object.keys(map).filter(k => k <= targetKey).sort();
   return ek.length ? map[ek[ek.length - 1]] : null;
 }
-function aggregate(raw, targetKey, topN, adByDate, commCur, afByDate) {
+function aggregate(raw, targetKey, topN, adByDate, commCur, afByDate, liveByDate) {
   const { byDate, prod } = raw;
   if (!byDate[targetKey]) throw new Error("해당 날짜 데이터가 없습니다: " + targetKey);
   const cur = byDate[targetKey], g = cur.t;
@@ -198,8 +199,13 @@ function aggregate(raw, targetKey, topN, adByDate, commCur, afByDate) {
     creators = { posted: t.crPosted, withSales: t.crSales, videos: t.videos, vidSales: t.vidSales, lives: t.lives, liveSales: t.liveSales };
   }
 
+  // 브랜드 라이브 (세션 있는 날만) + 라이브 제품별(Seller LIVE 귀속)
+  const live = (liveByDate && liveByDate[targetKey]) ? liveByDate[targetKey] : null;
+  let liveProd = null;
+  if (live) liveProd = Object.values(prodCur).filter(x => x.sl > 0).map(x => ({ name: x.name, sl: x.sl })).sort((a, b) => b.sl - a.sl).slice(0, 5);
+
   return {
-    date: cur.date, g, p, w, cost, roi, mkt, refund, creators,
+    date: cur.date, g, p, w, cost, roi, mkt, refund, creators, live, liveProd,
     prevDay: prevDay && prevDay.date, prevWeek: prevWeek && prevWeek.date,
     dd, ww, channels, top, totGmv, topShare,
     metrics: [
@@ -236,8 +242,11 @@ function aggregateVideos(vidByDate, targetKey) {
     const p = prod[pk] || (prod[pk] = { name: clean(r[V.pname]), pay: 0, items: {} });
     p.pay += num(r[V.pay]);
     const ck = r[V.ctype] + "|" + r[V.cid] + "|" + r[V.creator];
-    const it = p.items[ck] || (p.items[ck] = { type: r[V.ctype], cid: r[V.cid], creator: r[V.creator], pay: 0, c: 0 });
+    const it = p.items[ck] || (p.items[ck] = { type: r[V.ctype], cid: r[V.cid], creator: r[V.creator], pay: 0, c: 0, org: { cnt: 0, rate: {} }, shop: { cnt: 0, rate: {} } });
     it.pay += num(r[V.pay]); it.c++;
+    const sR = String(r[V.std] || "").trim(), aR = String(r[V.shop] || "").trim();
+    if (aR.includes("%")) { it.shop.cnt++; it.shop.rate[aR] = (it.shop.rate[aR] || 0) + 1; }
+    else if (sR.includes("%")) { it.org.cnt++; it.org.rate[sR] = (it.org.rate[sR] || 0) + 1; }
   }
   const plist = Object.values(prod)
     .map(p => ({ ...p, items: Object.values(p.items).sort((a, b) => b.pay - a.pay) }))
@@ -285,6 +294,23 @@ function parseAffiliate(rows) {
   return byDate;
 }
 
+// ── 브랜드(자사) 라이브 세션 RAW ───────────────────────────────
+const LV = { date: 0, room: 5, dur: 7, gmv: 8, prod: 20, aov: 21, ord: 22, payrate: 23, viewers: 25, ctr: 27, avgview: 29 };
+function durMin(s) { const m = String(s || "").match(/(\d+)\s*h\s*(\d+)\s*m/); return m ? (+m[1] * 60 + +m[2]) : 0; }
+function parseLive(rows) {
+  const byDate = {};
+  for (const r of rows) {
+    const d = parseDate(r[LV.date]); if (!d) continue;
+    if (num(r[LV.gmv]) <= 0) continue;
+    (byDate[d.key] || (byDate[d.key] = [])).push({
+      dur: String(r[LV.dur] || ""), min: durMin(r[LV.dur]), gmv: num(r[LV.gmv]), ord: num(r[LV.ord]),
+      aov: num(r[LV.aov]), viewers: num(r[LV.viewers]), ctr: String(r[LV.ctr] || ""), payrate: String(r[LV.payrate] || ""), avgview: String(r[LV.avgview] || "")
+    });
+  }
+  for (const k in byDate) byDate[k].sort((a, b) => b.gmv - a.gmv);
+  return byDate;
+}
+
 // ── AI 인사이트 한줄평 (ANTHROPIC_API_KEY 있을 때만) ───────────
 async function generateInsights(a, vid) {
   const key = process.env.ANTHROPIC_API_KEY;
@@ -294,11 +320,10 @@ async function generateInsights(a, vid) {
     날짜: a.date.label,
     GMV: { 당일: Math.round(g.gmv), 전일: a.p ? Math.round(a.p.gmv) : null, 전주: a.w ? Math.round(a.w.gmv) : null, DoD: a.dd("gmv"), WoW: a.ww("gmv") },
     광고: a.cost ? { 광고비: Math.round(a.cost.cur), 제품광고비: Math.round(a.cost.product), 라이브광고비: Math.round(a.cost.live), DoD: a.cost.dod, WoW: a.cost.wow, "ROI(전체GMV/광고비)": +a.roi.cur.toFixed(2), 전일ROI: a.roi.prev != null ? +a.roi.prev.toFixed(2) : null } : null,
-    마케팅: a.mkt ? { 총비용: Math.round(a.mkt.total), 광고: Math.round(a.mkt.ad), 커미션: Math.round(a.mkt.comm), "진짜ROI(GMV/마케팅비)": +a.mkt.trueRoi.toFixed(2), 커미션율: a.mkt.commRate != null ? +a.mkt.commRate.toFixed(1) : null } : null,
-    환불: a.refund ? { 금액: Math.round(a.refund.amt), 율: +a.refund.rate.toFixed(1), 순매출: Math.round(a.refund.net) } : null,
     크리에이터생산성: a.creators ? { 게시: a.creators.posted, 판매발생: a.creators.withSales, 영상: a.creators.videos, 판매영상: a.creators.vidSales } : null,
+    브랜드라이브: (a.live && a.live.length) ? { 세션: a.live.length, GMV: Math.round(a.live.reduce((s, x) => s + x.gmv, 0)), 시청자: a.live.reduce((s, x) => s + x.viewers, 0), "GMV/시간": Math.round((a.live.reduce((s, x) => s + x.gmv, 0)) / (a.live.reduce((s, x) => s + x.min, 0) / 60 || 1)) } : null,
     채널: a.channels.map(c => ({ 채널: c.t, GMV: Math.round(c.v), 비중: +c.share.toFixed(1), DoD: c.dod, WoW: c.wow })),
-    제품TOP: a.top.map(x => ({ 제품: x.name.slice(0, 40), GMV: Math.round(x.gmv), 광고비: x.cost != null ? Math.round(x.cost) : null, 커미션: x.comm != null ? Math.round(x.comm) : null, "진짜ROI(GMV/광고+커미션)": x.trueRoi != null ? +x.trueRoi.toFixed(1) : null, 환불: x.refundP != null ? Math.round(x.refundP) : null, Std커미션: x.stdRate, 샵애즈커미션: x.adRate, DoD: x.dod, WoW: x.wow, 주문: x.sku })),
+    제품TOP: a.top.map(x => ({ 제품: x.name.slice(0, 40), GMV: Math.round(x.gmv), 광고비: x.cost != null ? Math.round(x.cost) : null, "ROI(GMV/광고비)": x.roi != null ? +x.roi.toFixed(1) : null, DoD: x.dod, WoW: x.wow, 주문: x.sku })),
     콘텐츠: {
       신규영상: g.newVid, 영상당매출: +(g.affVidG / (g.newVid || 1)).toFixed(2),
       전일영상당: a.p ? +(a.p.affVidG / (a.p.newVid || 1)).toFixed(2) : null,
@@ -317,7 +342,7 @@ async function generateInsights(a, vid) {
     "한국어 한 문장으로 작성하라. 규칙: (1) 반드시 수치 근거 포함, (2) 일반론·뻔한 말 금지, " +
     "(3) 하락/이상 신호엔 추정 원인이나 액션 1개 덧붙이기, (4) 각 문장 60자 내외, " +
     "(5) 모든 금액 단위는 USD 달러이며 표기는 반드시 \"$1,234\" 형식(원/천원 절대 금지).\n" +
-    "출력은 JSON만: {\"overview\":\"\",\"channel\":\"\",\"product\":\"\",\"content\":\"\",\"funnel\":\"\"}\n\n" +
+    "출력은 JSON만: {\"overview\":\"\",\"channel\":\"\",\"product\":\"\",\"content\":\"\",\"funnel\":\"\",\"live\":\"\"}\n\n" +
     JSON.stringify(ctx);
   try {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
@@ -354,12 +379,6 @@ function buildMain(a, ins) {
     o += (a.roi.prev != null) ? ` — 전일 ${a.roi.prev.toFixed(2)}x${a.roi.week != null ? ` · 전주 ${a.roi.week.toFixed(2)}x` : ""}\n` : `\n`;
     o += `   └ 제품 광고비 ${money(a.cost.product)} · 라이브(비제품) 광고비 ${money(a.cost.live)}\n`;
   }
-  if (a.refund) o += `• 순매출 ${money(a.refund.net)} (환불 ${money(a.refund.amt)} · ${a.refund.rate.toFixed(1)}%, AF기준)\n`;
-  if (a.mkt) {
-    o += `• 마케팅비 *${money(a.mkt.total)}* = 광고 ${money(a.mkt.ad)} + 커미션 ${money(a.mkt.comm)}${a.mkt.flat ? ` + 플랫피 ${money(a.mkt.flat)}` : ""}\n`;
-    const contrib = (a.refund ? a.refund.net : g.gmv) - a.mkt.total;
-    o += `• *진짜 ROI ${a.mkt.trueRoi.toFixed(2)}x* _(GMV ÷ 마케팅비)_${a.mkt.prevTrueRoi != null ? ` — 전일 ${a.mkt.prevTrueRoi.toFixed(2)}x` : ""} · 마케팅후 기여 ${money(contrib)}\n`;
-  }
   o += tip("overview") + `\n`;
   // 2
   o += `*2. 채널별 매출* _(귀속 기준, 합 100%)_\n`;
@@ -371,12 +390,8 @@ function buildMain(a, ins) {
   o += `*3. 제품별 매출 TOP ${a.top.length}* _(TOP${a.top.length} = 전체의 ${(a.totGmv ? a.topShare / a.totGmv * 100 : 0).toFixed(0)}%)_\n`;
   a.top.forEach((x, i) => {
     const c = x.cost != null ? money(x.cost) : "-";
-    const cmm = x.comm != null ? money(x.comm) : "-";
-    const tr = x.trueRoi != null ? x.trueRoi.toFixed(1) + "x" : "-";
-    const rf = x.refundP ? money(x.refundP) : "-";
-    const rate = (x.stdRate || x.adRate) ? `${x.stdRate || "-"}/${x.adRate || "-"}` : "-";
-    o += `\`${i + 1}.\` ${x.name.slice(0, 40)} — *${money(x.gmv)}* · ${x.sku}주문 (DoD ${x.dod} / WoW ${x.wow})\n`;
-    o += `      광고 ${c} · 커미션 ${cmm} · *진짜ROI ${tr}* · 환불 ${rf} · 요율 ${rate}\n`;
+    const r = x.roi != null ? x.roi.toFixed(1) + "x" : "-";
+    o += `\`${i + 1}.\` ${x.name.slice(0, 42)} — *${money(x.gmv)}* · ${x.sku}주문 (DoD ${x.dod} / WoW ${x.wow}) · 광고 ${c} · ROI ${r}\n`;
   });
   o += tip("product") + `\n`;
   // 4
@@ -390,7 +405,7 @@ function buildMain(a, ins) {
     o += `• 콘텐츠 게시 크리에이터 ${a.creators.posted}명 → 판매발생 *${a.creators.withSales}명* (${cv}%)\n`;
     o += `• 영상 ${a.creators.videos}개 중 판매발생 ${a.creators.vidSales}개 · 라이브 ${a.creators.lives}개 중 ${a.creators.liveSales}개\n`;
   }
-  if (a.mkt) o += `• 어필 커미션 ${money(a.mkt.comm)}${a.mkt.commRate != null ? ` (AF GMV의 ${a.mkt.commRate.toFixed(1)}%)` : ""} · 샘플 발송 ${a.mkt.samples}개\n`;
+  if (a.mkt) o += `• 샘플 발송 ${a.mkt.samples}개\n`;
   o += tip("content") + `\n`;
   // 5
   o += `*5. 전환 퍼널*\n`;
@@ -398,22 +413,38 @@ function buildMain(a, ins) {
   if (a.w && a.p)
     o += `• 장바구니율 추이 ${a.prevWeek.md}→${a.prevDay.md}→${a.date.md}: ${ratePct(a.w.atc, a.w.clk)} → ${ratePct(a.p.atc, a.p.clk)} → ${ratePct(g.atc, g.clk)}\n`;
   o += tip("funnel");
+  o += `\n🧵 _6. 제품별 매출 발생 영상(오가닉/샵애즈)은 이 메시지의 스레드 참고_\n`;
+  // 7. 브랜드 라이브 (세션 있는 날만, 맨 아래)
+  if (a.live && a.live.length) {
+    const tg = a.live.reduce((s, x) => s + x.gmv, 0), tv = a.live.reduce((s, x) => s + x.viewers, 0),
+      to = a.live.reduce((s, x) => s + x.ord, 0), tmin = a.live.reduce((s, x) => s + x.min, 0);
+    o += `\n*7. 🔴 브랜드 라이브 (${a.date.label})*\n`;
+    o += `전체 · ${a.live.length}세션 · ${(tmin / 60).toFixed(1)}h · GMV *${money(tg)}* · 시청자 ${tv.toLocaleString()} · 주문 ${to} · GMV/시간 *${money(tmin ? tg / (tmin / 60) : 0)}*\n`;
+    for (const s of a.live)
+      o += `• ${s.dur} · *${money(s.gmv)}* · ${s.ord}주문 · AOV $${s.aov.toFixed(0)} · 시청자 ${s.viewers.toLocaleString()} · CTR ${s.ctr} · 결제율 ${s.payrate} · 평균시청 ${s.avgview}분\n`;
+    if (a.liveProd && a.liveProd.length) {
+      o += `라이브 제품 TOP ${a.liveProd.length} _(Seller LIVE 귀속 GMV)_\n`;
+      a.liveProd.forEach((p, i) => o += `${i + 1}. ${p.name.slice(0, 40)} — ${money(p.sl)}\n`);
+    }
+    o += tip("live");
+  }
   return o;
 }
 
 function videoChunks(v, reportDate) {
   if (!v) return [];
   const note = v.key !== reportDate ? `  ⚠️ _(영상 데이터는 ${v.dateKey.label} 기준)_` : "";
-  let header = `*📹 6. 매출 발생 영상 (제품별 · ${v.dateKey.label})*${note}\n> 콘텐츠 귀속 매출 ${money(v.totalPay)} · 영상 ${money(v.videoPay)} / 제품 ${v.plist.length}개\n\n`;
+  let header = `*📹 6. 매출 발생 영상 (제품별 · ${v.dateKey.label})*${note}\n> 콘텐츠 귀속 매출 ${money(v.totalPay)} · 영상 ${money(v.videoPay)} / 제품 ${v.plist.length}개 · (오가닉=스탠다드 커미션, 샵애즈=광고)\n\n`;
   const blocks = v.plist.map(pr => {
     let b = `*${money(pr.pay)} — ${pr.name.slice(0, 70)}* _(${pr.items.length}콘텐츠)_\n`;
     for (const it of pr.items) {
-      if (it.type === "Video") {
-        const link = `https://www.tiktok.com/@${it.creator}/video/${it.cid}`;
-        b += `• ${money(it.pay)} · ${it.c}건 · <${link}|@${it.creator}> \`${it.cid}\`\n`;
-      } else {
-        b += `• ${money(it.pay)} · ${it.c}건 · @${it.creator} _(${it.type})_\n`;
-      }
+      const seg = [];
+      if (it.org.cnt) seg.push(`오가닉(${modeOf(it.org.rate)}) ${it.org.cnt}건`);
+      if (it.shop.cnt) seg.push(`샵애즈(${modeOf(it.shop.rate)}) ${it.shop.cnt}건`);
+      const who = it.type === "Video"
+        ? `<https://www.tiktok.com/@${it.creator}/video/${it.cid}|@${it.creator}>`
+        : `@${it.creator} _(${it.type})_`;
+      b += `• ${money(it.pay)} · ${who} · ${seg.join(" · ") || "-"}\n`;
     }
     return b;
   });
@@ -457,7 +488,8 @@ async function resolveTabs(sheets, sheetId) {
     raw: find(h => has(h, "gmv range") && has(h, "listing status")),
     vid: find(h => has(h, "content type") && has(h, "creator username")),
     ad: find(h => has(h, "지출금액")) || (titles.includes("광고") ? "광고" : null),
-    af: find(h => has(h, "samples shipped") || (has(h, "est. commission") && has(h, "creators posted content")))
+    af: find(h => has(h, "samples shipped") || (has(h, "est. commission") && has(h, "creators posted content"))),
+    live: find(h => has(h, "live duration") && (has(h, "room id") || has(h, "live-attributed gmv")))
   };
 }
 
@@ -511,13 +543,14 @@ module.exports = async (req, res) => {
     const sheets = google.sheets({ version: "v4", auth });
 
     // 탭 이름이 자주 바뀌므로 헤더 내용으로 자동 인식 (env 지정 시 그 값 우선)
-    let rawSheet = process.env.RAW_SHEET, vidSheet = process.env.VIDEO_SHEET, adSheet = process.env.AD_SHEET, afSheet = process.env.AF_SHEET;
-    if (!rawSheet || !vidSheet || !adSheet || !afSheet) {
+    let rawSheet = process.env.RAW_SHEET, vidSheet = process.env.VIDEO_SHEET, adSheet = process.env.AD_SHEET, afSheet = process.env.AF_SHEET, liveSheet = process.env.LIVE_SHEET;
+    if (!rawSheet || !vidSheet || !adSheet || !afSheet || !liveSheet) {
       const det = await resolveTabs(sheets, sheetId);
       rawSheet = rawSheet || det.raw;
       vidSheet = vidSheet || det.vid;
       adSheet = adSheet || det.ad;
       afSheet = afSheet || det.af;
+      liveSheet = liveSheet || det.live;
     }
     if (!rawSheet) throw new Error("제품×일자 매출 탭(헤더에 'GMV range','Listing status')을 찾지 못했습니다.");
     if (!vidSheet) throw new Error("주문/콘텐츠 매출 탭(헤더에 'Content Type','Creator Username')을 찾지 못했습니다.");
@@ -525,12 +558,14 @@ module.exports = async (req, res) => {
     const ranges = [`'${rawSheet}'!A:GZ`, `'${vidSheet}'!A:AE`];
     const adIdx = adSheet ? ranges.push(`'${adSheet}'!A:J`) - 1 : -1;
     const afIdx = afSheet ? ranges.push(`'${afSheet}'!A:S`) - 1 : -1;
+    const liveIdx = liveSheet ? ranges.push(`'${liveSheet}'!A:AD`) - 1 : -1;
     const resp = await sheets.spreadsheets.values.batchGet({ spreadsheetId: sheetId, ranges });
     const vrs = resp.data.valueRanges;
     const rawRows = (vrs[0] && vrs[0].values) || [];
     const vidRows = (vrs[1] && vrs[1].values) || [];
     const adRows = (adIdx >= 0 && vrs[adIdx] && vrs[adIdx].values) || [];
     const afRows = (afIdx >= 0 && vrs[afIdx] && vrs[afIdx].values) || [];
+    const liveRows = (liveIdx >= 0 && vrs[liveIdx] && vrs[liveIdx].values) || [];
 
     const raw = parseRaw(rawRows);
     const keys = Object.keys(raw.byDate).sort();
@@ -540,7 +575,7 @@ module.exports = async (req, res) => {
     const commByDate = parseCommissions(vidRows);
     let commCur = commByDate[targetKey];
     if (!commCur) { const ek = Object.keys(commByDate).filter(k => k <= targetKey).sort(); commCur = ek.length ? commByDate[ek[ek.length - 1]] : null; }
-    const agg = aggregate(raw, targetKey, topN, parseAds(adRows), commCur, parseAffiliate(afRows));
+    const agg = aggregate(raw, targetKey, topN, parseAds(adRows), commCur, parseAffiliate(afRows), parseLive(liveRows));
     const vid = aggregateVideos(parseVideos(vidRows), targetKey);
     const insights = await generateInsights(agg, vid);
     const mainText = buildMain(agg, insights);
@@ -572,4 +607,4 @@ module.exports = async (req, res) => {
 };
 
 // 테스트용 내부 노출
-module.exports._internals = { num, parseDate, parseRaw, parseAds, parseCommissions, parseAffiliate, aggregate, parseVideos, aggregateVideos, buildMain, videoChunks, generateInsights };
+module.exports._internals = { num, parseDate, parseRaw, parseAds, parseCommissions, parseAffiliate, parseLive, aggregate, parseVideos, aggregateVideos, buildMain, videoChunks, generateInsights };
