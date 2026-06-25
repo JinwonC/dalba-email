@@ -474,6 +474,15 @@ async function postReport(token, channel, mainText, chunks) {
   for (const c of chunks) await slackPost(token, channel, c, parent);
   return { parent, threadCount: chunks.length };
 }
+// 같은 날짜 리포트가 채널에 이미 있으면 true (중복 방지). 권한 없으면 false로 진행.
+async function alreadyPosted(token, channel, label) {
+  try {
+    const r = await fetch(`https://slack.com/api/conversations.history?channel=${channel}&limit=40`, { headers: { authorization: `Bearer ${token}` } });
+    const d = await r.json();
+    if (!d.ok) return false;
+    return (d.messages || []).some(m => (m.text || "").includes("리포트 — " + label));
+  } catch (e) { return false; }
+}
 
 // 탭을 이름이 아니라 헤더 내용으로 식별 (탭 rename에 견고)
 async function resolveTabs(sheets, sheetId) {
@@ -508,7 +517,7 @@ module.exports = async (req, res) => {
     if (isSlash) {
       const day = String((req.body && req.body.text) || "").trim();
       const host = req.headers["x-forwarded-host"] || req.headers.host;
-      const qs = "date=" + encodeURIComponent(day) + (secret ? "&secret=" + encodeURIComponent(secret) : "");
+      const qs = "date=" + encodeURIComponent(day) + "&force=1" + (secret ? "&secret=" + encodeURIComponent(secret) : "");
       try {
         const trigger = fetch(`https://${host}/api/daily-report?${qs}`).catch(() => {});
         await Promise.race([trigger, new Promise(r => setTimeout(r, 600))]); // 요청 발사 보장
@@ -591,6 +600,16 @@ module.exports = async (req, res) => {
     const token = process.env.SLACK_BOT_TOKEN;
     if (!token) throw new Error("SLACK_BOT_TOKEN 환경변수가 필요합니다.");
     const channel = process.env.SLACK_CHANNEL || DEFAULT_CHANNEL;
+
+    // 중복 방지: 자동(cron)이고 같은 날짜 리포트가 이미 채널에 있으면 건너뜀
+    // (수동=슬래시(force=1)/?date=/?force=1 는 항상 게시)
+    const isAuto = !wantDate && !isSlash && !(req.query && req.query.force);
+    if (isAuto && await alreadyPosted(token, channel, agg.date.label)) {
+      res.setHeader("Cache-Control", "no-store");
+      res.status(200).json({ skipped: true, reason: "이미 게시됨", date: agg.date.label });
+      return;
+    }
+
     const sent = await postReport(token, channel, mainText, chunks);
 
     if (isSlash) {
