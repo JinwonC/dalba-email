@@ -41,7 +41,7 @@ const R = {
   affLiveG: 103, affVidG: 106, newLive: 115, newVid: 116
 };
 // ── 매출발생영상 컬럼 인덱스 ────────────────────────────────────
-const V = { date: 0, pid: 2, pname: 3, pay: 6, creator: 12, ctype: 13, cid: 14, std: 16, shop: 21 };
+const V = { date: 0, pid: 2, pname: 3, sku: 4, price: 5, pay: 6, qty: 8, creator: 12, ctype: 13, cid: 14, std: 16, shop: 21 };
 
 // ── 파서/포맷 헬퍼 ─────────────────────────────────────────────
 function num(v) {
@@ -85,12 +85,13 @@ function parseRaw(rows) {
     if (id) {
       const p = prod[d.key][id] || (prod[d.key][id] = {
         name: clean(r[R.name]), gmv: 0, sku: 0, orders: 0, items: 0, cust: 0,
-        sl: 0, sv: 0, aff: 0, pc: 0, imp: 0, clk: 0, atc: 0, newVid: 0, newLive: 0
+        sl: 0, sv: 0, aff: 0, avid: 0, alive: 0, pc: 0, imp: 0, clk: 0, atc: 0, newVid: 0, newLive: 0
       });
       p.gmv += num(r[R.gmv]); p.sku += num(r[R.sku]);
       p.orders += num(r[R.orders]); p.items += num(r[R.items]); p.cust += num(r[R.cust]);
       p.sl += num(r[R.sellerLive]); p.sv += num(r[R.sellerVideo]);
       p.aff += num(r[R.affiliate]); p.pc += num(r[R.productCard]);
+      p.avid += num(r[R.affVidG]); p.alive += num(r[R.affLiveG]);
       p.imp += num(r[R.imp]); p.clk += num(r[R.clk]); p.atc += num(r[R.atc]);
       p.newVid += num(r[R.newVid]); p.newLive += num(r[R.newLive]);
     }
@@ -144,8 +145,9 @@ function aggregate(raw, targetKey, topN, adByDate, commCur, afByDate, liveByDate
   const ww = (k) => w ? sg(pct(g[k], w[k])) : "–";
 
   const channels = [
-    ["Affiliate(크리에이터)", "affiliate"], ["Product Card", "productCard"],
-    ["Seller Video", "sellerVideo"], ["Seller LIVE", "sellerLive"]
+    ["Affiliate Video", "affVidG"], ["Affiliate LIVE", "affLiveG"],
+    ["Seller Video", "sellerVideo"], ["Seller LIVE", "sellerLive"],
+    ["Product Card", "productCard"]
   ].map(([t, k]) => ({ t, v: g[k], share: g.gmv ? g[k] / g.gmv * 100 : 0, dod: dd(k), wow: ww(k) }));
 
   const adCur = adByDate ? adByDate[targetKey] : null;
@@ -250,9 +252,15 @@ function aggregateVideos(vidByDate, targetKey) {
   for (const r of rows) {
     const pk = r[V.pid] || r[V.pname];
     const pid = String(r[V.pid] || "").trim();
-    const p = prod[pk] || (prod[pk] = { name: clean(r[V.pname]), pid, pay: 0, org: 0, shop: 0, items: {} });
+    const p = prod[pk] || (prod[pk] = { name: clean(r[V.pname]), pid, pay: 0, org: 0, shop: 0, items: {}, skus: {} });
     const pay = num(r[V.pay]);
     p.pay += pay;
+    // SKU(변형)별 판매금액·수량·건수
+    const skuId = String(r[V.sku] || "").trim();
+    if (skuId) {
+      const sk = p.skus[skuId] || (p.skus[skuId] = { sku: skuId, pay: 0, qty: 0, cnt: 0 });
+      sk.pay += pay; sk.qty += num(r[V.qty]); sk.cnt++;
+    }
     const ck = r[V.ctype] + "|" + r[V.cid] + "|" + r[V.creator];
     const it = p.items[ck] || (p.items[ck] = { type: r[V.ctype], cid: r[V.cid], creator: r[V.creator], pay: 0, c: 0, org: { cnt: 0, rate: {} }, shop: { cnt: 0, rate: {} } });
     it.pay += pay; it.c++;
@@ -272,7 +280,7 @@ function aggregateVideos(vidByDate, targetKey) {
     byType[tp] = (byType[tp] || 0) + pay;
   }
   const plist = Object.values(prod)
-    .map(p => ({ ...p, items: Object.values(p.items).sort((a, b) => b.pay - a.pay) }))
+    .map(p => ({ ...p, items: Object.values(p.items).sort((a, b) => b.pay - a.pay), skus: Object.values(p.skus).sort((a, b) => b.pay - a.pay) }))
     .sort((a, b) => b.pay - a.pay);
   const totalPay = rows.reduce((s, r) => s + num(r[V.pay]), 0);
   const videoPay = rows.filter(r => r[V.ctype] === "Video").reduce((s, r) => s + num(r[V.pay]), 0);
@@ -419,7 +427,7 @@ function buildMain(a, ins) {
   o += `*2. 채널별 매출* _(귀속 기준, 합 100%)_\n`;
   for (const c of a.channels)
     o += `• ${c.t} *${money(c.v)}* (${c.share.toFixed(1)}%) · DoD ${c.dod} / WoW ${c.wow}\n`;
-  o += `   └ Affiliate 내부: Video ${money(g.affVidG)} · LIVE ${money(g.affLiveG)}  |  오가닉 스토어탭 ${money(g.shopGmv)}\n`;
+  o += `   └ 오가닉 스토어탭 ${money(g.shopGmv)}\n`;
   o += tip("channel") + `\n`;
   // 3
   o += `*3. 제품별 매출 TOP ${a.top.length}* _(TOP${a.top.length} = 전체의 ${(a.totGmv ? a.topShare / a.totGmv * 100 : 0).toFixed(0)}%)_\n`;
@@ -553,7 +561,9 @@ function buildJson(agg, raw, adByDate, ins, vid) {
       atcRate: t.clk ? +(t.atc / t.clk * 100).toFixed(1) : null,
       ctr: t.imp ? +(t.clk / t.imp * 100).toFixed(2) : null,
       conv: t.uclk ? +(t.cust / t.uclk * 100).toFixed(2) : null,
-      affiliate: Math.round(t.affiliate), productCard: Math.round(t.productCard),
+      orderConv: t.clk ? +(t.sku / t.clk * 100).toFixed(2) : null,
+      affVideo: Math.round(t.affVidG), affLive: Math.round(t.affLiveG),
+      productCard: Math.round(t.productCard),
       sellerVideo: Math.round(t.sellerVideo), sellerLive: Math.round(t.sellerLive)
     };
   });
@@ -578,10 +588,11 @@ function buildJson(agg, raw, adByDate, ins, vid) {
 
   const products = agg.top.map((x, rank) => {
     const chan = [
-      { name: "Affiliate", v: Math.round(x.aff || 0) },
-      { name: "Product Card", v: Math.round(x.pc || 0) },
+      { name: "Affiliate Video", v: Math.round(x.avid || 0) },
+      { name: "Affiliate LIVE", v: Math.round(x.alive || 0) },
       { name: "Seller Video", v: Math.round(x.sv || 0) },
-      { name: "Seller LIVE", v: Math.round(x.sl || 0) }
+      { name: "Seller LIVE", v: Math.round(x.sl || 0) },
+      { name: "Product Card", v: Math.round(x.pc || 0) }
     ];
     const vp = vidByPid[x.id];
     const revVideos = vp ? vp.items.slice(0, 15).map(it => ({
@@ -616,7 +627,8 @@ function buildJson(agg, raw, adByDate, ins, vid) {
       } : null,
       revVideoCount: vp ? vp.items.length : 0,
       revVideoPay: vp ? Math.round(vp.pay) : 0,
-      revVideos
+      revVideos,
+      skus: vp && vp.skus ? vp.skus.slice(0, 12).map(s => ({ sku: s.sku, pay: Math.round(s.pay), qty: Math.round(s.qty), cnt: s.cnt })) : []
     };
   });
 
