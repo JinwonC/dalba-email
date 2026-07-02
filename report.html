@@ -49,6 +49,9 @@
   tr:last-child td{border-bottom:none}
   .tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:6px;background:var(--grid);color:var(--muted)}
   .funnel{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center}
+  .funnel.five{grid-template-columns:repeat(5,1fr)}
+  @media (max-width:560px){.funnel.five{grid-template-columns:repeat(3,1fr)}}
+  .mlgd b{color:var(--ink);font-weight:700}
   .fstage{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 6px}
   .fstage .fv{font-size:19px;font-weight:750} .fstage .fl{font-size:11.5px;color:var(--muted)} .fstage .fc{font-size:11px;color:var(--s1);margin-top:3px}
   .live{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
@@ -104,7 +107,7 @@ const qs=new URLSearchParams(location.search);
 const dateParam=qs.get("date")||"";
 Chart.defaults.font.family=getComputedStyle(document.body).fontFamily;
 Chart.defaults.animation=false;
-let PAL={};
+let PAL={}, DATA=null;
 
 async function load(){
   try{
@@ -153,12 +156,20 @@ function render(d){
     ${["overview","channel","product","content","funnel","live"].filter(x=>d.insights[x]).map(x=>`<div class="ins">${esc(d.insights[x])}</div>`).join("")}</div>`:"";
 
   const f=d.funnel;
-  const funnelHtml=`<div class="card"><h3>🛒 전환 퍼널</h3><div class="cap">노출 → 클릭 → 장바구니 → 주문</div>
-    <div class="funnel">
-      <div class="fstage"><div class="fl">노출</div><div class="fv">${nf(f.impressions)}</div></div>
+  const funnelHtml=`<div class="card"><h3>🛒 전환 퍼널</h3><div class="cap">노출 → 클릭 → 방문자 → 장바구니 → 주문 · 단계별 전환율(%)</div>
+    <div class="chartbox sm"><canvas id="cFunnel"></canvas></div>
+    <div class="funnel five" style="margin-top:12px">
+      <div class="fstage"><div class="fl">노출</div><div class="fv">${nf(f.impressions)}</div><div class="fc">100%</div></div>
       <div class="fstage"><div class="fl">클릭</div><div class="fv">${nf(f.clicks)}</div><div class="fc">CTR ${f.ctr}%</div></div>
-      <div class="fstage"><div class="fl">장바구니</div><div class="fv">${nf(f.atc)}</div><div class="fc">${f.atcRate}%</div></div>
+      <div class="fstage"><div class="fl">방문자</div><div class="fv">${nf(f.visitors)}</div><div class="fc">순클릭</div></div>
+      <div class="fstage"><div class="fl">장바구니</div><div class="fv">${nf(f.atc)}</div><div class="fc">장바구니율 ${f.atcRate}%</div></div>
       <div class="fstage"><div class="fl">주문</div><div class="fv">${nf(f.orders)}</div><div class="fc">주문전환 ${f.orderConv}%</div></div>
+    </div>
+    <div class="mlgd" style="margin-top:10px;font-size:11.5px">
+      <span>CTR(노출→클릭) <b>${f.ctr}%</b></span>
+      <span>CVR(방문→구매) <b>${f.ctor}%</b></span>
+      <span>장바구니→주문 <b>${f.atcToOrder}%</b></span>
+      <span>구매자 <b>${nf(f.buyers)}</b></span>
     </div></div>`;
 
   const sec1=sect("🏬","전체 스토어 매출 분석",`${d.series.length}일 추이`)+kpis+
@@ -218,11 +229,16 @@ function render(d){
       <div class="stat"><div class="sl">커미션율(표준/광고)</div><div class="sv" style="font-size:13px">${p.stdRate||"-"} / ${p.adRate||"-"}</div></div>
     </div>`;
     const funnel=`<div class="funnel" style="margin-top:6px">
-      <div class="fstage"><div class="fl">노출</div><div class="fv">${nf(p.funnel.imp)}</div></div>
+      <div class="fstage"><div class="fl">노출</div><div class="fv">${nf(p.funnel.imp)}</div><div class="fc">100%</div></div>
       <div class="fstage"><div class="fl">클릭</div><div class="fv">${nf(p.funnel.clk)}</div><div class="fc">CTR ${p.funnel.ctr}%</div></div>
-      <div class="fstage"><div class="fl">장바구니</div><div class="fv">${nf(p.funnel.atc)}</div><div class="fc">${p.funnel.atcRate}%</div></div>
-      <div class="fstage"><div class="fl">주문</div><div class="fv">${nf(p.funnel.sku)}</div><div class="fc">${p.funnel.orderConv}%</div></div>
+      <div class="fstage"><div class="fl">장바구니</div><div class="fv">${nf(p.funnel.atc)}</div><div class="fc">장바구니율 ${p.funnel.atcRate}%</div></div>
+      <div class="fstage"><div class="fl">주문</div><div class="fv">${nf(p.funnel.sku)}</div><div class="fc">주문전환 ${p.funnel.orderConv}%</div></div>
     </div>`;
+    const charts=`<div class="grid2" style="margin-top:6px">
+      <div><div class="subh">14일 추이 — GMV · 광고비</div><div class="chartbox sm"><canvas id="ptr${p.rank}"></canvas></div></div>
+      <div><div class="subh">14일 추이 — ROI · 주문</div><div class="chartbox sm"><canvas id="por${p.rank}"></canvas></div></div>
+    </div>
+    <div class="subh">전환 퍼널 (단계별 전환율)</div><div class="chartbox sm"><canvas id="pfn${p.rank}"></canvas></div>`;
     const afHtml=af?`<div class="subh">크리에이터·콘텐츠 (Affiliate)</div>
       <div class="statrow">
         <div class="stat"><div class="sl">게시 크리에이터</div><div class="sv">${af.crPosted}</div></div>
@@ -241,14 +257,15 @@ function render(d){
         <td>${v.org?`${v.org}건 <span class="muted">(${v.orgRate||"-"})</span>`:"-"}</td>
         <td>${v.shop?`${v.shop}건 <span class="muted">(${v.shopRate||"-"})</span>`:"-"}</td></tr>`).join("")}
       </table></div>`:`<div class="cap" style="margin-top:10px">이 제품의 매출 발생 영상 데이터 없음</div>`;
-    return `<details class="pd" ${i===0?"open":""}>
+    return `<details class="pd" data-rank="${p.rank}" ${i===0?"open":""}>
       <summary><span class="chev">▶</span><span class="prk">${p.rank}</span>
         <span class="pnm">${esc(p.name)}</span>
         <span class="pgm">${usd(p.gmv)} <span class="muted" style="font-weight:400">(${p.share}%)</span>${roiBadge}</span></summary>
       <div class="pdbody">
         ${stats}
+        <div class="subh">매출 추이 · 퍼널</div>${charts}
         <div class="subh">채널별 매출 분해</div>${chanSeg}
-        <div class="subh">전환 퍼널</div>${funnel}
+        <div class="subh">전환 퍼널 (수치)</div>${funnel}
         ${afHtml}
         ${rv}
       </div></details>`;
@@ -297,22 +314,36 @@ function render(d){
   let sec5="";
   if(d.live && d.live.sessions && d.live.sessions.length){
     const L=d.live;
-    sec5=sect("🔴","브랜드 라이브",`${L.sessions.length}세션`)+
-      `<div class="card"><h3>🔴 라이브 전체 요약</h3>
-      <div class="cap">${L.sessions.length}세션 · ${(L.minutes/60).toFixed(1)}h · GMV ${usd(L.gmv)} · 시청자 ${nf(L.viewers)} · 주문 ${nf(L.orders)} · GMV/시간 ${usd(L.gmv/(L.minutes/60||1))}</div>
-      <div class="live">${L.sessions.map(s=>`<div class="lcard"><div class="lt">${s.dur} · ${usd(s.gmv)}</div>
-        <div class="lm">${s.ord}주문 · AOV $${Math.round(s.aov)}<br>시청자 ${nf(s.viewers)} · CTR ${s.ctr}<br>결제율 ${s.payrate} · 평균시청 ${s.avgview}분</div></div>`).join("")}</div>
-      ${L.products&&L.products.length?`<table style="margin-top:14px"><tr><th>라이브 제품 TOP</th><th>Seller LIVE GMV</th></tr>
-        ${L.products.map(p=>`<tr><td>${esc(p.name)}</td><td>${usd(p.sl)}</td></tr>`).join("")}</table>`:""}
+    const lkpi=`<div class="kpis" style="margin-bottom:14px">
+      ${kpi("세션",L.sessions.length+"회",`총 ${(L.minutes/60).toFixed(1)}시간`)}
+      ${kpi("라이브 GMV",usd(L.gmv),"")}
+      ${kpi("시청자",nf(L.viewers),"누적")}
+      ${kpi("주문",nf(L.orders),"")}
+      ${kpi("GMV/시간",usd(L.gmv/(L.minutes/60||1)),"시간당 매출")}
     </div>`;
+    const charts=`<div class="grid2">
+      <div class="card"><h3>💰 세션별 GMV</h3><div class="cap">방송 회차별 (USD)</div><div class="chartbox sm"><canvas id="cLiveGmv"></canvas></div></div>
+      <div class="card"><h3>👥 세션별 시청자</h3><div class="cap">방송 회차별 누적 시청자</div><div class="chartbox sm"><canvas id="cLiveEng"></canvas></div></div>
+    </div>`;
+    const prodChart=L.products&&L.products.length?`<div class="card"><h3>📦 라이브 제품 TOP</h3><div class="cap">Seller LIVE 귀속 GMV</div>
+      <div class="chartbox sm"><canvas id="cLiveProd"></canvas></div></div>`:"";
+    const detail=`<div class="card"><h3>🔴 세션 상세</h3>
+      <div class="live">${L.sessions.map((s,i)=>`<div class="lcard"><div class="lt">세션 ${i+1} · ${s.dur} · ${usd(s.gmv)}</div>
+        <div class="lm">${s.ord}주문 · AOV $${Math.round(s.aov)}<br>시청자 ${nf(s.viewers)} · CTR ${s.ctr}<br>결제율 ${s.payrate} · 평균시청 ${s.avgview}분</div></div>`).join("")}</div></div>`;
+    sec5=sect("🔴","브랜드 라이브",`${L.sessions.length}세션 · GMV ${usd(L.gmv)}`)+lkpi+charts+prodChart+detail;
   }
 
+  DATA=d;
   $("#app").innerHTML = sec1 + sec2 + sec3 + sec4 + sec5;
+  // 제품 딥다이브 펼칠 때 해당 제품 차트 지연 렌더
+  document.querySelectorAll("details.pd").forEach(el=>{
+    el.addEventListener("toggle",()=>{ if(el.open) drawProductCharts(+el.getAttribute("data-rank")); });
+  });
   drawCharts(d);
 }
 
 function drawCharts(d){
-  const {S1,S2,S3,S4,S5,ink,muted,grid,card}=PAL;
+  const {S1,S2,S3,S4,S5,S6,ink,muted,grid,card}=PAL;
   const gridCfg={grid:{color:grid},ticks:{color:muted},border:{color:grid}};
   const lgd={labels:{color:ink,boxWidth:12,usePointStyle:true,pointStyle:"rectRounded"}};
 
@@ -363,6 +394,76 @@ function drawCharts(d){
       datasets:[{label:"매출",data:d.content.mix.map(m=>m.pay),backgroundColor:d.content.mix.map((m,i)=>chCols[i%chCols.length]),borderRadius:4}]},
       options:{indexAxis:"y",maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>usd(c.raw)}}},scales:{x:{...gridCfg,ticks:{color:muted,callback:usdk}},y:{grid:{display:false},ticks:{color:ink}}}}});
   }
+
+  // store funnel (단계별 전환율)
+  const F=d.funnel;
+  drawFunnel("cFunnel",[
+    {label:"CTR (노출→클릭)",pct:F.ctr},
+    {label:"방문전환 (클릭→방문)",pct:F.visitors&&F.clicks?+(F.visitors/F.clicks*100).toFixed(2):0},
+    {label:"장바구니율 (방문→장바구니)",pct:F.visitors?+(F.atc/F.visitors*100).toFixed(2):F.atcRate},
+    {label:"주문전환 (장바구니→주문)",pct:F.atcToOrder},
+    {label:"구매전환 CVR (방문→구매)",pct:F.ctor}
+  ]);
+
+  // brand live charts
+  if(d.live && d.live.sessions && d.live.sessions.length){
+    const L=d.live, labs=L.sessions.map((s,i)=>"세션 "+(i+1));
+    new Chart($("#cLiveGmv"),{type:"bar",data:{labels:labs,
+      datasets:[{label:"GMV",data:L.sessions.map(s=>Math.round(s.gmv)),backgroundColor:S6||S1,borderRadius:4}]},
+      options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>usd(c.raw)+" · "+L.sessions[c.dataIndex].dur}}},scales:{x:gridCfg,y:{...gridCfg,ticks:{color:muted,callback:usdk}}}}});
+    new Chart($("#cLiveEng"),{type:"bar",data:{labels:labs,
+      datasets:[{label:"시청자",data:L.sessions.map(s=>s.viewers),backgroundColor:S1,borderRadius:4}]},
+      options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>"시청자 "+nf(c.raw)+" · 주문 "+nf(L.sessions[c.dataIndex].ord)}}},scales:{x:gridCfg,y:gridCfg}}});
+    if(L.products && L.products.length)
+      new Chart($("#cLiveProd"),{type:"bar",data:{labels:L.products.map(p=>p.name.length>34?p.name.slice(0,32)+"…":p.name),
+        datasets:[{label:"Seller LIVE GMV",data:L.products.map(p=>Math.round(p.sl)),backgroundColor:S4,borderRadius:4}]},
+        options:{indexAxis:"y",maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>usd(c.raw)}}},scales:{x:{...gridCfg,ticks:{color:muted,callback:usdk}},y:{grid:{display:false},ticks:{color:ink,font:{size:11}}}}}});
+  }
+
+  // 펼쳐진 제품(첫 항목) 차트 즉시 렌더 + 펼칠 때마다 지연 렌더
+  drawOpenProducts();
+}
+
+// 단계별 전환율 가로 막대 (범용: store/product 공용)
+function drawFunnel(id, steps){
+  const el=$("#"+id); if(!el) return;
+  const {S1,muted,grid,ink}=PAL;
+  new Chart(el,{type:"bar",data:{labels:steps.map(s=>s.label),
+    datasets:[{data:steps.map(s=>s.pct),backgroundColor:S1,borderRadius:4}]},
+    options:{indexAxis:"y",maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw+"%"}}},
+      scales:{x:{grid:{color:grid},border:{color:grid},ticks:{color:muted,callback:v=>v+"%"}},y:{grid:{display:false},ticks:{color:ink,font:{size:11}}}}}});
+}
+
+// 제품 딥다이브 차트 (지연 렌더) — data-drawn 플래그로 1회만
+const drawnProd={};
+function drawProductCharts(rank){
+  if(drawnProd[rank]) return; drawnProd[rank]=true;
+  const p=(DATA.products||[]).find(x=>x.rank===rank); if(!p||!p.series) return;
+  const {S1,S2,S3,muted,grid,ink}=PAL;
+  const gridCfg={grid:{color:grid},ticks:{color:muted},border:{color:grid}};
+  const lgd={labels:{color:ink,boxWidth:12,usePointStyle:true,pointStyle:"rectRounded"}};
+  const labs=p.series.map(s=>s.date);
+  // GMV + 광고비
+  if($("#ptr"+rank)) new Chart($("#ptr"+rank),{type:"bar",data:{labels:labs,
+    datasets:[{label:"GMV",data:p.series.map(s=>s.gmv),backgroundColor:S1,borderRadius:3},
+      {label:"광고비",data:p.series.map(s=>s.cost),backgroundColor:S3,borderRadius:3}]},
+    options:{maintainAspectRatio:false,plugins:{legend:lgd,tooltip:{callbacks:{label:c=>c.dataset.label+": "+usd(c.raw)}}},scales:{x:gridCfg,y:{...gridCfg,ticks:{color:muted,callback:usdk}}}}});
+  // ROI 추이 (단일축) — 막대 위 툴팁에 주문수 병기
+  if($("#por"+rank)) new Chart($("#por"+rank),{type:"line",data:{labels:labs,
+    datasets:[{label:"ROI",data:p.series.map(s=>s.roi),borderColor:S1,backgroundColor:S1,borderWidth:2,tension:.3,pointRadius:2,spanGaps:true}]},
+    options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>"ROI "+(c.raw==null?"-":c.raw+"x")+" · 주문 "+nf(p.series[c.dataIndex].orders)}}},
+      scales:{x:gridCfg,y:{...gridCfg,ticks:{color:muted,callback:v=>v+"x"}}}}});
+  // 퍼널
+  const f=p.funnel;
+  drawFunnel("pfn"+rank,[
+    {label:"CTR (노출→클릭)",pct:f.ctr},
+    {label:"장바구니율 (클릭→장바구니)",pct:f.atcRate},
+    {label:"주문전환 (장바구니→주문)",pct:f.atc?+(f.sku/f.atc*100).toFixed(2):0}
+  ]);
+}
+function drawOpenProducts(){
+  document.querySelectorAll("details.pd[open]").forEach(el=>drawProductCharts(+el.getAttribute("data-rank")));
 }
 
 $("#datepick").addEventListener("change",e=>{
