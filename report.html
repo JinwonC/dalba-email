@@ -86,6 +86,19 @@
   .chev{transition:transform .15s} details[open] .chev{transform:rotate(90deg)}
   .vlink{font-size:12px}
   .muted{color:var(--muted)}
+  /* 이상 신호 */
+  .alerts{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px}
+  .alert{border:1px solid var(--border);border-left:3px solid var(--faint);border-radius:9px;padding:9px 11px;background:var(--surface);font-size:12.5px}
+  .alert.g{border-left-color:var(--up)} .alert.b{border-left-color:var(--down)}
+  .alert .am{font-weight:700} .alert .ad{color:var(--muted);font-size:11.5px;margin-top:2px}
+  /* 히트맵 */
+  .hmwrap{overflow-x:auto}
+  .hm{border-collapse:separate;border-spacing:2px;font-size:11px}
+  .hm td,.hm th{padding:0;text-align:center}
+  .hm th{color:var(--muted);font-weight:600;font-size:10px;padding:2px 3px;white-space:nowrap}
+  .hm .rl{text-align:left;color:var(--ink);padding-right:8px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .hm .cell{width:26px;height:22px;border-radius:3px;color:#fff;font-size:9.5px;line-height:22px}
+  .flag{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:5px;background:rgba(27,175,122,.16);color:var(--s2);margin-left:6px}
 </style>
 </head>
 <body data-palette="#2a78d6,#1baf7a,#eda100,#008300,#4a3aa7">
@@ -176,7 +189,17 @@ function render(d){
       <span>구매자 <b>${nf(f.buyers)}</b></span>
     </div></div>`;
 
-  const sec1=sect("🏬","전체 스토어 매출 분석",`${d.series.length}일 추이`)+kpis+
+  // 이상 신호 + 예측
+  const fcHtml=d.forecast?`<div class="alert ${d.forecast.trend==="up"?"g":"b"}"><div class="am">🔮 익일 GMV 예상 ${usd(d.forecast.next)}</div><div class="ad">최근 7일 추세 기반 · 7일 평균 ${usd(d.forecast.ma7)}</div></div>`:"";
+  const anoms=(d.anomalies||[]).map(a=>{
+    const arrow=a.dir==="up"?"▲":"▼"; const sign=a.change>0?"+":"";
+    const val=a.unit==="$"?usd(a.value):(a.unit===""?nf(a.value):a.value+a.unit);
+    return `<div class="alert ${a.good?"g":"b"}"><div class="am">${arrow} ${a.metric} ${sign}${a.change}% <span class="muted" style="font-weight:400">(${val})</span></div><div class="ad">7일 평균 대비 ${a.good?"긍정적":"주의"}</div></div>`;
+  }).join("");
+  const alertHtml=(anoms||fcHtml)?`<div class="card"><h3>🚨 이상 신호 · 예측</h3><div class="cap">최근일이 직전 7일 평균에서 ±25% 이상 벗어난 지표</div>
+    <div class="alerts">${fcHtml}${anoms||'<div class="alert"><div class="am">특이 신호 없음</div><div class="ad">모든 지표가 정상 범위</div></div>'}</div></div>`:"";
+
+  const sec1=sect("🏬","전체 스토어 매출 분석",`${d.series.length}일 추이`)+kpis+alertHtml+
     `<div class="grid2">
       <div class="card"><h3>📈 GMV · 광고비 추이</h3><div class="cap">일별 (USD)</div><div class="chartbox"><canvas id="cTrend"></canvas></div></div>
       <div class="card"><h3>📉 ROI 추이</h3><div class="cap">GMV ÷ 광고비</div><div class="chartbox"><canvas id="cRoi"></canvas></div></div>
@@ -184,6 +207,14 @@ function render(d){
     <div class="grid2">
       <div class="card"><h3>🧾 주문 · 구매자 추이</h3><div class="cap">일별 건수</div><div class="chartbox"><canvas id="cOrders"></canvas></div></div>
       <div class="card"><h3>💳 AOV · 구매전환율 추이</h3><div class="cap">객단가($) / 전환율(%)</div><div class="chartbox"><canvas id="cAov"></canvas></div></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h3>🌱 오가닉 vs 샵애즈(광고) 매출 추이</h3><div class="cap">콘텐츠 귀속 · 오가닉=스탠다드 커미션, 샵애즈=GMV Max 광고 (누적)</div><div class="chartbox"><canvas id="cOrgShop"></canvas></div></div>
+      <div class="card"><h3>💸 마케팅 원가율 추이</h3><div class="cap">(광고비+커미션+샘플+플랫피) ÷ GMV</div><div class="chartbox"><canvas id="cMkt"></canvas></div></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h3>🛍 오가닉 스토어탭 매출 추이</h3><div class="cap">Shop tab GMV (자연 유입)</div><div class="chartbox"><canvas id="cShopTab"></canvas></div></div>
+      <div class="card"><h3>🗓 주차별 매출</h3><div class="cap">최근 ${d.weekly?d.weekly.length:0}주 · GMV/광고비</div><div class="chartbox"><canvas id="cWeekly"></canvas></div></div>
     </div>`+funnelHtml+insHtml;
 
   // ── 2. 채널별 분석 ─────────────────────────────────────
@@ -202,6 +233,33 @@ function render(d){
       ${chanTable}
     </div>
     <div class="card"><h3>📊 채널별 매출 추이 (누적)</h3><div class="cap">Affiliate / Product Card / Seller Video / Seller LIVE — 일별 (USD)</div><div class="chartbox tall"><canvas id="cChanTrend"></canvas></div></div>`;
+
+  // ── 2.5 심화 분석 ──────────────────────────────────────
+  const campTable=(d.campaigns&&d.campaigns.length)?`<div class="card"><h3>📣 캠페인별 광고 효율 (당일)</h3><div class="cap">지출·주문·CPO(주문당 광고비) · 매출은 스토어 전체로 잡혀 제외</div>
+    <div style="overflow-x:auto"><table>
+    <tr><th>캠페인</th><th>제품</th><th>지출</th><th>주문</th><th>CPO</th></tr>
+    ${d.campaigns.map(c=>`<tr><td class="muted">${esc(c.id)}</td><td>${esc((c.product||"-").slice(0,40))}</td><td>${usd(c.spend)}</td><td>${nf(c.orders)}</td><td>${c.cpo!=null?"$"+c.cpo:"-"}</td></tr>`).join("")}
+    </table></div></div>`:"";
+  const refundCard=`<div class="card"><h3>↩️ 환불·반품 분석</h3><div class="cap">환불율 추이 + 당일 환불 상위 제품 (환불은 며칠 지연 반영)</div>
+    <div class="chartbox sm"><canvas id="cRefund"></canvas></div>
+    ${(d.refundTop&&d.refundTop.length)?`<div style="overflow-x:auto;margin-top:10px"><table>
+      <tr><th>제품</th><th>환불액</th><th>GMV</th><th>환불율</th></tr>
+      ${d.refundTop.map(r=>`<tr><td>${esc(r.name)}</td><td>${usd(r.refund)}</td><td>${usd(r.gmv)}</td><td>${r.rate}%</td></tr>`).join("")}
+    </table></div>`:`<div class="cap" style="margin-top:8px">당일 환불 발생 제품 없음 (환불은 보통 며칠 뒤 반영)</div>`}</div>`;
+  const pareto=d.pareto;
+  const secAdv=sect("🧪","심화 분석","파레토 · 기여도 · 캠페인 · 환불 · 상관")+
+    `<div class="grid2">
+      <div class="card"><h3>📈 파레토 (매출 집중도)</h3><div class="cap">상위 ${pareto.p50||"–"}개 제품 = 매출 50% · 상위 ${pareto.p80||"–"}개 = 80% (전체 ${pareto.count}개)</div><div class="chartbox"><canvas id="cPareto"></canvas></div></div>
+      <div class="card"><h3>🌊 매출 증감 기여 (전일 대비)</h3><div class="cap">전일 ${usd(d.waterfall.start)} → 당일 ${usd(d.waterfall.end)} · 제품별 ± 기여</div><div class="chartbox"><canvas id="cWaterfall"></canvas></div></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h3>🔻 퍼널 전환율 WoW</h3><div class="cap">이번 기준일 vs 전주 (%)</div><div class="chartbox sm"><canvas id="cFunnelWoW"></canvas></div></div>
+      <div class="card"><h3>🎯 제품별 CTR vs 구매전환</h3><div class="cap">버블 크기=노출 · 우하단=트래픽多 전환低(개선대상)</div><div class="chartbox"><canvas id="cScatter"></canvas></div></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h3>🎬 신규 콘텐츠 vs 매출</h3><div class="cap">일별 신규 영상 수(x) 대비 GMV(y)</div><div class="chartbox sm"><canvas id="cContentGmv"></canvas></div></div>
+      ${refundCard}
+    </div>`+campTable;
 
   // ── 3. 제품별 세부 분석 (GMV TOP N) ───────────────────
   const prodTable=`<div class="card"><h3>📦 제품별 매출 TOP ${d.products.length}</h3><div class="cap">GMV·비중·광고비·ROI·커미션율·증감</div>
@@ -232,6 +290,9 @@ function render(d){
       <div class="stat"><div class="sl">ROI</div><div class="sv">${p.roi!=null?p.roi+"x":"-"}</div></div>
       <div class="stat"><div class="sl">커미션</div><div class="sv">${p.comm!=null?usd(p.comm):"-"}</div></div>
       <div class="stat"><div class="sl">커미션율(표준/광고)</div><div class="sv" style="font-size:13px">${p.stdRate||"-"} / ${p.adRate||"-"}</div></div>
+      <div class="stat"><div class="sl">광고의존도(광고비/GMV)</div><div class="sv">${p.adRatio!=null?p.adRatio+"%":"-"}</div></div>
+      <div class="stat"><div class="sl">환불율</div><div class="sv">${p.refundRate}%</div></div>
+      <div class="stat"><div class="sl">크리에이터 집중도</div><div class="sv" style="font-size:13px">${p.topCreator?("@"+esc(p.topCreator)+" "+p.topCreatorShare+"%"):"-"}</div></div>
     </div>`;
     const funnel=`<div class="funnel" style="margin-top:6px">
       <div class="fstage"><div class="fl">노출</div><div class="fv">${nf(p.funnel.imp)}</div><div class="fc">100%</div></div>
@@ -277,10 +338,34 @@ function render(d){
       </div></details>`;
   }).join("");
 
+  // 제품 × 날짜 매출 히트맵 (products[].series 활용)
+  const hmDates=(d.products[0]&&d.products[0].series)?d.products[0].series.map(s=>s.date):[];
+  const hmMax=Math.max(1,...d.products.flatMap(p=>(p.series||[]).map(s=>s.gmv)));
+  const heat=`<div class="card"><h3>🔥 제품 × 날짜 매출 히트맵</h3><div class="cap">진할수록 그날 매출 큼 (14일) · 색: 제품 전체 최대치 기준</div>
+    <div class="hmwrap"><table class="hm"><tr><th class="rl">제품</th>${hmDates.map(dt=>`<th>${dt}</th>`).join("")}</tr>
+    ${d.products.map(p=>`<tr><td class="rl" title="${esc(p.name)}">${esc(p.name.length>28?p.name.slice(0,26)+"…":p.name)}</td>
+      ${(p.series||[]).map(s=>{const t=s.gmv/hmMax;const bg=`hsl(212 68% ${(90-t*52).toFixed(0)}% / ${(0.15+t*0.85).toFixed(2)})`;return `<td><div class="cell" style="background:${bg};color:${t>0.5?"#fff":"var(--ink)"}" title="${p.name} ${s.date}: ${usd(s.gmv)}">${s.gmv>=1000?Math.round(s.gmv/1000)+"k":(s.gmv||"")}</div></td>`;}).join("")}</tr>`).join("")}
+    </table></div></div>`;
+
+  // 커미션 인상 여지 테이블 (잘 팔리는데 표준 커미션 낮은 제품)
+  const pnum=r=>{const m=String(r||"").match(/([\d.]+)/);return m?+m[1]:null;};
+  const headroom=d.products.map(p=>({...p,_std:pnum(p.stdRate)})).filter(p=>p._std!=null)
+    .map(p=>({name:p.name,gmv:p.gmv,std:p.stdRate,ad:p.adRate,roi:p.roi,flag:(p._std<=20&&(p.roi==null||p.roi>=3))}));
+  const headTable=headroom.length?`<div class="card"><h3>💡 커미션 인상 여지</h3><div class="cap">표준 커미션 ≤20% + ROI 양호 → 커미션 올려 크리에이터 더 유치할 여지 <span class="flag">여지</span></div>
+    <div style="overflow-x:auto"><table>
+    <tr><th>제품</th><th>GMV</th><th>표준 커미션</th><th>광고 커미션</th><th>ROI</th></tr>
+    ${headroom.map(h=>`<tr><td>${esc(h.name)}${h.flag?'<span class="flag">여지</span>':""}</td><td>${usd(h.gmv)}</td><td>${h.std||"-"}</td><td>${h.ad||"-"}</td><td>${h.roi!=null?h.roi+"x":"-"}</td></tr>`).join("")}
+    </table></div></div>`:"";
+
   const sec3=sect("📦","제품별 세부 분석",`GMV TOP ${d.products.length}`)+
-    `<div class="card"><h3>🏆 제품별 GMV</h3><div class="cap">TOP ${d.products.length} · 막대 클릭 없이 아래 카드에서 상세</div><div class="chartbox tall"><canvas id="cProd"></canvas></div></div>`+
+    `<div class="grid2">
+      <div class="card"><h3>🍩 제품별 매출 비중</h3><div class="cap">전체 스토어 GMV 대비 (상위 8 + 기타)</div><div class="chartbox"><canvas id="cProd"></canvas></div></div>
+      <div class="card"><h3>🧭 광고 효율 4분면</h3><div class="cap">x=광고비, y=ROI · 우상단=확대, 우하단=개선, 좌상단=효율굿(예산↑ 여지)</div><div class="chartbox"><canvas id="cQuad"></canvas></div></div>
+    </div>`+
+    heat+
     prodTable+
-    `<div class="cap" style="margin:14px 0 8px;font-weight:600">▾ 제품별 상세 (펼쳐보기 — 채널분해·퍼널·크리에이터·매출영상)</div>`+
+    headTable+
+    `<div class="cap" style="margin:14px 0 8px;font-weight:600">▾ 제품별 상세 (펼쳐보기 — 추이·퍼널·SKU·채널·크리에이터·매출영상)</div>`+
     deep;
 
   // ── 4. 콘텐츠·크리에이터 분석 (MD/마케터) ──────────────
@@ -340,7 +425,7 @@ function render(d){
   }
 
   DATA=d;
-  $("#app").innerHTML = sec1 + sec2 + sec3 + sec4 + sec5;
+  $("#app").innerHTML = sec1 + sec2 + secAdv + sec3 + sec4 + sec5;
   // 제품 딥다이브 펼칠 때 해당 제품 차트 지연 렌더
   document.querySelectorAll("details.pd").forEach(el=>{
     el.addEventListener("toggle",()=>{ if(el.open) drawProductCharts(+el.getAttribute("data-rank")); });
@@ -409,6 +494,54 @@ function drawCharts(d){
       datasets:[{label:"매출",data:d.content.mix.map(m=>m.pay),backgroundColor:d.content.mix.map((m,i)=>chCols[i%chCols.length]),borderRadius:4}]},
       options:{indexAxis:"y",maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>usd(c.raw)}}},scales:{x:{...gridCfg,ticks:{color:muted,callback:usdk}},y:{grid:{display:false},ticks:{color:ink}}}}});
   }
+
+  // 오가닉 vs 샵애즈 매출 추이 (누적 영역)
+  if($("#cOrgShop")) new Chart($("#cOrgShop"),{type:"line",data:{labels:d.series.map(s=>s.date),
+    datasets:[{label:"오가닉(스탠다드)",data:d.series.map(s=>s.org),backgroundColor:S2+"55",borderColor:S2,borderWidth:2,fill:true,tension:.3,pointRadius:0,spanGaps:true},
+      {label:"샵애즈(광고)",data:d.series.map(s=>s.shop),backgroundColor:S1+"55",borderColor:S1,borderWidth:2,fill:true,tension:.3,pointRadius:0,spanGaps:true}]},
+    options:{maintainAspectRatio:false,plugins:{legend:lgd,tooltip:{callbacks:{label:c=>c.dataset.label+": "+usd(c.raw)}}},scales:{x:gridCfg,y:{...gridCfg,stacked:true,ticks:{color:muted,callback:usdk}}}}});
+  // 마케팅 원가율 추이
+  if($("#cMkt")) new Chart($("#cMkt"),{type:"line",data:{labels:d.series.map(s=>s.date),
+    datasets:[{label:"마케팅 원가율",data:d.series.map(s=>s.mktRatio),borderColor:S6||S1,backgroundColor:S6||S1,borderWidth:2,tension:.3,pointRadius:2,spanGaps:true}]},
+    options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw+"%"}}},scales:{x:gridCfg,y:{...gridCfg,ticks:{color:muted,callback:v=>v+"%"}}}}});
+  // 오가닉 스토어탭 GMV 추이
+  if($("#cShopTab")) new Chart($("#cShopTab"),{type:"line",data:{labels:d.series.map(s=>s.date),
+    datasets:[{label:"Shop tab GMV",data:d.series.map(s=>s.shopGmv),borderColor:S2,backgroundColor:S2+"33",borderWidth:2,fill:true,tension:.3,pointRadius:0,spanGaps:true}]},
+    options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>usd(c.raw)}}},scales:{x:gridCfg,y:{...gridCfg,ticks:{color:muted,callback:usdk}}}}});
+  // 주차별 매출
+  if($("#cWeekly")&&d.weekly) new Chart($("#cWeekly"),{type:"bar",data:{labels:d.weekly.map(w=>w.label),
+    datasets:[{label:"GMV",data:d.weekly.map(w=>w.gmv),backgroundColor:S1,borderRadius:4},{label:"광고비",data:d.weekly.map(w=>w.spend),backgroundColor:S3,borderRadius:4}]},
+    options:{maintainAspectRatio:false,plugins:{legend:lgd,tooltip:{callbacks:{label:c=>c.dataset.label+": "+usd(c.raw)}}},scales:{x:gridCfg,y:{...gridCfg,ticks:{color:muted,callback:usdk}}}}});
+
+  // 파레토 곡선
+  if($("#cPareto")&&d.pareto) new Chart($("#cPareto"),{data:{labels:d.pareto.points.map(p=>p.rank),
+    datasets:[{type:"line",label:"누적 매출 비중",data:d.pareto.points.map(p=>p.cum),borderColor:S1,backgroundColor:S1,borderWidth:2,tension:.2,pointRadius:0,yAxisID:"y"}]},
+    options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:c=>d.pareto.points[c[0].dataIndex].name.slice(0,40),label:c=>"누적 "+c.raw+"% (제품 "+(c.dataIndex+1)+"개)"}}},scales:{x:{...gridCfg,title:{display:true,text:"제품 순위",color:muted}},y:{...gridCfg,max:100,ticks:{color:muted,callback:v=>v+"%"}}}}});
+  // 워터폴 (전일 대비 제품 기여)
+  if($("#cWaterfall")&&d.waterfall) new Chart($("#cWaterfall"),{type:"bar",data:{labels:d.waterfall.items.map(x=>x.name.length>18?x.name.slice(0,16)+"…":x.name),
+    datasets:[{label:"기여",data:d.waterfall.items.map(x=>x.delta),backgroundColor:d.waterfall.items.map(x=>x.delta>=0?S2:(S6||S4)),borderRadius:3}]},
+    options:{indexAxis:"y",maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:c=>d.waterfall.items[c[0].dataIndex].name,label:c=>(c.raw>=0?"+":"")+usd(c.raw)}}},scales:{x:{...gridCfg,ticks:{color:muted,callback:usdk}},y:{grid:{display:false},ticks:{color:ink,font:{size:10}}}}}});
+  // 퍼널 WoW
+  if($("#cFunnelWoW")&&d.funnelWoW){const F=d.funnelWoW;const ds=[{label:"이번",data:F.thisW,backgroundColor:S1,borderRadius:4}];if(F.lastW)ds.push({label:"전주",data:F.lastW,backgroundColor:S3,borderRadius:4});
+    new Chart($("#cFunnelWoW"),{type:"bar",data:{labels:F.stages,datasets:ds},
+    options:{maintainAspectRatio:false,plugins:{legend:lgd,tooltip:{callbacks:{label:c=>c.dataset.label+": "+c.raw+"%"}}},scales:{x:gridCfg,y:{...gridCfg,ticks:{color:muted,callback:v=>v+"%"}}}}});}
+  // CTR vs CVR 버블
+  if($("#cScatter")){const mi=Math.max(1,...d.products.map(p=>p.funnel.imp));
+    new Chart($("#cScatter"),{type:"bubble",data:{datasets:d.products.map((p,i)=>({label:p.name,data:[{x:p.funnel.ctr,y:p.funnel.orderConv,r:6+Math.sqrt(p.funnel.imp/mi)*18}],backgroundColor:blues(d.products.length)[i]+"cc"}))},
+    options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>d.products[c.datasetIndex].name.slice(0,30)+" · CTR "+c.raw.x+"% / 주문전환 "+c.raw.y+"%"}}},scales:{x:{...gridCfg,title:{display:true,text:"CTR %",color:muted},ticks:{color:muted,callback:v=>v+"%"}},y:{...gridCfg,title:{display:true,text:"주문전환 %",color:muted},ticks:{color:muted,callback:v=>v+"%"}}}}});}
+  // 신규 콘텐츠 vs 매출 산점
+  if($("#cContentGmv")) new Chart($("#cContentGmv"),{type:"scatter",data:{datasets:[{label:"일자",data:d.series.map(s=>({x:s.newVid,y:s.gmv})),backgroundColor:S1+"cc"}]},
+    options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>"신규영상 "+c.raw.x+"개 · GMV "+usd(c.raw.y)}}},scales:{x:{...gridCfg,title:{display:true,text:"신규 영상 수",color:muted}},y:{...gridCfg,ticks:{color:muted,callback:usdk}}}}});
+  // 환불율 추이
+  if($("#cRefund")) new Chart($("#cRefund"),{type:"line",data:{labels:d.series.map(s=>s.date),
+    datasets:[{label:"환불율",data:d.series.map(s=>s.refundRate),borderColor:S6||S4,backgroundColor:(S6||S4)+"33",borderWidth:2,fill:true,tension:.3,pointRadius:2,spanGaps:true}]},
+    options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw+"% · "+usd(d.series[c.dataIndex].refund)}}},scales:{x:gridCfg,y:{...gridCfg,ticks:{color:muted,callback:v=>v+"%"}}}}});
+  // 광고효율 4분면
+  if($("#cQuad")){const pts=d.products.filter(p=>p.cost!=null&&p.roi!=null);
+    new Chart($("#cQuad"),{type:"bubble",data:{datasets:[
+      {label:"ROI≥3",data:pts.filter(p=>p.roi>=3).map(p=>({x:p.cost,y:p.roi,r:8+Math.sqrt(p.gmv/(d.kpis.gmv||1))*22,n:p.name})),backgroundColor:S2+"cc"},
+      {label:"ROI<3",data:pts.filter(p=>p.roi<3).map(p=>({x:p.cost,y:p.roi,r:8+Math.sqrt(p.gmv/(d.kpis.gmv||1))*22,n:p.name})),backgroundColor:(S6||S3)+"cc"}]},
+    options:{maintainAspectRatio:false,plugins:{legend:lgd,tooltip:{callbacks:{label:c=>c.raw.n.slice(0,30)+" · 광고비 "+usd(c.raw.x)+" / ROI "+c.raw.y+"x"}}},scales:{x:{...gridCfg,title:{display:true,text:"광고비 $",color:muted},ticks:{color:muted,callback:usdk}},y:{...gridCfg,title:{display:true,text:"ROI",color:muted},ticks:{color:muted,callback:v=>v+"x"}}}}});}
 
   // store funnel — 전환율 추이 (여러 선)
   drawRateTrend("cFunnel",d.series.map(s=>s.date),[

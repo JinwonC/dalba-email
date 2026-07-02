@@ -37,7 +37,9 @@ const R = {
   date: 0, name: 1, id: 2, status: 4, gmv: 5,
   sellerLive: 6, sellerVideo: 9, affiliate: 12, productCard: 19,
   orders: 20, sku: 21, items: 22, cust: 23,
-  imp: 25, clk: 26, atc: 28, uimp: 31, uclk: 32, shopGmv: 50,
+  imp: 25, clk: 26, atc: 28, uimp: 31, uclk: 32,
+  refund: 41, refItems: 42, refCust: 43,
+  shopImp: 44, shopClk: 45, shopGmv: 50,
   affLiveG: 103, affVidG: 106, newLive: 115, newVid: 116
 };
 // ── 매출발생영상 컬럼 인덱스 ────────────────────────────────────
@@ -85,13 +87,14 @@ function parseRaw(rows) {
     if (id) {
       const p = prod[d.key][id] || (prod[d.key][id] = {
         name: clean(r[R.name]), gmv: 0, sku: 0, orders: 0, items: 0, cust: 0,
-        sl: 0, sv: 0, aff: 0, avid: 0, alive: 0, pc: 0, imp: 0, clk: 0, atc: 0, newVid: 0, newLive: 0
+        sl: 0, sv: 0, aff: 0, avid: 0, alive: 0, pc: 0, imp: 0, clk: 0, atc: 0, newVid: 0, newLive: 0, refund: 0
       });
       p.gmv += num(r[R.gmv]); p.sku += num(r[R.sku]);
       p.orders += num(r[R.orders]); p.items += num(r[R.items]); p.cust += num(r[R.cust]);
       p.sl += num(r[R.sellerLive]); p.sv += num(r[R.sellerVideo]);
       p.aff += num(r[R.affiliate]); p.pc += num(r[R.productCard]);
       p.avid += num(r[R.affVidG]); p.alive += num(r[R.affLiveG]);
+      p.refund += num(r[R.refund]);
       p.imp += num(r[R.imp]); p.clk += num(r[R.clk]); p.atc += num(r[R.atc]);
       p.newVid += num(r[R.newVid]); p.newLive += num(r[R.newLive]);
     }
@@ -114,18 +117,20 @@ function pickComparisons(byDate, targetKey) {
 
 // ── 광고 탭(날짜·캠페인ID·지출금액C·…·PRODUCT ID G) → 일자별 광고비 ──
 // byDate[key] = { total, live(=product id 없는 행=라이브), pid:{ productId: spend } }
-const AD = { date: 0, spend: 2, pid: 6 };
+const AD = { date: 0, camp: 1, spend: 2, orders: 3, pid: 6 };
 function parseAds(rows) {
   const byDate = {};
   for (const r of rows) {
     const d = parseDate(r[AD.date]);
     if (!d) continue;
-    const e = byDate[d.key] || (byDate[d.key] = { total: 0, live: 0, pid: {} });
-    const s = num(r[AD.spend]);
+    const e = byDate[d.key] || (byDate[d.key] = { total: 0, live: 0, pid: {}, camp: {} });
+    const s = num(r[AD.spend]), o = num(r[AD.orders]);
     e.total += s;
     const pid = String(r[AD.pid] || "").trim();
     if (pid) e.pid[pid] = (e.pid[pid] || 0) + s;
     else e.live += s;
+    const cid = String(r[AD.camp] || "").trim();
+    if (cid) { const c = e.camp[cid] || (e.camp[cid] = { spend: 0, orders: 0, pid }); c.spend += s; c.orders += o; }
   }
   return byDate;
 }
@@ -293,6 +298,21 @@ function aggregateVideos(vidByDate, targetKey) {
     creatorList, contentMix,
     org: { pay: Math.round(orgPay), cnt: orgCnt }, shop: { pay: Math.round(shopPay), cnt: shopCnt }
   };
+}
+
+// 일자별 오가닉(스탠다드) vs 샵애즈(광고) 콘텐츠 귀속 매출
+function videoOrgShopByDate(vidByDate) {
+  const out = {};
+  for (const dk in vidByDate) {
+    let org = 0, shop = 0;
+    for (const r of vidByDate[dk]) {
+      const pay = num(r[V.pay]);
+      if (String(r[V.shop] || "").includes("%")) shop += pay;
+      else if (String(r[V.std] || "").includes("%")) org += pay;
+    }
+    out[dk] = { org, shop };
+  }
+  return out;
 }
 
 // ── 매출발생영상 커미션율 (제품별 대표=최빈값) ─────────────────
@@ -595,7 +615,7 @@ async function resolveTabs(sheets, sheetId) {
 }
 
 // ── 웹 대시보드용 구조화 데이터 ────────────────────────────────
-function buildJson(agg, raw, adByDate, ins, vid, skuByDate) {
+function buildJson(agg, raw, adByDate, ins, vid, skuByDate, afByDate, orgShopByDate) {
   const g = agg.g;
   const keys = Object.keys(raw.byDate).sort();
   const idx = keys.indexOf(agg.date.key);
@@ -603,6 +623,9 @@ function buildJson(agg, raw, adByDate, ins, vid, skuByDate) {
   const series = window.map(k => {
     const t = raw.byDate[k].t;
     const spend = adByDate && adByDate[k] ? adByDate[k].total : 0;
+    const af = afByDate && afByDate[k] ? afByDate[k].t : null;
+    const mktCost = spend + (af ? af.comm + af.flat + af.samples : 0);
+    const os = orgShopByDate && orgShopByDate[k];
     return {
       date: raw.byDate[k].date.md, gmv: Math.round(t.gmv), adSpend: Math.round(spend),
       roi: spend ? +(t.gmv / spend).toFixed(2) : null, orders: Math.round(t.sku),
@@ -613,7 +636,12 @@ function buildJson(agg, raw, adByDate, ins, vid, skuByDate) {
       orderConv: t.clk ? +(t.sku / t.clk * 100).toFixed(2) : null,
       affVideo: Math.round(t.affVidG), affLive: Math.round(t.affLiveG),
       productCard: Math.round(t.productCard),
-      sellerVideo: Math.round(t.sellerVideo), sellerLive: Math.round(t.sellerLive)
+      sellerVideo: Math.round(t.sellerVideo), sellerLive: Math.round(t.sellerLive),
+      refund: Math.round(t.refund || 0), refundRate: t.gmv ? +((t.refund || 0) / t.gmv * 100).toFixed(1) : null,
+      mktCost: Math.round(mktCost), mktRatio: t.gmv ? +(mktCost / t.gmv * 100).toFixed(1) : null,
+      shopGmv: Math.round(t.shopGmv || 0), shopCtr: t.shopImp ? +((t.shopClk || 0) / t.shopImp * 100).toFixed(2) : null,
+      newVid: Math.round(t.newVid || 0), newLive: Math.round(t.newLive || 0),
+      org: os ? Math.round(os.org) : null, shop: os ? Math.round(os.shop) : null
     };
   });
 
@@ -644,6 +672,14 @@ function buildJson(agg, raw, adByDate, ins, vid, skuByDate) {
       { name: "Product Card", v: Math.round(x.pc || 0) }
     ];
     const vp = vidByPid[x.id];
+    // 크리에이터 집중도 (한 크리에이터 의존도)
+    let topCreator = null, topCreatorShare = null;
+    if (vp && vp.items.length) {
+      const byCr = {};
+      for (const it of vp.items) byCr[it.creator] = (byCr[it.creator] || 0) + it.pay;
+      const arr = Object.entries(byCr).sort((a, b) => b[1] - a[1]);
+      if (arr[0] && vp.pay) { topCreator = arr[0][0]; topCreatorShare = +(arr[0][1] / vp.pay * 100).toFixed(0); }
+    }
     const revVideos = vp ? vp.items.slice(0, 15).map(it => ({
       creator: it.creator, cid: it.cid, type: it.type, pay: Math.round(it.pay),
       org: it.org.cnt, orgRate: modeOf(it.org.rate), shop: it.shop.cnt, shopRate: modeOf(it.shop.rate),
@@ -656,8 +692,11 @@ function buildJson(agg, raw, adByDate, ins, vid, skuByDate) {
       aov: x.sku ? +(x.gmv / x.sku).toFixed(2) : null,
       cost: x.cost != null ? Math.round(x.cost) : null,
       roi: x.roi != null ? +x.roi.toFixed(2) : null,
+      adRatio: (x.cost != null && x.gmv) ? +(x.cost / x.gmv * 100).toFixed(1) : null,
       comm: x.comm != null ? Math.round(x.comm) : null,
       stdRate: x.stdRate, adRate: x.adRate,
+      refund: Math.round(x.refund || 0), refundRate: x.gmv ? +((x.refund || 0) / x.gmv * 100).toFixed(1) : 0,
+      topCreator, topCreatorShare,
       dod: x.dod, wow: x.wow,
       channels: chan,
       funnel: {
@@ -686,10 +725,99 @@ function buildJson(agg, raw, adByDate, ins, vid, skuByDate) {
     };
   });
 
+  // ── 심화 분석용 집계 ─────────────────────────────────
+  const targetKey = agg.date.key;
+  const prodCur = raw.prod[targetKey] || {};
+  const prodPrev = (agg.prevDay && raw.prod[agg.prevDay.key]) || {};
+  const allProds = Object.entries(prodCur).map(([id, v]) => ({ id, name: v.name, gmv: v.gmv, refund: v.refund || 0 }))
+    .filter(x => x.gmv > 0).sort((a, b) => b.gmv - a.gmv);
+  const totalProdGmv = allProds.reduce((s, x) => s + x.gmv, 0) || 1;
+
+  // 파레토: 누적 비중 곡선 + 50/80% 도달 제품수
+  let cum = 0; const pareto = { count: allProds.length, points: [], p50: 0, p80: 0 };
+  allProds.forEach((x, i) => {
+    cum += x.gmv; const cp = cum / totalProdGmv * 100;
+    pareto.points.push({ rank: i + 1, cum: +cp.toFixed(1), name: x.name, gmv: Math.round(x.gmv) });
+    if (!pareto.p50 && cp >= 50) pareto.p50 = i + 1;
+    if (!pareto.p80 && cp >= 80) pareto.p80 = i + 1;
+  });
+
+  // 워터폴: 전일 대비 GMV 변화의 제품별 기여 (상위 ±)
+  const ids = new Set([...Object.keys(prodCur), ...Object.keys(prodPrev)]);
+  const deltas = [...ids].map(id => {
+    const c = prodCur[id], p = prodPrev[id];
+    return { id, name: (c && c.name) || (p && p.name) || id, delta: ((c && c.gmv) || 0) - ((p && p.gmv) || 0) };
+  }).filter(x => Math.abs(x.delta) >= 1).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+  const wfTop = deltas.slice(0, 12);
+  const wfOther = deltas.slice(12).reduce((s, x) => s + x.delta, 0);
+  const prevTotalGmv = Object.values(prodPrev).reduce((s, x) => s + x.gmv, 0);
+  const waterfall = {
+    start: Math.round(prevTotalGmv), end: Math.round(g.gmv),
+    items: wfTop.map(x => ({ name: x.name, delta: Math.round(x.delta) }))
+      .concat(Math.abs(wfOther) >= 1 ? [{ name: "기타", delta: Math.round(wfOther) }] : [])
+  };
+
+  // 캠페인별 광고 효율 (당일)
+  const adCur = adByDate && adByDate[targetKey];
+  const campaigns = adCur && adCur.camp ? Object.entries(adCur.camp)
+    .map(([id, c]) => ({ id, spend: Math.round(c.spend), orders: Math.round(c.orders), cpo: c.orders ? +(c.spend / c.orders).toFixed(2) : null, product: c.pid && prodCur[c.pid] ? prodCur[c.pid].name : (c.pid ? "" : "라이브/비제품") }))
+    .filter(c => c.spend > 0).sort((a, b) => b.spend - a.spend).slice(0, 15) : [];
+
+  // 퍼널 WoW 비교
+  const w = agg.w;
+  const rate = (a, b) => b ? +(a / b * 100).toFixed(2) : 0;
+  const funnelWoW = {
+    stages: ["CTR", "장바구니율", "주문전환", "CVR(방문→구매)"],
+    thisW: [rate(g.clk, g.imp), rate(g.atc, g.clk), rate(g.sku, g.clk), rate(g.cust, g.uclk)],
+    lastW: w ? [rate(w.clk, w.imp), rate(w.atc, w.clk), rate(w.sku, w.clk), rate(w.cust, w.uclk)] : null
+  };
+
+  // 이상 신호 자동 감지 (최근일 vs 직전 7일 평균)
+  const anomalies = [];
+  const hist = series.slice(0, -1).slice(-7), last = series[series.length - 1];
+  const avg = (arr, k) => { const v = arr.map(s => s[k]).filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+  const chk = (k, label, unit, goodUp) => {
+    const a = avg(hist, k); if (a == null || last[k] == null || a === 0) return;
+    const ch = (last[k] - a) / a * 100;
+    if (Math.abs(ch) >= 25) anomalies.push({ metric: label, dir: ch > 0 ? "up" : "down", change: +ch.toFixed(0), value: last[k], avg: +a.toFixed(unit === "%" ? 1 : 0), unit, good: (ch > 0) === goodUp });
+  };
+  chk("gmv", "GMV", "$", true); chk("adSpend", "광고비", "$", false); chk("roi", "ROI", "x", true);
+  chk("ctr", "CTR", "%", true); chk("conv", "구매전환율", "%", true); chk("refundRate", "환불율", "%", false);
+  chk("aov", "AOV", "$", true); chk("orders", "주문", "", true);
+
+  // 간단 예측: 최근 7일 선형추세로 익일 GMV
+  const fc = (() => {
+    const pts = series.slice(-7).map((s, i) => [i, s.gmv]);
+    if (pts.length < 3) return null;
+    const n = pts.length, sx = pts.reduce((a, [x]) => a + x, 0), sy = pts.reduce((a, [, y]) => a + y, 0);
+    const sxx = pts.reduce((a, [x]) => a + x * x, 0), sxy = pts.reduce((a, [x, y]) => a + x * y, 0);
+    const b = (n * sxy - sx * sy) / (n * sxx - sx * sx || 1), a = (sy - b * sx) / n;
+    const next = a + b * n, ma = sy / n;
+    return { next: Math.round(Math.max(0, next)), ma7: Math.round(ma), trend: b >= 0 ? "up" : "down" };
+  })();
+
+  // 주차별 롤업 (최근 8주)
+  const weekMap = {};
+  for (const k of keys) {
+    const ts = raw.byDate[k].date.ts, wkStart = ts - ((new Date(ts).getUTCDay() + 6) % 7) * 86400000;
+    const wk = weekMap[wkStart] || (weekMap[wkStart] = { ts: wkStart, gmv: 0, orders: 0, spend: 0 });
+    wk.gmv += raw.byDate[k].t.gmv; wk.orders += raw.byDate[k].t.sku;
+    wk.spend += (adByDate && adByDate[k] ? adByDate[k].total : 0);
+  }
+  const weekly = Object.values(weekMap).sort((a, b) => a.ts - b.ts).slice(-8).map(wk => {
+    const d = new Date(wk.ts);
+    return { label: `${d.getUTCMonth() + 1}/${d.getUTCDate()}~`, gmv: Math.round(wk.gmv), orders: Math.round(wk.orders), spend: Math.round(wk.spend), roi: wk.spend ? +(wk.gmv / wk.spend).toFixed(2) : null };
+  });
+
+  // 환불 상위 제품 (당일)
+  const refundTop = allProds.filter(x => x.refund > 0).map(x => ({ name: x.name, refund: Math.round(x.refund), gmv: Math.round(x.gmv), rate: x.gmv ? +(x.refund / x.gmv * 100).toFixed(1) : 0 }))
+    .sort((a, b) => b.refund - a.refund).slice(0, 10);
+
   return {
     date: agg.date.label,
     prevDay: agg.prevDay ? agg.prevDay.md : null,
     prevWeek: agg.prevWeek ? agg.prevWeek.md : null,
+    pareto, waterfall, campaigns, funnelWoW, anomalies, forecast: fc, weekly, refundTop,
     kpis: {
       gmv: Math.round(g.gmv), gmvDoD: agg.dd("gmv"), gmvWoW: agg.ww("gmv"),
       orders: Math.round(g.sku), ordersDoD: agg.dd("sku"), ordersWoW: agg.ww("sku"),
@@ -824,8 +952,11 @@ module.exports = async (req, res) => {
     let commCur = commByDate[targetKey];
     if (!commCur) { const ek = Object.keys(commByDate).filter(k => k <= targetKey).sort(); commCur = ek.length ? commByDate[ek[ek.length - 1]] : null; }
     const adByDate = parseAds(adRows);
-    const agg = aggregate(raw, targetKey, topN, adByDate, commCur, parseAffiliate(afRows), parseLive(liveRows));
-    const vid = aggregateVideos(parseVideos(vidRows), targetKey);
+    const afByDate = parseAffiliate(afRows);
+    const vidByDate = parseVideos(vidRows);
+    const orgShopByDate = videoOrgShopByDate(vidByDate);
+    const agg = aggregate(raw, targetKey, topN, adByDate, commCur, afByDate, parseLive(liveRows));
+    const vid = aggregateVideos(vidByDate, targetKey);
     const skuByDate = parseSkuOrders(skuRows);
 
     // 웹 대시보드용 구조화 JSON (?format=json)
@@ -834,7 +965,7 @@ module.exports = async (req, res) => {
       const ins = withInsights ? await generateInsights(agg, vid) : null;
       res.setHeader("Cache-Control", "no-store");
       res.setHeader("Access-Control-Allow-Origin", "*");
-      res.status(200).json(buildJson(agg, raw, adByDate, ins, vid, skuByDate));
+      res.status(200).json(buildJson(agg, raw, adByDate, ins, vid, skuByDate, afByDate, orgShopByDate));
       return;
     }
 
@@ -878,4 +1009,4 @@ module.exports = async (req, res) => {
 };
 
 // 테스트용 내부 노출
-module.exports._internals = { num, parseDate, parseRaw, parseAds, parseCommissions, parseAffiliate, parseLive, aggregate, parseVideos, aggregateVideos, buildMain, videoChunks, generateInsights, buildJson, parseSkuOrders, skusForProduct };
+module.exports._internals = { num, parseDate, parseRaw, parseAds, parseCommissions, parseAffiliate, parseLive, aggregate, parseVideos, aggregateVideos, buildMain, videoChunks, generateInsights, buildJson, parseSkuOrders, skusForProduct, videoOrgShopByDate };
