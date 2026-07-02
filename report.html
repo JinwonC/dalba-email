@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>d'Alba 데일리 매출 대시보드</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --surface:#fcfcfb; --card:#ffffff; --ink:#0b0b0b; --muted:#52514e; --faint:#8a887f;
+    --border:#e8e7e2; --grid:#efeeea;
+    --s1:#2a78d6; --s2:#1baf7a; --s3:#eda100; --s4:#008300; --s5:#4a3aa7; --s6:#e34948;
+    --up:#008300; --down:#e34948;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --surface:#1a1a19; --card:#232320; --ink:#ffffff; --muted:#c3c2b7; --faint:#8f8e84;
+      --border:#34342f; --grid:#2c2c28; --s1:#3987e5; --s2:#199e70; --s3:#c98500; --s4:#008300; --s5:#9085e9; --s6:#e66767;
+      --up:#3ea55a; --down:#e66767; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--surface);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1120px;margin:0 auto;padding:20px 16px 64px}
+  header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:6px}
+  h1{font-size:19px;margin:0;font-weight:700}
+  .sub{color:var(--muted);font-size:13px;margin:2px 0 18px}
+  input[type=date]{background:var(--card);color:var(--ink);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:20px}
+  .kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:13px 14px}
+  .kpi .l{font-size:12px;color:var(--muted);margin-bottom:6px}
+  .kpi .v{font-size:22px;font-weight:750;letter-spacing:-.3px}
+  .kpi .d{font-size:12px;margin-top:5px;color:var(--faint)}
+  .up{color:var(--up)} .down{color:var(--down)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media (max-width:760px){.grid2{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 16px 12px;margin-bottom:14px}
+  .card h2{font-size:14px;margin:0 0 2px;font-weight:700}
+  .card .cap{font-size:12px;color:var(--muted);margin:0 0 12px}
+  .chartbox{position:relative;height:280px}
+  .chartbox.tall{height:420px}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th,td{text-align:right;padding:7px 8px;border-bottom:1px solid var(--grid);white-space:nowrap}
+  th:first-child,td:first-child{text-align:left;white-space:normal}
+  th{color:var(--muted);font-weight:600;font-size:11.5px}
+  .tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:6px;background:var(--grid);color:var(--muted)}
+  .funnel{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center}
+  .fstage{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 6px}
+  .fstage .fv{font-size:19px;font-weight:750} .fstage .fl{font-size:11.5px;color:var(--muted)} .fstage .fc{font-size:11px;color:var(--s1);margin-top:3px}
+  .live{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px}
+  .lcard{border:1px solid var(--border);border-radius:10px;padding:12px}
+  .lcard .lt{font-weight:700;font-size:13px} .lcard .lm{font-size:12px;color:var(--muted);margin-top:5px;line-height:1.6}
+  .ins{background:var(--card);border:1px solid var(--border);border-left:3px solid var(--s1);border-radius:10px;padding:11px 13px;margin-bottom:8px;font-size:13px;line-height:1.5}
+  .ins b{color:var(--s1)}
+  .loading{padding:60px;text-align:center;color:var(--muted)}
+  .err{padding:20px;border:1px solid var(--down);border-radius:10px;color:var(--down);background:var(--card)}
+  .pill{font-size:11px;color:var(--faint)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div><h1>📊 d'Alba 데일리 매출 대시보드</h1><div class="sub" id="sub">불러오는 중…</div></div>
+    <div><label class="pill">날짜 </label><input type="date" id="datepick"></div>
+  </header>
+  <div id="app"><div class="loading">데이터 불러오는 중…</div></div>
+</div>
+<script>
+const $=s=>document.querySelector(s);
+const css=v=>getComputedStyle(document.body).getPropertyValue(v).trim();
+const usd=n=>"$"+Math.round(n||0).toLocaleString();
+const cls=s=>{const t=String(s||"");return t.startsWith("-")?"down":(t.startsWith("+")?"up":"")};
+const qs=new URLSearchParams(location.search);
+const dateParam=qs.get("date")||"";
+Chart.defaults.font.family=getComputedStyle(document.body).fontFamily;
+Chart.defaults.animation=false;
+
+async function load(){
+  try{
+    const url="/api/daily-report?format=json&insights=1"+(dateParam?("&date="+encodeURIComponent(dateParam)):"");
+    const r=await fetch(url);
+    const d=await r.json();
+    if(d.error) throw new Error(d.error);
+    render(d);
+  }catch(e){
+    $("#app").innerHTML='<div class="err">불러오기 실패: '+(e.message||e)+'<br>배포/환경변수를 확인하세요.</div>';
+    $("#sub").textContent="";
+  }
+}
+
+function kpi(l,v,d){return `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div>${d?`<div class="d">${d}</div>`:""}</div>`}
+
+function render(d){
+  const S1=css("--s1"),S2=css("--s2"),S3=css("--s3"),S4=css("--s4"),S5=css("--s5");
+  const ink=css("--ink"),muted=css("--muted"),grid=css("--grid"),card=css("--card");
+  $("#sub").innerHTML=`${d.date} · 전일(${d.prevDay||"–"}) · 전주(${d.prevWeek||"–"}) 대비`;
+  if(!$("#datepick").value && d.date){ /* leave picker empty = latest */ }
+
+  const k=d.kpis;
+  const kpis=`<div class="kpis">
+    ${kpi("총 GMV",usd(k.gmv),`<span class="${cls(k.gmvDoD)}">${k.gmvDoD} DoD</span> · <span class="${cls(k.gmvWoW)}">${k.gmvWoW} WoW</span>`)}
+    ${kpi("주문",k.orders.toLocaleString(),`<span class="${cls(k.ordersDoD)}">${k.ordersDoD} DoD</span>`)}
+    ${kpi("AOV","$"+k.aov.toFixed(2),`구매자 ${k.buyers.toLocaleString()}명`)}
+    ${kpi("광고비",k.adSpend!=null?usd(k.adSpend):"–","")}
+    ${kpi("ROI",k.roi!=null?k.roi.toFixed(2)+"x":"–","GMV ÷ 광고비")}
+    ${kpi("구매전환율",k.convRate.toFixed(2)+"%",`방문자 ${k.visitors.toLocaleString()}`)}
+  </div>`;
+
+  const insHtml=d.insights?`<div class="card"><h2>💡 인사이트</h2><div class="cap">AI 자동 분석</div>
+    ${["overview","channel","product","content","funnel","live"].filter(x=>d.insights[x]).map(x=>`<div class="ins">${d.insights[x]}</div>`).join("")}</div>`:"";
+
+  // funnel
+  const f=d.funnel;
+  const funnelHtml=`<div class="card"><h2>🛒 전환 퍼널</h2><div class="cap">노출 → 클릭 → 장바구니 → 주문</div>
+    <div class="funnel">
+      <div class="fstage"><div class="fl">노출</div><div class="fv">${f.impressions.toLocaleString()}</div></div>
+      <div class="fstage"><div class="fl">클릭</div><div class="fv">${f.clicks.toLocaleString()}</div><div class="fc">CTR ${f.ctr}%</div></div>
+      <div class="fstage"><div class="fl">장바구니</div><div class="fv">${f.atc.toLocaleString()}</div><div class="fc">${f.atcRate}%</div></div>
+      <div class="fstage"><div class="fl">주문</div><div class="fv">${f.orders.toLocaleString()}</div><div class="fc">주문전환 ${f.orderConv}%</div></div>
+    </div></div>`;
+
+  // creators
+  const cr=d.creators;
+  const crHtml=cr?`<div class="card"><h2>🎬 크리에이터·콘텐츠 효율</h2><div class="cap">영상 1건당 매출 $${d.contentPerVideo}</div>
+    <div class="kpis" style="margin:0">
+      ${kpi("게시 크리에이터",cr.posted.toLocaleString()+"명","")}
+      ${kpi("판매발생 크리에이터",cr.withSales.toLocaleString()+"명",(cr.posted?Math.round(cr.withSales/cr.posted*100):0)+"% 전환")}
+      ${kpi("판매발생 영상",cr.vidSales+" / "+cr.videos,"개")}
+      ${kpi("판매발생 라이브",cr.liveSales+" / "+cr.lives,"개")}
+    </div></div>`:"";
+
+  // live
+  let liveHtml="";
+  if(d.live && d.live.sessions && d.live.sessions.length){
+    const L=d.live;
+    liveHtml=`<div class="card"><h2>🔴 브랜드 라이브</h2>
+      <div class="cap">${L.sessions.length}세션 · ${(L.minutes/60).toFixed(1)}h · GMV ${usd(L.gmv)} · 시청자 ${L.viewers.toLocaleString()} · GMV/시간 ${usd(L.gmv/(L.minutes/60||1))}</div>
+      <div class="live">${L.sessions.map(s=>`<div class="lcard"><div class="lt">${s.dur} · ${usd(s.gmv)}</div>
+        <div class="lm">${s.ord}주문 · AOV $${Math.round(s.aov)}<br>시청자 ${s.viewers.toLocaleString()} · CTR ${s.ctr}<br>결제율 ${s.payrate} · 평균시청 ${s.avgview}분</div></div>`).join("")}</div>
+      ${L.products&&L.products.length?`<table style="margin-top:12px"><tr><th>라이브 제품 TOP</th><th>Seller LIVE GMV</th></tr>
+        ${L.products.map(p=>`<tr><td>${p.name}</td><td>${usd(p.sl)}</td></tr>`).join("")}</table>`:""}
+    </div>`;
+  }
+
+  // product table
+  const prodTable=`<div class="card"><h2>📦 제품별 매출 TOP ${d.products.length}</h2><div class="cap">GMV·광고비·ROI·커미션·증감</div>
+    <div style="overflow-x:auto"><table>
+    <tr><th>제품</th><th>GMV</th><th>광고비</th><th>ROI</th><th>커미션</th><th>DoD</th><th>WoW</th><th>주문</th></tr>
+    ${d.products.map(p=>`<tr><td>${p.name}</td><td>${usd(p.gmv)}</td><td>${p.cost!=null?usd(p.cost):"-"}</td>
+      <td>${p.roi!=null?p.roi+"x":"-"}</td><td>${p.comm!=null?usd(p.comm):"-"}</td>
+      <td class="${cls(p.dod)}">${p.dod}</td><td class="${cls(p.wow)}">${p.wow}</td><td>${p.sku}</td></tr>`).join("")}
+    </table></div></div>`;
+
+  $("#app").innerHTML = kpis + insHtml +
+    `<div class="grid2">
+      <div class="card"><h2>📈 GMV · 광고비 추이 (14일)</h2><div class="cap">일별 (USD)</div><div class="chartbox"><canvas id="cTrend"></canvas></div></div>
+      <div class="card"><h2>📉 ROI 추이 (14일)</h2><div class="cap">GMV ÷ 광고비</div><div class="chartbox"><canvas id="cRoi"></canvas></div></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h2>🔀 채널별 매출</h2><div class="cap">귀속 기준</div><div class="chartbox"><canvas id="cChan"></canvas></div></div>
+      ${funnelHtml}
+    </div>
+    <div class="card"><h2>🏆 제품별 매출 TOP ${d.products.length}</h2><div class="cap">GMV 기준</div><div class="chartbox tall"><canvas id="cProd"></canvas></div></div>`
+    + crHtml + liveHtml + prodTable;
+
+  const gridCfg={grid:{color:grid},ticks:{color:muted},border:{color:grid}};
+  // trend: GMV + 광고비 grouped bars (한 축, 둘 다 $)
+  new Chart($("#cTrend"),{type:"bar",data:{labels:d.series.map(s=>s.date),
+    datasets:[{label:"GMV",data:d.series.map(s=>s.gmv),backgroundColor:S1,borderRadius:4},
+      {label:"광고비",data:d.series.map(s=>s.adSpend),backgroundColor:S3,borderRadius:4}]},
+    options:{maintainAspectRatio:false,plugins:{legend:{labels:{color:ink}},tooltip:{callbacks:{label:c=>c.dataset.label+": "+usd(c.raw)}}},scales:{x:gridCfg,y:{...gridCfg,ticks:{color:muted,callback:v=>"$"+(v/1000)+"k"}}}}});
+  // ROI line
+  new Chart($("#cRoi"),{type:"line",data:{labels:d.series.map(s=>s.date),
+    datasets:[{label:"ROI",data:d.series.map(s=>s.roi),borderColor:S1,backgroundColor:S1,borderWidth:2,tension:.3,pointRadius:3,spanGaps:true}]},
+    options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw+"x"}}},scales:{x:gridCfg,y:{...gridCfg,ticks:{color:muted,callback:v=>v+"x"}}}}});
+  // channel donut
+  const chCols=[S1,S2,S3,S4,S5];
+  new Chart($("#cChan"),{type:"doughnut",data:{labels:d.channels.map(c=>c.name),
+    datasets:[{data:d.channels.map(c=>c.gmv),backgroundColor:d.channels.map((c,i)=>chCols[i%chCols.length]),borderColor:card,borderWidth:2}]},
+    options:{maintainAspectRatio:false,cutout:"58%",plugins:{legend:{position:"right",labels:{color:ink,boxWidth:12}},tooltip:{callbacks:{label:c=>c.label+": "+usd(c.raw)+" ("+d.channels[c.dataIndex].share+"%)"}}}}});
+  // product horizontal bar (sequential blue)
+  new Chart($("#cProd"),{type:"bar",data:{labels:d.products.map(p=>p.name.length>34?p.name.slice(0,32)+"…":p.name),
+    datasets:[{label:"GMV",data:d.products.map(p=>p.gmv),backgroundColor:S1,borderRadius:4}]},
+    options:{indexAxis:"y",maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>usd(c.raw)+(d.products[c.dataIndex].roi!=null?" · ROI "+d.products[c.dataIndex].roi+"x":"")}}},scales:{x:{...gridCfg,ticks:{color:muted,callback:v=>"$"+(v/1000)+"k"}},y:{grid:{display:false},ticks:{color:ink,font:{size:11}}}}}});
+}
+
+$("#datepick").addEventListener("change",e=>{
+  const v=e.target.value; const u=new URL(location.href);
+  if(v)u.searchParams.set("date",v); else u.searchParams.delete("date");
+  location.href=u.toString();
+});
+if(dateParam)$("#datepick").value=dateParam;
+load();
+</script>
+</body>
+</html>
