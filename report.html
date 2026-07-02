@@ -99,13 +99,22 @@
   .hm .rl{text-align:left;color:var(--ink);padding-right:8px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .hm .cell{width:26px;height:22px;border-radius:3px;color:#fff;font-size:9.5px;line-height:22px}
   .flag{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:5px;background:rgba(27,175,122,.16);color:var(--s2);margin-left:6px}
+  .pins{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--s1);border-radius:9px;padding:11px 13px;margin:12px 0 4px;font-size:12.5px;line-height:1.7}
+  .pins b{font-weight:750}
+  /* 기간 토글 */
+  .seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+  .seg button{background:var(--card);color:var(--muted);border:none;padding:6px 12px;font-size:12.5px;cursor:pointer;font-family:inherit}
+  .seg button.on{background:var(--s1);color:#fff;font-weight:700}
 </style>
 </head>
 <body data-palette="#2a78d6,#1baf7a,#eda100,#008300,#4a3aa7">
 <div class="wrap">
   <header>
     <div><h1>📊 d'Alba 데일리 매출 대시보드</h1><div class="sub" id="sub">불러오는 중…</div></div>
-    <div><label class="pill">날짜 </label><input type="date" id="datepick"></div>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <div class="seg" id="periodseg"><button data-p="7">최근 1주</button><button data-p="14" class="on">2주</button><button data-p="30">전체</button></div>
+      <div><label class="pill">날짜 </label><input type="date" id="datepick"></div>
+    </div>
   </header>
   <div id="app"><div class="loading">데이터 불러오는 중…</div></div>
 </div>
@@ -120,7 +129,12 @@ const qs=new URLSearchParams(location.search);
 const dateParam=qs.get("date")||"";
 Chart.defaults.font.family=getComputedStyle(document.body).fontFamily;
 Chart.defaults.animation=false;
-let PAL={}, DATA=null;
+let PAL={}, DATA=null, PERIOD=14, CHARTS=[];
+// 차트 인스턴스 추적(기간 토글 시 파기 후 재생성)
+function NC(el,cfg){ if(!el) return null; const c=new Chart(el,cfg); CHARTS.push(c); return c; }
+function resetCharts(){ CHARTS.forEach(c=>{try{c.destroy();}catch(e){}}); CHARTS=[]; }
+// 시계열을 최근 PERIOD일로 슬라이스
+const slc=a=>Array.isArray(a)?a.slice(-PERIOD):a;
 
 async function load(){
   try{
@@ -148,6 +162,25 @@ function mbar(segs){
   const bars=segs.filter(s=>s.v>0).map(s=>`<span style="width:${(s.v/tot*100).toFixed(2)}%;background:${s.color}" title="${s.label} ${usd(s.v)}"></span>`).join("");
   const lgd=segs.map(s=>`<span><i style="background:${s.color}"></i>${s.label} ${usd(s.v)} (${(s.v/tot*100).toFixed(0)}%)</span>`).join("");
   return `<div class="mbar">${bars}</div><div class="mlgd">${lgd}</div>`;
+}
+// 제품별 자동 인사이트 (규칙 기반, 3줄 고정 포맷)
+function prodInsight(p){
+  const roiTxt=p.roi==null?"광고 미집행":(p.roi>=4?`ROI ${p.roi}x 매우 효율`:p.roi>=3?`ROI ${p.roi}x 양호`:`ROI ${p.roi}x 개선필요`);
+  const tot=p.channels.reduce((s,c)=>s+c.v,0)||1;
+  const top=[...p.channels].sort((a,b)=>b.v-a.v)[0];
+  const std=parseFloat(p.stdRate);
+  let diag;
+  if(p.refundRate>=10) diag=`⚠️ 환불율 ${p.refundRate}% 높음 — 반품 사유·품질 점검`;
+  else if(p.topCreatorShare!=null&&p.topCreatorShare>=60) diag=`⚠️ 매출의 ${p.topCreatorShare}%가 @${esc(p.topCreator||"")} 한 명 — 추가 크리에이터 확보 필요`;
+  else if(!isNaN(std)&&std<=20&&(p.roi==null||p.roi>=3)) diag=`💡 표준 커미션 ${p.stdRate}로 낮고 효율 양호 — 커미션 인상해 크리에이터 확대 여지`;
+  else if(p.roi!=null&&p.roi>=4) diag=`🚀 광고 효율 우수 — 예산 확대 여지`;
+  else if(p.funnel&&p.funnel.orderConv<2) diag=`🔧 주문전환 ${p.funnel.orderConv}% 낮음 — 상세페이지·가격·리뷰 점검`;
+  else diag=`✅ 특이 리스크 없음 — 현 기조 유지`;
+  return `<div class="pins">
+    <div>📊 GMV <b>${usd(p.gmv)}</b> · DoD <span class="${cls(p.dod)}">${p.dod}</span> / WoW <span class="${cls(p.wow)}">${p.wow}</span> · ${roiTxt}${p.adRatio!=null?` · 광고의존도 ${p.adRatio}%`:""}</div>
+    <div>🔀 매출의 <b>${(top.v/tot*100).toFixed(0)}%</b>가 ${esc(top.name)} 채널${p.revVideoCount?` · 매출영상 ${p.revVideoCount}건`:""}${p.af?` · 샘플 ${p.af.samples}개→영상 ${p.af.videos}개`:""}</div>
+    <div>${diag}</div>
+  </div>`;
 }
 
 function render(d){
@@ -210,12 +243,9 @@ function render(d){
     </div>
     <div class="grid2">
       <div class="card"><h3>🌱 오가닉 vs 샵애즈(광고) 매출 추이</h3><div class="cap">콘텐츠 귀속 · 오가닉=스탠다드 커미션, 샵애즈=GMV Max 광고 (누적)</div><div class="chartbox"><canvas id="cOrgShop"></canvas></div></div>
-      <div class="card"><h3>💸 마케팅 원가율 추이</h3><div class="cap">(광고비+커미션+샘플+플랫피) ÷ GMV</div><div class="chartbox"><canvas id="cMkt"></canvas></div></div>
-    </div>
-    <div class="grid2">
       <div class="card"><h3>🛍 오가닉 스토어탭 매출 추이</h3><div class="cap">Shop tab GMV (자연 유입)</div><div class="chartbox"><canvas id="cShopTab"></canvas></div></div>
-      <div class="card"><h3>🗓 주차별 매출</h3><div class="cap">최근 ${d.weekly?d.weekly.length:0}주 · GMV/광고비</div><div class="chartbox"><canvas id="cWeekly"></canvas></div></div>
-    </div>`+funnelHtml+insHtml;
+    </div>
+    <div class="card"><h3>🗓 주차별 매출</h3><div class="cap">최근 ${d.weekly?d.weekly.length:0}주 · GMV/광고비 (기간 토글 영향 없음)</div><div class="chartbox"><canvas id="cWeekly"></canvas></div></div>`+funnelHtml+insHtml;
 
   // ── 2. 채널별 분석 ─────────────────────────────────────
   const cd=d.channelDetail;
@@ -247,17 +277,25 @@ function render(d){
       ${d.refundTop.map(r=>`<tr><td>${esc(r.name)}</td><td>${usd(r.refund)}</td><td>${usd(r.gmv)}</td><td>${r.rate}%</td></tr>`).join("")}
     </table></div>`:`<div class="cap" style="margin-top:8px">당일 환불 발생 제품 없음 (환불은 보통 며칠 뒤 반영)</div>`}</div>`;
   const pareto=d.pareto;
+  const concentrated=pareto.p80&&pareto.p80<=Math.max(1,pareto.count*0.2);
+  const pTxt=pareto.p80?`📌 상위 ${pareto.p80}개(${(pareto.p80/pareto.count*100).toFixed(0)}%) 제품이 매출의 80%를 차지 → ${concentrated?"<b>집중도 높음</b> — 소수 제품 의존이라 이들 재고·광고를 우선 관리(리스크이자 레버리지)":"비교적 <b>고르게 분산</b> — 특정 제품 리스크는 낮음"}`:"";
+  // 신규영상 수 ↔ GMV 상관 (Pearson)
+  const cg=(()=>{const xs=d.series.map(s=>s.newVid),ys=d.series.map(s=>s.gmv),n=xs.length;if(n<3)return null;
+    const mx=xs.reduce((a,b)=>a+b,0)/n,my=ys.reduce((a,b)=>a+b,0)/n;let sxy=0,sxx=0,syy=0;
+    for(let i=0;i<n;i++){sxy+=(xs[i]-mx)*(ys[i]-my);sxx+=(xs[i]-mx)**2;syy+=(ys[i]-my)**2;}
+    return (sxx&&syy)?sxy/Math.sqrt(sxx*syy):0;})();
+  const cgTxt=cg==null?"":(Math.abs(cg)<0.3?`📌 상관 약함 (r=${cg.toFixed(2)}) → 영상 <b>개수</b>보다 '<b>어떤</b> 영상이 터지느냐'가 매출을 좌우. 물량보다 히트 콘텐츠 발굴에 집중`:(cg>0?`📌 <b>양의 상관</b> (r=${cg.toFixed(2)}) → 영상 많이 올라온 날 매출↑. 꾸준한 콘텐츠 생산이 매출로 연결됨`:`📌 <b>음의 상관</b> (r=${cg.toFixed(2)}) → 특이 패턴, 개별 확인 필요`));
   const secAdv=sect("🧪","심화 분석","파레토 · 기여도 · 캠페인 · 환불 · 상관")+
     `<div class="grid2">
-      <div class="card"><h3>📈 파레토 (매출 집중도)</h3><div class="cap">상위 ${pareto.p50||"–"}개 제품 = 매출 50% · 상위 ${pareto.p80||"–"}개 = 80% (전체 ${pareto.count}개)</div><div class="chartbox"><canvas id="cPareto"></canvas></div></div>
-      <div class="card"><h3>🌊 매출 증감 기여 (전일 대비)</h3><div class="cap">전일 ${usd(d.waterfall.start)} → 당일 ${usd(d.waterfall.end)} · 제품별 ± 기여</div><div class="chartbox"><canvas id="cWaterfall"></canvas></div></div>
+      <div class="card"><h3>📈 파레토 (매출 집중도)</h3><div class="cap">가로=제품 순위(매출順), 세로=누적 매출 비중 · 상위 ${pareto.p50||"–"}개=50%, 상위 ${pareto.p80||"–"}개=80% (전체 ${pareto.count}개)</div><div class="chartbox"><canvas id="cPareto"></canvas></div><div class="pins" style="margin-top:10px">${pTxt}</div></div>
+      <div class="card"><h3>🌊 매출 증감 기여 (전일 대비)</h3><div class="cap">전일 ${usd(d.waterfall.start)} → 당일 ${usd(d.waterfall.end)} · 초록=증가/빨강=감소 제품</div><div class="chartbox"><canvas id="cWaterfall"></canvas></div></div>
     </div>
     <div class="grid2">
       <div class="card"><h3>🔻 퍼널 전환율 WoW</h3><div class="cap">이번 기준일 vs 전주 (%)</div><div class="chartbox sm"><canvas id="cFunnelWoW"></canvas></div></div>
-      <div class="card"><h3>🎯 제품별 CTR vs 구매전환</h3><div class="cap">버블 크기=노출 · 우하단=트래픽多 전환低(개선대상)</div><div class="chartbox"><canvas id="cScatter"></canvas></div></div>
+      <div class="card"><h3>🎯 제품별 CTR vs 구매전환</h3><div class="cap">버블 크기=노출 · 초록=전환 양호, 주황=개선대상(트래픽 있는데 전환 낮음)</div><div class="chartbox"><canvas id="cScatter"></canvas></div></div>
     </div>
     <div class="grid2">
-      <div class="card"><h3>🎬 신규 콘텐츠 vs 매출</h3><div class="cap">일별 신규 영상 수(x) 대비 GMV(y)</div><div class="chartbox sm"><canvas id="cContentGmv"></canvas></div></div>
+      <div class="card"><h3>🎬 신규 콘텐츠 vs 매출</h3><div class="cap">점 하나=하루 · 가로=그날 신규 영상 수, 세로=그날 GMV</div><div class="chartbox sm"><canvas id="cContentGmv"></canvas></div><div class="pins" style="margin-top:10px">${cgTxt}</div></div>
       ${refundCard}
     </div>`+campTable;
 
@@ -301,10 +339,17 @@ function render(d){
       <div class="fstage"><div class="fl">주문</div><div class="fv">${nf(p.funnel.sku)}</div><div class="fc">주문전환 ${p.funnel.orderConv}%</div></div>
     </div>`;
     const charts=`<div class="grid2" style="margin-top:6px">
-      <div><div class="subh">14일 추이 — GMV · 광고비</div><div class="chartbox sm"><canvas id="ptr${p.rank}"></canvas></div></div>
-      <div><div class="subh">14일 추이 — ROI · 주문</div><div class="chartbox sm"><canvas id="por${p.rank}"></canvas></div></div>
+      <div><div class="subh">추이 — GMV · 광고비</div><div class="chartbox sm"><canvas id="ptr${p.rank}"></canvas></div></div>
+      <div><div class="subh">추이 — ROI</div><div class="chartbox sm"><canvas id="por${p.rank}"></canvas></div></div>
     </div>
-    <div class="subh">14일 전환율 추이 (CTR · 장바구니율 · 주문전환)</div><div class="chartbox sm"><canvas id="pfn${p.rank}"></canvas></div>`;
+    <div class="grid2">
+      <div><div class="subh">퍼널 물량 — 클릭 · 장바구니 · 주문</div><div class="chartbox sm"><canvas id="pvol${p.rank}"></canvas></div></div>
+      <div><div class="subh">전환율 — CTR · 장바구니율 · 주문전환</div><div class="chartbox sm"><canvas id="pfn${p.rank}"></canvas></div></div>
+    </div>
+    <div class="grid2">
+      <div><div class="subh">오가닉 vs 샵애즈 매출</div><div class="chartbox sm"><canvas id="pos${p.rank}"></canvas></div></div>
+      <div><div class="subh">샘플 발송 · 신규 영상</div><div class="chartbox sm"><canvas id="psv${p.rank}"></canvas></div></div>
+    </div>`;
     const afHtml=af?`<div class="subh">크리에이터·콘텐츠 (Affiliate)</div>
       <div class="statrow">
         <div class="stat"><div class="sl">게시 크리에이터</div><div class="sv">${af.crPosted}</div></div>
@@ -328,6 +373,7 @@ function render(d){
         <span class="pnm">${esc(p.name)}</span>
         <span class="pgm">${usd(p.gmv)} <span class="muted" style="font-weight:400">(${p.share}%)</span>${roiBadge}</span></summary>
       <div class="pdbody">
+        ${prodInsight(p)}
         ${stats}
         <div class="subh">매출 추이 · 퍼널</div>${charts}
         <div class="subh">채널별 매출 분해</div>${chanSeg}
@@ -339,12 +385,13 @@ function render(d){
   }).join("");
 
   // 제품 × 날짜 매출 히트맵 (products[].series 활용)
-  const hmDates=(d.products[0]&&d.products[0].series)?d.products[0].series.map(s=>s.date):[];
-  const hmMax=Math.max(1,...d.products.flatMap(p=>(p.series||[]).map(s=>s.gmv)));
-  const heat=`<div class="card"><h3>🔥 제품 × 날짜 매출 히트맵</h3><div class="cap">진할수록 그날 매출 큼 (14일) · 색: 제품 전체 최대치 기준</div>
+  const hmN=14, hmSer=p=>(p.series||[]).slice(-hmN);
+  const hmDates=(d.products[0])?hmSer(d.products[0]).map(s=>s.date):[];
+  const hmMax=Math.max(1,...d.products.flatMap(p=>hmSer(p).map(s=>s.gmv)));
+  const heat=`<div class="card"><h3>🔥 제품 × 날짜 매출 히트맵</h3><div class="cap">진할수록 그날 매출 큼 (최근 ${hmN}일) · 색: 제품 전체 최대치 기준</div>
     <div class="hmwrap"><table class="hm"><tr><th class="rl">제품</th>${hmDates.map(dt=>`<th>${dt}</th>`).join("")}</tr>
     ${d.products.map(p=>`<tr><td class="rl" title="${esc(p.name)}">${esc(p.name.length>28?p.name.slice(0,26)+"…":p.name)}</td>
-      ${(p.series||[]).map(s=>{const t=s.gmv/hmMax;const bg=`hsl(212 68% ${(90-t*52).toFixed(0)}% / ${(0.15+t*0.85).toFixed(2)})`;return `<td><div class="cell" style="background:${bg};color:${t>0.5?"#fff":"var(--ink)"}" title="${p.name} ${s.date}: ${usd(s.gmv)}">${s.gmv>=1000?Math.round(s.gmv/1000)+"k":(s.gmv||"")}</div></td>`;}).join("")}</tr>`).join("")}
+      ${hmSer(p).map(s=>{const t=s.gmv/hmMax;const bg=`hsl(212 68% ${(90-t*52).toFixed(0)}% / ${(0.15+t*0.85).toFixed(2)})`;return `<td><div class="cell" style="background:${bg};color:${t>0.5?"#fff":"var(--ink)"}" title="${esc(p.name)} ${s.date}: ${usd(s.gmv)}">${s.gmv>=1000?Math.round(s.gmv/1000)+"k":(s.gmv||"")}</div></td>`;}).join("")}</tr>`).join("")}
     </table></div></div>`;
 
   // 커미션 인상 여지 테이블 (잘 팔리는데 표준 커미션 낮은 제품)
@@ -434,38 +481,39 @@ function render(d){
 }
 
 function drawCharts(d){
+  d={...d,series:slc(d.series)}; // 시계열은 선택 기간(PERIOD)만
   const {S1,S2,S3,S4,S5,S6,ink,muted,grid,card}=PAL;
   const gridCfg={grid:{color:grid},ticks:{color:muted},border:{color:grid}};
   const lgd={labels:{color:ink,boxWidth:12,usePointStyle:true,pointStyle:"rectRounded"}};
 
   // GMV + 광고비 grouped bars
-  new Chart($("#cTrend"),{type:"bar",data:{labels:d.series.map(s=>s.date),
+  NC($("#cTrend"),{type:"bar",data:{labels:d.series.map(s=>s.date),
     datasets:[{label:"GMV",data:d.series.map(s=>s.gmv),backgroundColor:S1,borderRadius:4},
       {label:"광고비",data:d.series.map(s=>s.adSpend),backgroundColor:S3,borderRadius:4}]},
     options:{maintainAspectRatio:false,plugins:{legend:lgd,tooltip:{callbacks:{label:c=>c.dataset.label+": "+usd(c.raw)}}},scales:{x:gridCfg,y:{...gridCfg,ticks:{color:muted,callback:usdk}}}}});
   // ROI line
-  new Chart($("#cRoi"),{type:"line",data:{labels:d.series.map(s=>s.date),
+  NC($("#cRoi"),{type:"line",data:{labels:d.series.map(s=>s.date),
     datasets:[{label:"ROI",data:d.series.map(s=>s.roi),borderColor:S1,backgroundColor:S1,borderWidth:2,tension:.3,pointRadius:2,spanGaps:true}]},
     options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw+"x"}}},scales:{x:gridCfg,y:{...gridCfg,ticks:{color:muted,callback:v=>v+"x"}}}}});
   // 주문 + 구매자 grouped bars
-  new Chart($("#cOrders"),{type:"bar",data:{labels:d.series.map(s=>s.date),
+  NC($("#cOrders"),{type:"bar",data:{labels:d.series.map(s=>s.date),
     datasets:[{label:"주문(SKU)",data:d.series.map(s=>s.orders),backgroundColor:S1,borderRadius:4},
       {label:"구매자",data:d.series.map(s=>s.buyers),backgroundColor:S2,borderRadius:4}]},
     options:{maintainAspectRatio:false,plugins:{legend:lgd,tooltip:{callbacks:{label:c=>c.dataset.label+": "+nf(c.raw)}}},scales:{x:gridCfg,y:gridCfg}}});
   // AOV line + 구매전환율 line — 둘 다 라인, 스케일 다르므로 서로 다른 y? 규칙상 단일축. 지수화 대신 AOV만 축, 전환율은 별도 표기 회피 → AOV 라인 + 전환율 라인(정규화 없이 각자 값, 하지만 축 하나)
   // 대신 AOV(값), 전환율(값)을 함께 두면 스케일 충돌 → AOV 라인 하나 + 전환율은 툴팁. 단순화: AOV 라인 + 전환율 라인 두개, 전환율은 %라 값이 작음 → 별도 차트가 정석이나 공간상 이중표기 회피 위해 AOV만.
-  new Chart($("#cAov"),{type:"line",data:{labels:d.series.map(s=>s.date),
+  NC($("#cAov"),{type:"line",data:{labels:d.series.map(s=>s.date),
     datasets:[{label:"AOV($)",data:d.series.map(s=>s.aov),borderColor:S1,backgroundColor:S1,borderWidth:2,tension:.3,pointRadius:2,spanGaps:true},
       {label:"구매전환율(%)",data:d.series.map(s=>s.conv),borderColor:S3,backgroundColor:S3,borderWidth:2,borderDash:[4,3],tension:.3,pointRadius:2,spanGaps:true,hidden:true}]},
     options:{maintainAspectRatio:false,plugins:{legend:lgd,tooltip:{callbacks:{label:c=>c.dataset.label+": "+c.raw}}},scales:{x:gridCfg,y:gridCfg}}});
 
   // channel donut
   const chCols=[S1,S2,S3,S4,S5];
-  new Chart($("#cChan"),{type:"doughnut",data:{labels:d.channels.map(c=>c.name),
+  NC($("#cChan"),{type:"doughnut",data:{labels:d.channels.map(c=>c.name),
     datasets:[{data:d.channels.map(c=>c.gmv),backgroundColor:d.channels.map((c,i)=>chCols[i%chCols.length]),borderColor:card,borderWidth:2}]},
     options:{maintainAspectRatio:false,cutout:"58%",plugins:{legend:{position:"right",labels:{color:ink,boxWidth:12}},tooltip:{callbacks:{label:c=>c.label+": "+usd(c.raw)+" ("+d.channels[c.dataIndex].share+"%)"}}}}});
   // channel stacked trend (5채널)
-  new Chart($("#cChanTrend"),{type:"bar",data:{labels:d.series.map(s=>s.date),
+  NC($("#cChanTrend"),{type:"bar",data:{labels:d.series.map(s=>s.date),
     datasets:[
       {label:"Affiliate Video",data:d.series.map(s=>s.affVideo),backgroundColor:S1},
       {label:"Affiliate LIVE",data:d.series.map(s=>s.affLive),backgroundColor:S2},
@@ -483,62 +531,62 @@ function drawCharts(d){
   const dData=tops.map(p=>p.gmv).concat(others>0?[others]:[]);
   const ramp=blues(tops.length).concat(others>0?[css("--faint")]:[]);
   const total=d.kpis.gmv||dData.reduce((s,x)=>s+x,0);
-  new Chart($("#cProd"),{type:"doughnut",data:{labels:dLabels,
+  NC($("#cProd"),{type:"doughnut",data:{labels:dLabels,
     datasets:[{data:dData,backgroundColor:ramp,borderColor:card,borderWidth:2}]},
     options:{maintainAspectRatio:false,cutout:"56%",plugins:{legend:{position:"right",labels:{color:ink,boxWidth:12,font:{size:11}}},
       tooltip:{callbacks:{label:c=>c.label+": "+usd(c.raw)+" ("+(c.raw/total*100).toFixed(1)+"%)"}}}}});
 
   // content-type mix
   if(d.content && d.content.mix && d.content.mix.length){
-    new Chart($("#cMix"),{type:"bar",data:{labels:d.content.mix.map(m=>m.type),
+    NC($("#cMix"),{type:"bar",data:{labels:d.content.mix.map(m=>m.type),
       datasets:[{label:"매출",data:d.content.mix.map(m=>m.pay),backgroundColor:d.content.mix.map((m,i)=>chCols[i%chCols.length]),borderRadius:4}]},
       options:{indexAxis:"y",maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>usd(c.raw)}}},scales:{x:{...gridCfg,ticks:{color:muted,callback:usdk}},y:{grid:{display:false},ticks:{color:ink}}}}});
   }
 
   // 오가닉 vs 샵애즈 매출 추이 (누적 영역)
-  if($("#cOrgShop")) new Chart($("#cOrgShop"),{type:"line",data:{labels:d.series.map(s=>s.date),
+  if($("#cOrgShop")) NC($("#cOrgShop"),{type:"line",data:{labels:d.series.map(s=>s.date),
     datasets:[{label:"오가닉(스탠다드)",data:d.series.map(s=>s.org),backgroundColor:S2+"55",borderColor:S2,borderWidth:2,fill:true,tension:.3,pointRadius:0,spanGaps:true},
       {label:"샵애즈(광고)",data:d.series.map(s=>s.shop),backgroundColor:S1+"55",borderColor:S1,borderWidth:2,fill:true,tension:.3,pointRadius:0,spanGaps:true}]},
     options:{maintainAspectRatio:false,plugins:{legend:lgd,tooltip:{callbacks:{label:c=>c.dataset.label+": "+usd(c.raw)}}},scales:{x:gridCfg,y:{...gridCfg,stacked:true,ticks:{color:muted,callback:usdk}}}}});
-  // 마케팅 원가율 추이
-  if($("#cMkt")) new Chart($("#cMkt"),{type:"line",data:{labels:d.series.map(s=>s.date),
-    datasets:[{label:"마케팅 원가율",data:d.series.map(s=>s.mktRatio),borderColor:S6||S1,backgroundColor:S6||S1,borderWidth:2,tension:.3,pointRadius:2,spanGaps:true}]},
-    options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw+"%"}}},scales:{x:gridCfg,y:{...gridCfg,ticks:{color:muted,callback:v=>v+"%"}}}}});
   // 오가닉 스토어탭 GMV 추이
-  if($("#cShopTab")) new Chart($("#cShopTab"),{type:"line",data:{labels:d.series.map(s=>s.date),
+  if($("#cShopTab")) NC($("#cShopTab"),{type:"line",data:{labels:d.series.map(s=>s.date),
     datasets:[{label:"Shop tab GMV",data:d.series.map(s=>s.shopGmv),borderColor:S2,backgroundColor:S2+"33",borderWidth:2,fill:true,tension:.3,pointRadius:0,spanGaps:true}]},
     options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>usd(c.raw)}}},scales:{x:gridCfg,y:{...gridCfg,ticks:{color:muted,callback:usdk}}}}});
   // 주차별 매출
-  if($("#cWeekly")&&d.weekly) new Chart($("#cWeekly"),{type:"bar",data:{labels:d.weekly.map(w=>w.label),
+  if($("#cWeekly")&&d.weekly) NC($("#cWeekly"),{type:"bar",data:{labels:d.weekly.map(w=>w.label),
     datasets:[{label:"GMV",data:d.weekly.map(w=>w.gmv),backgroundColor:S1,borderRadius:4},{label:"광고비",data:d.weekly.map(w=>w.spend),backgroundColor:S3,borderRadius:4}]},
     options:{maintainAspectRatio:false,plugins:{legend:lgd,tooltip:{callbacks:{label:c=>c.dataset.label+": "+usd(c.raw)}}},scales:{x:gridCfg,y:{...gridCfg,ticks:{color:muted,callback:usdk}}}}});
 
   // 파레토 곡선
-  if($("#cPareto")&&d.pareto) new Chart($("#cPareto"),{data:{labels:d.pareto.points.map(p=>p.rank),
+  if($("#cPareto")&&d.pareto) NC($("#cPareto"),{data:{labels:d.pareto.points.map(p=>p.rank),
     datasets:[{type:"line",label:"누적 매출 비중",data:d.pareto.points.map(p=>p.cum),borderColor:S1,backgroundColor:S1,borderWidth:2,tension:.2,pointRadius:0,yAxisID:"y"}]},
     options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:c=>d.pareto.points[c[0].dataIndex].name.slice(0,40),label:c=>"누적 "+c.raw+"% (제품 "+(c.dataIndex+1)+"개)"}}},scales:{x:{...gridCfg,title:{display:true,text:"제품 순위",color:muted}},y:{...gridCfg,max:100,ticks:{color:muted,callback:v=>v+"%"}}}}});
   // 워터폴 (전일 대비 제품 기여)
-  if($("#cWaterfall")&&d.waterfall) new Chart($("#cWaterfall"),{type:"bar",data:{labels:d.waterfall.items.map(x=>x.name.length>18?x.name.slice(0,16)+"…":x.name),
+  if($("#cWaterfall")&&d.waterfall) NC($("#cWaterfall"),{type:"bar",data:{labels:d.waterfall.items.map(x=>x.name.length>18?x.name.slice(0,16)+"…":x.name),
     datasets:[{label:"기여",data:d.waterfall.items.map(x=>x.delta),backgroundColor:d.waterfall.items.map(x=>x.delta>=0?S2:(S6||S4)),borderRadius:3}]},
     options:{indexAxis:"y",maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:c=>d.waterfall.items[c[0].dataIndex].name,label:c=>(c.raw>=0?"+":"")+usd(c.raw)}}},scales:{x:{...gridCfg,ticks:{color:muted,callback:usdk}},y:{grid:{display:false},ticks:{color:ink,font:{size:10}}}}}});
   // 퍼널 WoW
   if($("#cFunnelWoW")&&d.funnelWoW){const F=d.funnelWoW;const ds=[{label:"이번",data:F.thisW,backgroundColor:S1,borderRadius:4}];if(F.lastW)ds.push({label:"전주",data:F.lastW,backgroundColor:S3,borderRadius:4});
-    new Chart($("#cFunnelWoW"),{type:"bar",data:{labels:F.stages,datasets:ds},
+    NC($("#cFunnelWoW"),{type:"bar",data:{labels:F.stages,datasets:ds},
     options:{maintainAspectRatio:false,plugins:{legend:lgd,tooltip:{callbacks:{label:c=>c.dataset.label+": "+c.raw+"%"}}},scales:{x:gridCfg,y:{...gridCfg,ticks:{color:muted,callback:v=>v+"%"}}}}});}
-  // CTR vs CVR 버블
+  // CTR vs CVR 버블 — 색: 주문전환 중앙값 기준 상(초록)/하(주황)
   if($("#cScatter")){const mi=Math.max(1,...d.products.map(p=>p.funnel.imp));
-    new Chart($("#cScatter"),{type:"bubble",data:{datasets:d.products.map((p,i)=>({label:p.name,data:[{x:p.funnel.ctr,y:p.funnel.orderConv,r:6+Math.sqrt(p.funnel.imp/mi)*18}],backgroundColor:blues(d.products.length)[i]+"cc"}))},
-    options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>d.products[c.datasetIndex].name.slice(0,30)+" · CTR "+c.raw.x+"% / 주문전환 "+c.raw.y+"%"}}},scales:{x:{...gridCfg,title:{display:true,text:"CTR %",color:muted},ticks:{color:muted,callback:v=>v+"%"}},y:{...gridCfg,title:{display:true,text:"주문전환 %",color:muted},ticks:{color:muted,callback:v=>v+"%"}}}}});}
+    const convs=d.products.map(p=>p.funnel.orderConv).sort((a,b)=>a-b);const med=convs[Math.floor(convs.length/2)]||0;
+    const pt=p=>({x:p.funnel.ctr,y:p.funnel.orderConv,r:7+Math.sqrt(p.funnel.imp/mi)*20,n:p.name});
+    NC($("#cScatter"),{type:"bubble",data:{datasets:[
+      {label:"전환 양호",data:d.products.filter(p=>p.funnel.orderConv>=med).map(pt),backgroundColor:S2+"cc",borderColor:card,borderWidth:1.5},
+      {label:"전환 개선대상",data:d.products.filter(p=>p.funnel.orderConv<med).map(pt),backgroundColor:S3+"cc",borderColor:card,borderWidth:1.5}]},
+    options:{maintainAspectRatio:false,plugins:{legend:lgd,tooltip:{callbacks:{label:c=>c.raw.n.slice(0,30)+" · CTR "+c.raw.x+"% / 주문전환 "+c.raw.y+"%"}}},scales:{x:{...gridCfg,title:{display:true,text:"CTR %",color:muted},ticks:{color:muted,callback:v=>v+"%"}},y:{...gridCfg,title:{display:true,text:"주문전환 %",color:muted},ticks:{color:muted,callback:v=>v+"%"}}}}});}
   // 신규 콘텐츠 vs 매출 산점
-  if($("#cContentGmv")) new Chart($("#cContentGmv"),{type:"scatter",data:{datasets:[{label:"일자",data:d.series.map(s=>({x:s.newVid,y:s.gmv})),backgroundColor:S1+"cc"}]},
+  if($("#cContentGmv")) NC($("#cContentGmv"),{type:"scatter",data:{datasets:[{label:"일자",data:d.series.map(s=>({x:s.newVid,y:s.gmv})),backgroundColor:S1+"cc"}]},
     options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>"신규영상 "+c.raw.x+"개 · GMV "+usd(c.raw.y)}}},scales:{x:{...gridCfg,title:{display:true,text:"신규 영상 수",color:muted}},y:{...gridCfg,ticks:{color:muted,callback:usdk}}}}});
   // 환불율 추이
-  if($("#cRefund")) new Chart($("#cRefund"),{type:"line",data:{labels:d.series.map(s=>s.date),
+  if($("#cRefund")) NC($("#cRefund"),{type:"line",data:{labels:d.series.map(s=>s.date),
     datasets:[{label:"환불율",data:d.series.map(s=>s.refundRate),borderColor:S6||S4,backgroundColor:(S6||S4)+"33",borderWidth:2,fill:true,tension:.3,pointRadius:2,spanGaps:true}]},
     options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw+"% · "+usd(d.series[c.dataIndex].refund)}}},scales:{x:gridCfg,y:{...gridCfg,ticks:{color:muted,callback:v=>v+"%"}}}}});
   // 광고효율 4분면
   if($("#cQuad")){const pts=d.products.filter(p=>p.cost!=null&&p.roi!=null);
-    new Chart($("#cQuad"),{type:"bubble",data:{datasets:[
+    NC($("#cQuad"),{type:"bubble",data:{datasets:[
       {label:"ROI≥3",data:pts.filter(p=>p.roi>=3).map(p=>({x:p.cost,y:p.roi,r:8+Math.sqrt(p.gmv/(d.kpis.gmv||1))*22,n:p.name})),backgroundColor:S2+"cc"},
       {label:"ROI<3",data:pts.filter(p=>p.roi<3).map(p=>({x:p.cost,y:p.roi,r:8+Math.sqrt(p.gmv/(d.kpis.gmv||1))*22,n:p.name})),backgroundColor:(S6||S3)+"cc"}]},
     options:{maintainAspectRatio:false,plugins:{legend:lgd,tooltip:{callbacks:{label:c=>c.raw.n.slice(0,30)+" · 광고비 "+usd(c.raw.x)+" / ROI "+c.raw.y+"x"}}},scales:{x:{...gridCfg,title:{display:true,text:"광고비 $",color:muted},ticks:{color:muted,callback:usdk}},y:{...gridCfg,title:{display:true,text:"ROI",color:muted},ticks:{color:muted,callback:v=>v+"x"}}}}});}
@@ -554,14 +602,14 @@ function drawCharts(d){
   // brand live charts
   if(d.live && d.live.sessions && d.live.sessions.length){
     const L=d.live, labs=L.sessions.map((s,i)=>"세션 "+(i+1));
-    new Chart($("#cLiveGmv"),{type:"bar",data:{labels:labs,
+    NC($("#cLiveGmv"),{type:"bar",data:{labels:labs,
       datasets:[{label:"GMV",data:L.sessions.map(s=>Math.round(s.gmv)),backgroundColor:S6||S1,borderRadius:4}]},
       options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>usd(c.raw)+" · "+L.sessions[c.dataIndex].dur}}},scales:{x:gridCfg,y:{...gridCfg,ticks:{color:muted,callback:usdk}}}}});
-    new Chart($("#cLiveEng"),{type:"bar",data:{labels:labs,
+    NC($("#cLiveEng"),{type:"bar",data:{labels:labs,
       datasets:[{label:"시청자",data:L.sessions.map(s=>s.viewers),backgroundColor:S1,borderRadius:4}]},
       options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>"시청자 "+nf(c.raw)+" · 주문 "+nf(L.sessions[c.dataIndex].ord)}}},scales:{x:gridCfg,y:gridCfg}}});
     if(L.products && L.products.length)
-      new Chart($("#cLiveProd"),{type:"bar",data:{labels:L.products.map(p=>p.name.length>34?p.name.slice(0,32)+"…":p.name),
+      NC($("#cLiveProd"),{type:"bar",data:{labels:L.products.map(p=>p.name.length>34?p.name.slice(0,32)+"…":p.name),
         datasets:[{label:"Seller LIVE GMV",data:L.products.map(p=>Math.round(p.sl)),backgroundColor:S4,borderRadius:4}]},
         options:{indexAxis:"y",maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>usd(c.raw)}}},scales:{x:{...gridCfg,ticks:{color:muted,callback:usdk}},y:{grid:{display:false},ticks:{color:ink,font:{size:11}}}}}});
   }
@@ -574,7 +622,7 @@ function drawCharts(d){
 function drawRateTrend(id, labels, lines){
   const el=$("#"+id); if(!el) return;
   const {muted,grid,ink}=PAL;
-  new Chart(el,{type:"line",data:{labels,
+  NC(el,{type:"line",data:{labels,
     datasets:lines.map(l=>({label:l.label,data:l.data,borderColor:l.color,backgroundColor:l.color,borderWidth:2,tension:.3,pointRadius:2,spanGaps:true}))},
     options:{maintainAspectRatio:false,
       plugins:{legend:{labels:{color:ink,boxWidth:12,usePointStyle:true,pointStyle:"line"}},tooltip:{callbacks:{label:c=>c.dataset.label+": "+(c.raw==null?"-":c.raw+"%")}}},
@@ -586,27 +634,43 @@ const drawnProd={};
 function drawProductCharts(rank){
   if(drawnProd[rank]) return; drawnProd[rank]=true;
   const p=(DATA.products||[]).find(x=>x.rank===rank); if(!p||!p.series) return;
-  const {S1,S2,S3,muted,grid,ink}=PAL;
+  const {S1,S2,S3,S4,S5,S6,muted,grid,ink}=PAL;
   const gridCfg={grid:{color:grid},ticks:{color:muted},border:{color:grid}};
   const lgd={labels:{color:ink,boxWidth:12,usePointStyle:true,pointStyle:"rectRounded"}};
-  const labs=p.series.map(s=>s.date);
+  const ser=slc(p.series), labs=ser.map(s=>s.date);
   // GMV + 광고비
-  if($("#ptr"+rank)) new Chart($("#ptr"+rank),{type:"bar",data:{labels:labs,
-    datasets:[{label:"GMV",data:p.series.map(s=>s.gmv),backgroundColor:S1,borderRadius:3},
-      {label:"광고비",data:p.series.map(s=>s.cost),backgroundColor:S3,borderRadius:3}]},
+  if($("#ptr"+rank)) NC($("#ptr"+rank),{type:"bar",data:{labels:labs,
+    datasets:[{label:"GMV",data:ser.map(s=>s.gmv),backgroundColor:S1,borderRadius:3},
+      {label:"광고비",data:ser.map(s=>s.cost),backgroundColor:S3,borderRadius:3}]},
     options:{maintainAspectRatio:false,plugins:{legend:lgd,tooltip:{callbacks:{label:c=>c.dataset.label+": "+usd(c.raw)}}},scales:{x:gridCfg,y:{...gridCfg,ticks:{color:muted,callback:usdk}}}}});
-  // ROI 추이 (단일축) — 막대 위 툴팁에 주문수 병기
-  if($("#por"+rank)) new Chart($("#por"+rank),{type:"line",data:{labels:labs,
-    datasets:[{label:"ROI",data:p.series.map(s=>s.roi),borderColor:S1,backgroundColor:S1,borderWidth:2,tension:.3,pointRadius:2,spanGaps:true}]},
-    options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>"ROI "+(c.raw==null?"-":c.raw+"x")+" · 주문 "+nf(p.series[c.dataIndex].orders)}}},
+  // ROI 추이 (단일축) — 툴팁에 주문수 병기
+  if($("#por"+rank)) NC($("#por"+rank),{type:"line",data:{labels:labs,
+    datasets:[{label:"ROI",data:ser.map(s=>s.roi),borderColor:S1,backgroundColor:S1,borderWidth:2,tension:.3,pointRadius:2,spanGaps:true}]},
+    options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>"ROI "+(c.raw==null?"-":c.raw+"x")+" · 주문 "+nf(ser[c.dataIndex].orders)}}},
       scales:{x:gridCfg,y:{...gridCfg,ticks:{color:muted,callback:v=>v+"x"}}}}});
-  // 퍼널 — 14일 전환율 추이 (여러 선)
+  // 퍼널 물량 추이 — 클릭·장바구니·주문 (건수)
+  if($("#pvol"+rank)) NC($("#pvol"+rank),{type:"line",data:{labels:labs,
+    datasets:[{label:"클릭",data:ser.map(s=>s.clk),borderColor:S1,backgroundColor:S1,borderWidth:2,tension:.3,pointRadius:1,spanGaps:true},
+      {label:"장바구니",data:ser.map(s=>s.atc),borderColor:S3,backgroundColor:S3,borderWidth:2,tension:.3,pointRadius:1,spanGaps:true},
+      {label:"주문",data:ser.map(s=>s.orders),borderColor:S2,backgroundColor:S2,borderWidth:2,tension:.3,pointRadius:1,spanGaps:true}]},
+    options:{maintainAspectRatio:false,plugins:{legend:lgd,tooltip:{callbacks:{label:c=>c.dataset.label+": "+nf(c.raw)}}},scales:{x:gridCfg,y:gridCfg}}});
+  // 전환율 추이 (여러 선)
   const rate=(a,b)=>b?+(a/b*100).toFixed(2):null;
   drawRateTrend("pfn"+rank,labs,[
-    {label:"CTR",data:p.series.map(s=>rate(s.clk,s.imp)),color:S1},
-    {label:"장바구니율",data:p.series.map(s=>rate(s.atc,s.clk)),color:S3},
-    {label:"주문전환",data:p.series.map(s=>rate(s.orders,s.atc)),color:S2}
+    {label:"CTR",data:ser.map(s=>rate(s.clk,s.imp)),color:S1},
+    {label:"장바구니율",data:ser.map(s=>rate(s.atc,s.clk)),color:S3},
+    {label:"주문전환",data:ser.map(s=>rate(s.orders,s.atc)),color:S2}
   ]);
+  // 오가닉 vs 샵애즈 매출 추이 (누적 영역)
+  if($("#pos"+rank)) NC($("#pos"+rank),{type:"line",data:{labels:labs,
+    datasets:[{label:"오가닉",data:ser.map(s=>s.org),backgroundColor:S2+"55",borderColor:S2,borderWidth:2,fill:true,tension:.3,pointRadius:0,spanGaps:true},
+      {label:"샵애즈",data:ser.map(s=>s.shop),backgroundColor:S1+"55",borderColor:S1,borderWidth:2,fill:true,tension:.3,pointRadius:0,spanGaps:true}]},
+    options:{maintainAspectRatio:false,plugins:{legend:lgd,tooltip:{callbacks:{label:c=>c.dataset.label+": "+usd(c.raw)}}},scales:{x:gridCfg,y:{...gridCfg,stacked:true,ticks:{color:muted,callback:usdk}}}}});
+  // 샘플 발송 · 신규 영상 추이 (건수)
+  if($("#psv"+rank)) NC($("#psv"+rank),{type:"bar",data:{labels:labs,
+    datasets:[{label:"신규 영상",data:ser.map(s=>s.newVid),backgroundColor:S1,borderRadius:3},
+      {label:"샘플 발송",data:ser.map(s=>s.samples),backgroundColor:S3,borderRadius:3}]},
+    options:{maintainAspectRatio:false,plugins:{legend:lgd,tooltip:{callbacks:{label:c=>c.dataset.label+": "+nf(c.raw)+"건"}}},scales:{x:gridCfg,y:gridCfg}}});
 }
 function drawOpenProducts(){
   document.querySelectorAll("details.pd[open]").forEach(el=>drawProductCharts(+el.getAttribute("data-rank")));
@@ -616,6 +680,13 @@ $("#datepick").addEventListener("change",e=>{
   const v=e.target.value; const u=new URL(location.href);
   if(v)u.searchParams.set("date",v); else u.searchParams.delete("date");
   location.href=u.toString();
+});
+// 기간 토글 (7/14/30일) — 시계열 차트만 파기 후 재생성
+$("#periodseg").addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(!b||!DATA) return;
+  PERIOD=+b.getAttribute("data-p");
+  [...$("#periodseg").children].forEach(x=>x.classList.toggle("on",x===b));
+  resetCharts(); Object.keys(drawnProd).forEach(k=>delete drawnProd[k]); drawCharts(DATA);
 });
 if(dateParam)$("#datepick").value=dateParam;
 load();

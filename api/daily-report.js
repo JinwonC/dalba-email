@@ -315,6 +315,22 @@ function videoOrgShopByDate(vidByDate) {
   return out;
 }
 
+// 일자 × 제품(PID)별 오가닉/샵애즈 매출
+function videoOrgShopByDatePid(vidByDate) {
+  const out = {};
+  for (const dk in vidByDate) {
+    const e = out[dk] = {};
+    for (const r of vidByDate[dk]) {
+      const pid = String(r[V.pid] || "").trim(); if (!pid) continue;
+      const pay = num(r[V.pay]);
+      const p = e[pid] || (e[pid] = { org: 0, shop: 0 });
+      if (String(r[V.shop] || "").includes("%")) p.shop += pay;
+      else if (String(r[V.std] || "").includes("%")) p.org += pay;
+    }
+  }
+  return out;
+}
+
 // ── 매출발생영상 커미션율 (제품별 대표=최빈값) ─────────────────
 //   Standard commission rate(16) / Shop Ads commission rate(21)
 const VC = { date: 0, pid: 2, std: 16, adrate: 21 };
@@ -615,7 +631,7 @@ async function resolveTabs(sheets, sheetId) {
 }
 
 // ── 웹 대시보드용 구조화 데이터 ────────────────────────────────
-function buildJson(agg, raw, adByDate, ins, vid, skuByDate, afByDate, orgShopByDate) {
+function buildJson(agg, raw, adByDate, ins, vid, skuByDate, afByDate, orgShopByDate, orgShopByPid) {
   const g = agg.g;
   const keys = Object.keys(raw.byDate).sort();
   const idx = keys.indexOf(agg.date.key);
@@ -649,17 +665,21 @@ function buildJson(agg, raw, adByDate, ins, vid, skuByDate, afByDate, orgShopByD
   const vidByPid = {};
   if (vid) for (const p of vid.plist) if (p.pid) vidByPid[p.pid] = p;
 
-  // 제품별 일자 추이용 최근 14일 윈도우
-  const pwin = keys.slice(Math.max(0, idx - 13), idx + 1);
+  // 제품별 일자 추이용 최근 30일 윈도우
+  const pwin = keys.slice(Math.max(0, idx - 29), idx + 1);
   const prodSeries = (pid) => pwin.map(k => {
     const pp = raw.prod[k] && raw.prod[k][pid];
     const spend = adByDate && adByDate[k] && adByDate[k].pid ? (adByDate[k].pid[pid] || 0) : 0;
     const gmv = pp ? pp.gmv : 0;
+    const afp = afByDate && afByDate[k] && afByDate[k].pid ? afByDate[k].pid[pid] : null;
+    const os = orgShopByPid && orgShopByPid[k] && orgShopByPid[k][pid];
     return {
       date: raw.byDate[k].date.md, gmv: Math.round(gmv),
       orders: pp ? Math.round(pp.sku) : 0, cost: Math.round(spend),
       roi: spend ? +(gmv / spend).toFixed(2) : null,
-      imp: pp ? Math.round(pp.imp) : 0, clk: pp ? Math.round(pp.clk) : 0, atc: pp ? Math.round(pp.atc) : 0
+      imp: pp ? Math.round(pp.imp) : 0, clk: pp ? Math.round(pp.clk) : 0, atc: pp ? Math.round(pp.atc) : 0,
+      newVid: pp ? Math.round(pp.newVid) : 0, samples: afp ? Math.round(afp.samples) : 0,
+      org: os ? Math.round(os.org) : 0, shop: os ? Math.round(os.shop) : 0
     };
   });
 
@@ -955,6 +975,7 @@ module.exports = async (req, res) => {
     const afByDate = parseAffiliate(afRows);
     const vidByDate = parseVideos(vidRows);
     const orgShopByDate = videoOrgShopByDate(vidByDate);
+    const orgShopByPid = videoOrgShopByDatePid(vidByDate);
     const agg = aggregate(raw, targetKey, topN, adByDate, commCur, afByDate, parseLive(liveRows));
     const vid = aggregateVideos(vidByDate, targetKey);
     const skuByDate = parseSkuOrders(skuRows);
@@ -965,7 +986,7 @@ module.exports = async (req, res) => {
       const ins = withInsights ? await generateInsights(agg, vid) : null;
       res.setHeader("Cache-Control", "no-store");
       res.setHeader("Access-Control-Allow-Origin", "*");
-      res.status(200).json(buildJson(agg, raw, adByDate, ins, vid, skuByDate, afByDate, orgShopByDate));
+      res.status(200).json(buildJson(agg, raw, adByDate, ins, vid, skuByDate, afByDate, orgShopByDate, orgShopByPid));
       return;
     }
 
@@ -1009,4 +1030,4 @@ module.exports = async (req, res) => {
 };
 
 // 테스트용 내부 노출
-module.exports._internals = { num, parseDate, parseRaw, parseAds, parseCommissions, parseAffiliate, parseLive, aggregate, parseVideos, aggregateVideos, buildMain, videoChunks, generateInsights, buildJson, parseSkuOrders, skusForProduct, videoOrgShopByDate };
+module.exports._internals = { num, parseDate, parseRaw, parseAds, parseCommissions, parseAffiliate, parseLive, aggregate, parseVideos, aggregateVideos, buildMain, videoChunks, generateInsights, buildJson, parseSkuOrders, skusForProduct, videoOrgShopByDate, videoOrgShopByDatePid };
