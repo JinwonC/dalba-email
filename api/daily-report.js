@@ -562,6 +562,20 @@ function buildJson(agg, raw, adByDate, ins, vid) {
   const vidByPid = {};
   if (vid) for (const p of vid.plist) if (p.pid) vidByPid[p.pid] = p;
 
+  // 제품별 일자 추이용 최근 14일 윈도우
+  const pwin = keys.slice(Math.max(0, idx - 13), idx + 1);
+  const prodSeries = (pid) => pwin.map(k => {
+    const pp = raw.prod[k] && raw.prod[k][pid];
+    const spend = adByDate && adByDate[k] && adByDate[k].pid ? (adByDate[k].pid[pid] || 0) : 0;
+    const gmv = pp ? pp.gmv : 0;
+    return {
+      date: raw.byDate[k].date.md, gmv: Math.round(gmv),
+      orders: pp ? Math.round(pp.sku) : 0, cost: Math.round(spend),
+      roi: spend ? +(gmv / spend).toFixed(2) : null,
+      imp: pp ? Math.round(pp.imp) : 0, clk: pp ? Math.round(pp.clk) : 0, atc: pp ? Math.round(pp.atc) : 0
+    };
+  });
+
   const products = agg.top.map((x, rank) => {
     const chan = [
       { name: "Affiliate", v: Math.round(x.aff || 0) },
@@ -592,6 +606,7 @@ function buildJson(agg, raw, adByDate, ins, vid) {
         atcRate: x.clk ? +(x.atc / x.clk * 100).toFixed(2) : 0,
         orderConv: x.clk ? +(x.sku / x.clk * 100).toFixed(2) : 0
       },
+      series: prodSeries(x.id),
       newVid: Math.round(x.newVid || 0), newLive: Math.round(x.newLive || 0),
       af: x.af ? {
         videos: Math.round(x.af.videos), lives: Math.round(x.af.lives),
@@ -629,7 +644,15 @@ function buildJson(agg, raw, adByDate, ins, vid) {
     channels: agg.channels.map(c => ({ name: c.t, gmv: Math.round(c.v), share: +c.share.toFixed(1), dod: c.dod, wow: c.wow })),
     channelDetail: { affVideo: Math.round(g.affVidG || 0), affLive: Math.round(g.affLiveG || 0), shopTab: Math.round(g.shopGmv || 0) },
     products,
-    funnel: { impressions: Math.round(g.imp), clicks: Math.round(g.clk), atc: Math.round(g.atc), orders: Math.round(g.sku), ctr: g.imp ? +(g.clk / g.imp * 100).toFixed(2) : 0, atcRate: g.clk ? +(g.atc / g.clk * 100).toFixed(2) : 0, orderConv: g.clk ? +(g.sku / g.clk * 100).toFixed(2) : 0 },
+    funnel: {
+      impressions: Math.round(g.imp), clicks: Math.round(g.clk), visitors: Math.round(g.uclk),
+      atc: Math.round(g.atc), orders: Math.round(g.sku), buyers: Math.round(g.cust),
+      ctr: g.imp ? +(g.clk / g.imp * 100).toFixed(2) : 0,
+      atcRate: g.clk ? +(g.atc / g.clk * 100).toFixed(2) : 0,
+      orderConv: g.clk ? +(g.sku / g.clk * 100).toFixed(2) : 0,
+      ctor: g.uclk ? +(g.cust / g.uclk * 100).toFixed(2) : 0,          // 방문→구매 (CVR)
+      atcToOrder: g.atc ? +(g.sku / g.atc * 100).toFixed(2) : 0        // 장바구니→주문
+    },
     creators: agg.creators,
     contentPerVideo: +(g.affVidG / (g.newVid || 1)).toFixed(2),
     contentPerLive: +(g.affLiveG / (g.newLive || 1)).toFixed(2),
