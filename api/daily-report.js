@@ -502,6 +502,41 @@ async function resolveTabs(sheets, sheetId) {
   };
 }
 
+// ── 웹 대시보드용 구조화 데이터 ────────────────────────────────
+function buildJson(agg, raw, adByDate, ins) {
+  const g = agg.g;
+  const keys = Object.keys(raw.byDate).sort();
+  const idx = keys.indexOf(agg.date.key);
+  const window = keys.slice(Math.max(0, idx - 13), idx + 1);
+  const series = window.map(k => {
+    const t = raw.byDate[k].t;
+    const spend = adByDate && adByDate[k] ? adByDate[k].total : 0;
+    return { date: raw.byDate[k].date.md, gmv: Math.round(t.gmv), adSpend: Math.round(spend), roi: spend ? +(t.gmv / spend).toFixed(2) : null, orders: Math.round(t.sku), atcRate: t.clk ? +(t.atc / t.clk * 100).toFixed(1) : null };
+  });
+  return {
+    date: agg.date.label,
+    prevDay: agg.prevDay ? agg.prevDay.md : null,
+    prevWeek: agg.prevWeek ? agg.prevWeek.md : null,
+    kpis: {
+      gmv: Math.round(g.gmv), gmvDoD: agg.dd("gmv"), gmvWoW: agg.ww("gmv"),
+      orders: Math.round(g.sku), ordersDoD: agg.dd("sku"),
+      buyers: Math.round(g.cust), aov: +(g.gmv / (g.sku || 1)).toFixed(2),
+      adSpend: agg.cost ? Math.round(agg.cost.cur) : null,
+      roi: agg.roi ? +agg.roi.cur.toFixed(2) : null,
+      convRate: g.uclk ? +(g.cust / g.uclk * 100).toFixed(2) : 0,
+      impressions: Math.round(g.imp), visitors: Math.round(g.uclk)
+    },
+    series,
+    channels: agg.channels.map(c => ({ name: c.t, gmv: Math.round(c.v), share: +c.share.toFixed(1), dod: c.dod, wow: c.wow })),
+    products: agg.top.map(x => ({ name: x.name, gmv: Math.round(x.gmv), cost: x.cost != null ? Math.round(x.cost) : null, roi: x.roi != null ? +x.roi.toFixed(1) : null, comm: x.comm != null ? Math.round(x.comm) : null, dod: x.dod, wow: x.wow, sku: x.sku })),
+    funnel: { impressions: Math.round(g.imp), clicks: Math.round(g.clk), atc: Math.round(g.atc), orders: Math.round(g.sku), ctr: g.imp ? +(g.clk / g.imp * 100).toFixed(2) : 0, atcRate: g.clk ? +(g.atc / g.clk * 100).toFixed(2) : 0, orderConv: g.clk ? +(g.sku / g.clk * 100).toFixed(2) : 0 },
+    creators: agg.creators,
+    contentPerVideo: +(g.affVidG / (g.newVid || 1)).toFixed(2),
+    live: agg.live ? { sessions: agg.live, products: agg.liveProd, gmv: Math.round(agg.live.reduce((s, x) => s + x.gmv, 0)), viewers: agg.live.reduce((s, x) => s + x.viewers, 0), minutes: agg.live.reduce((s, x) => s + x.min, 0) } : null,
+    insights: ins
+  };
+}
+
 module.exports = async (req, res) => {
   try {
     const isSlash = req.method === "POST" && req.body && (req.body.command || req.body.response_url);
@@ -584,8 +619,20 @@ module.exports = async (req, res) => {
     const commByDate = parseCommissions(vidRows);
     let commCur = commByDate[targetKey];
     if (!commCur) { const ek = Object.keys(commByDate).filter(k => k <= targetKey).sort(); commCur = ek.length ? commByDate[ek[ek.length - 1]] : null; }
-    const agg = aggregate(raw, targetKey, topN, parseAds(adRows), commCur, parseAffiliate(afRows), parseLive(liveRows));
+    const adByDate = parseAds(adRows);
+    const agg = aggregate(raw, targetKey, topN, adByDate, commCur, parseAffiliate(afRows), parseLive(liveRows));
     const vid = aggregateVideos(parseVideos(vidRows), targetKey);
+
+    // 웹 대시보드용 구조화 JSON (?format=json)
+    if (req.query && req.query.format === "json") {
+      const withInsights = req.query.insights === "1";
+      const ins = withInsights ? await generateInsights(agg, vid) : null;
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.status(200).json(buildJson(agg, raw, adByDate, ins));
+      return;
+    }
+
     const insights = await generateInsights(agg, vid);
     const mainText = buildMain(agg, insights);
     const chunks = videoChunks(vid, targetKey);
