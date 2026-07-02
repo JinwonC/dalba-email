@@ -19,43 +19,73 @@
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--surface);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;-webkit-font-smoothing:antialiased}
-  .wrap{max-width:1120px;margin:0 auto;padding:20px 16px 64px}
+  .wrap{max-width:1180px;margin:0 auto;padding:20px 16px 72px}
   header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:6px}
-  h1{font-size:19px;margin:0;font-weight:700}
-  .sub{color:var(--muted);font-size:13px;margin:2px 0 18px}
+  h1{font-size:20px;margin:0;font-weight:750}
+  .sub{color:var(--muted);font-size:13px;margin:2px 0 10px}
   input[type=date]{background:var(--card);color:var(--ink);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px}
-  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:20px}
-  .kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:13px 14px}
-  .kpi .l{font-size:12px;color:var(--muted);margin-bottom:6px}
-  .kpi .v{font-size:22px;font-weight:750;letter-spacing:-.3px}
-  .kpi .d{font-size:12px;margin-top:5px;color:var(--faint)}
+  .sect{margin:30px 0 6px;padding-bottom:8px;border-bottom:2px solid var(--border);display:flex;align-items:baseline;gap:10px}
+  .sect h2{font-size:16px;margin:0;font-weight:750}
+  .sect .sc{font-size:12px;color:var(--muted)}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px}
+  .kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 13px}
+  .kpi .l{font-size:11.5px;color:var(--muted);margin-bottom:6px}
+  .kpi .v{font-size:21px;font-weight:750;letter-spacing:-.3px}
+  .kpi .d{font-size:11.5px;margin-top:5px;color:var(--faint);line-height:1.4}
   .up{color:var(--up)} .down{color:var(--down)}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-  @media (max-width:760px){.grid2{grid-template-columns:1fr}}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+  @media (max-width:820px){.grid2,.grid3{grid-template-columns:1fr}}
   .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 16px 12px;margin-bottom:14px}
-  .card h2{font-size:14px;margin:0 0 2px;font-weight:700}
+  .card h3{font-size:14px;margin:0 0 2px;font-weight:700}
   .card .cap{font-size:12px;color:var(--muted);margin:0 0 12px}
   .chartbox{position:relative;height:280px}
-  .chartbox.tall{height:420px}
+  .chartbox.tall{height:440px}
+  .chartbox.sm{height:230px}
   table{width:100%;border-collapse:collapse;font-size:12.5px}
   th,td{text-align:right;padding:7px 8px;border-bottom:1px solid var(--grid);white-space:nowrap}
   th:first-child,td:first-child{text-align:left;white-space:normal}
   th{color:var(--muted);font-weight:600;font-size:11.5px}
+  tr:last-child td{border-bottom:none}
   .tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:6px;background:var(--grid);color:var(--muted)}
   .funnel{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center}
-  .fstage{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 6px}
+  .fstage{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 6px}
   .fstage .fv{font-size:19px;font-weight:750} .fstage .fl{font-size:11.5px;color:var(--muted)} .fstage .fc{font-size:11px;color:var(--s1);margin-top:3px}
-  .live{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px}
-  .lcard{border:1px solid var(--border);border-radius:10px;padding:12px}
+  .live{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+  .lcard{border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--surface)}
   .lcard .lt{font-weight:700;font-size:13px} .lcard .lm{font-size:12px;color:var(--muted);margin-top:5px;line-height:1.6}
-  .ins{background:var(--card);border:1px solid var(--border);border-left:3px solid var(--s1);border-radius:10px;padding:11px 13px;margin-bottom:8px;font-size:13px;line-height:1.5}
+  .ins{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--s1);border-radius:10px;padding:11px 13px;margin-bottom:8px;font-size:13px;line-height:1.5}
   .ins b{color:var(--s1)}
   .loading{padding:60px;text-align:center;color:var(--muted)}
   .err{padding:20px;border:1px solid var(--down);border-radius:10px;color:var(--down);background:var(--card)}
   .pill{font-size:11px;color:var(--faint)}
+  a{color:var(--s1);text-decoration:none} a:hover{text-decoration:underline}
+  /* 미니 스택 바 (채널 분해) */
+  .mbar{display:flex;height:14px;border-radius:5px;overflow:hidden;gap:2px;background:transparent;margin:6px 0}
+  .mbar span{height:100%}
+  .mlgd{display:flex;flex-wrap:wrap;gap:10px;font-size:11px;color:var(--muted);margin-top:4px}
+  .mlgd i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:middle}
+  .badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;margin-left:6px}
+  .b-roi{background:rgba(27,175,122,.14);color:var(--s2)}
+  .b-warn{background:rgba(237,161,0,.16);color:var(--s3)}
+  /* 제품 딥다이브 */
+  details.pd{background:var(--card);border:1px solid var(--border);border-radius:14px;margin-bottom:10px;overflow:hidden}
+  details.pd>summary{list-style:none;cursor:pointer;padding:14px 16px;display:flex;align-items:center;gap:12px}
+  details.pd>summary::-webkit-details-marker{display:none}
+  .prk{font-size:13px;font-weight:750;color:var(--faint);min-width:26px}
+  .pnm{font-weight:700;font-size:13.5px;flex:1;min-width:0}
+  .pgm{font-weight:750;font-size:14px;white-space:nowrap}
+  .pdbody{padding:0 16px 16px;border-top:1px solid var(--grid)}
+  .statrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px;margin:14px 0}
+  .stat{background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:9px 10px}
+  .stat .sl{font-size:10.5px;color:var(--muted)} .stat .sv{font-size:15px;font-weight:700;margin-top:3px}
+  .subh{font-size:12px;font-weight:700;color:var(--muted);margin:14px 0 6px;text-transform:uppercase;letter-spacing:.4px}
+  .chev{transition:transform .15s} details[open] .chev{transform:rotate(90deg)}
+  .vlink{font-size:12px}
+  .muted{color:var(--muted)}
 </style>
 </head>
-<body>
+<body data-palette="#2a78d6,#1baf7a,#eda100,#008300,#4a3aa7">
 <div class="wrap">
   <header>
     <div><h1>📊 d'Alba 데일리 매출 대시보드</h1><div class="sub" id="sub">불러오는 중…</div></div>
@@ -67,11 +97,14 @@
 const $=s=>document.querySelector(s);
 const css=v=>getComputedStyle(document.body).getPropertyValue(v).trim();
 const usd=n=>"$"+Math.round(n||0).toLocaleString();
+const usdk=v=>"$"+(Math.abs(v)>=1000?(v/1000).toFixed(v>=10000?0:1)+"k":Math.round(v));
+const nf=n=>Math.round(n||0).toLocaleString();
 const cls=s=>{const t=String(s||"");return t.startsWith("-")?"down":(t.startsWith("+")?"up":"")};
 const qs=new URLSearchParams(location.search);
 const dateParam=qs.get("date")||"";
 Chart.defaults.font.family=getComputedStyle(document.body).fontFamily;
 Chart.defaults.animation=false;
+let PAL={};
 
 async function load(){
   try{
@@ -87,99 +120,249 @@ async function load(){
 }
 
 function kpi(l,v,d){return `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div>${d?`<div class="d">${d}</div>`:""}</div>`}
+function sect(icon,t,c){return `<div class="sect"><h2>${icon} ${t}</h2>${c?`<span class="sc">${c}</span>`:""}</div>`}
+function esc(s){return String(s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+// 미니 스택 바: segs=[{label,v,color}]
+function mbar(segs){
+  const tot=segs.reduce((s,x)=>s+Math.max(0,x.v),0)||1;
+  const bars=segs.filter(s=>s.v>0).map(s=>`<span style="width:${(s.v/tot*100).toFixed(2)}%;background:${s.color}" title="${s.label} ${usd(s.v)}"></span>`).join("");
+  const lgd=segs.map(s=>`<span><i style="background:${s.color}"></i>${s.label} ${usd(s.v)} (${(s.v/tot*100).toFixed(0)}%)</span>`).join("");
+  return `<div class="mbar">${bars}</div><div class="mlgd">${lgd}</div>`;
+}
 
 function render(d){
-  const S1=css("--s1"),S2=css("--s2"),S3=css("--s3"),S4=css("--s4"),S5=css("--s5");
-  const ink=css("--ink"),muted=css("--muted"),grid=css("--grid"),card=css("--card");
-  $("#sub").innerHTML=`${d.date} · 전일(${d.prevDay||"–"}) · 전주(${d.prevWeek||"–"}) 대비`;
-  if(!$("#datepick").value && d.date){ /* leave picker empty = latest */ }
+  PAL={S1:css("--s1"),S2:css("--s2"),S3:css("--s3"),S4:css("--s4"),S5:css("--s5"),S6:css("--s6"),
+    ink:css("--ink"),muted:css("--muted"),grid:css("--grid"),card:css("--card")};
+  const {S1,S2,S3,S4,S5}=PAL;
+  $("#sub").innerHTML=`${d.date} 기준 · 전일(${d.prevDay||"–"}) · 전주(${d.prevWeek||"–"}) 대비`;
 
   const k=d.kpis;
+  // ── 1. 전체 스토어 매출 분석 ───────────────────────────
   const kpis=`<div class="kpis">
     ${kpi("총 GMV",usd(k.gmv),`<span class="${cls(k.gmvDoD)}">${k.gmvDoD} DoD</span> · <span class="${cls(k.gmvWoW)}">${k.gmvWoW} WoW</span>`)}
-    ${kpi("주문",k.orders.toLocaleString(),`<span class="${cls(k.ordersDoD)}">${k.ordersDoD} DoD</span>`)}
-    ${kpi("AOV","$"+k.aov.toFixed(2),`구매자 ${k.buyers.toLocaleString()}명`)}
-    ${kpi("광고비",k.adSpend!=null?usd(k.adSpend):"–","")}
-    ${kpi("ROI",k.roi!=null?k.roi.toFixed(2)+"x":"–","GMV ÷ 광고비")}
-    ${kpi("구매전환율",k.convRate.toFixed(2)+"%",`방문자 ${k.visitors.toLocaleString()}`)}
+    ${kpi("주문(SKU)",nf(k.orders),`<span class="${cls(k.ordersDoD)}">${k.ordersDoD} DoD</span> · 판매수량 ${nf(k.items)}`)}
+    ${kpi("구매자",nf(k.buyers),`<span class="${cls(k.buyersDoD)}">${k.buyersDoD} DoD</span>`)}
+    ${kpi("AOV","$"+k.aov.toFixed(2),"주문당 평균")}
+    ${kpi("광고비",k.adSpend!=null?usd(k.adSpend):"–",k.adSpend!=null?`<span class="${cls(k.adSpendDoD)}">${k.adSpendDoD} DoD</span> · 제품 ${usd(k.adProduct)} / 라이브 ${usd(k.adLive)}`:"")}
+    ${kpi("ROI",k.roi!=null?k.roi.toFixed(2)+"x":"–",k.roiPrev!=null?`전일 ${k.roiPrev}x · GMV÷광고비`:"GMV ÷ 광고비")}
+    ${kpi("구매전환율",k.convRate.toFixed(2)+"%",`방문자 ${nf(k.visitors)}`)}
+    ${kpi("노출·CTR",nf(k.impressions),`클릭 ${nf(k.clicks)} · CTR ${k.ctr}%`)}
   </div>`;
 
-  const insHtml=d.insights?`<div class="card"><h2>💡 인사이트</h2><div class="cap">AI 자동 분석</div>
-    ${["overview","channel","product","content","funnel","live"].filter(x=>d.insights[x]).map(x=>`<div class="ins">${d.insights[x]}</div>`).join("")}</div>`:"";
+  const insHtml=d.insights?`<div class="card"><h3>💡 AI 인사이트</h3><div class="cap">섹션별 자동 분석</div>
+    ${["overview","channel","product","content","funnel","live"].filter(x=>d.insights[x]).map(x=>`<div class="ins">${esc(d.insights[x])}</div>`).join("")}</div>`:"";
 
-  // funnel
   const f=d.funnel;
-  const funnelHtml=`<div class="card"><h2>🛒 전환 퍼널</h2><div class="cap">노출 → 클릭 → 장바구니 → 주문</div>
+  const funnelHtml=`<div class="card"><h3>🛒 전환 퍼널</h3><div class="cap">노출 → 클릭 → 장바구니 → 주문</div>
     <div class="funnel">
-      <div class="fstage"><div class="fl">노출</div><div class="fv">${f.impressions.toLocaleString()}</div></div>
-      <div class="fstage"><div class="fl">클릭</div><div class="fv">${f.clicks.toLocaleString()}</div><div class="fc">CTR ${f.ctr}%</div></div>
-      <div class="fstage"><div class="fl">장바구니</div><div class="fv">${f.atc.toLocaleString()}</div><div class="fc">${f.atcRate}%</div></div>
-      <div class="fstage"><div class="fl">주문</div><div class="fv">${f.orders.toLocaleString()}</div><div class="fc">주문전환 ${f.orderConv}%</div></div>
+      <div class="fstage"><div class="fl">노출</div><div class="fv">${nf(f.impressions)}</div></div>
+      <div class="fstage"><div class="fl">클릭</div><div class="fv">${nf(f.clicks)}</div><div class="fc">CTR ${f.ctr}%</div></div>
+      <div class="fstage"><div class="fl">장바구니</div><div class="fv">${nf(f.atc)}</div><div class="fc">${f.atcRate}%</div></div>
+      <div class="fstage"><div class="fl">주문</div><div class="fv">${nf(f.orders)}</div><div class="fc">주문전환 ${f.orderConv}%</div></div>
     </div></div>`;
 
-  // creators
-  const cr=d.creators;
-  const crHtml=cr?`<div class="card"><h2>🎬 크리에이터·콘텐츠 효율</h2><div class="cap">영상 1건당 매출 $${d.contentPerVideo}</div>
-    <div class="kpis" style="margin:0">
-      ${kpi("게시 크리에이터",cr.posted.toLocaleString()+"명","")}
-      ${kpi("판매발생 크리에이터",cr.withSales.toLocaleString()+"명",(cr.posted?Math.round(cr.withSales/cr.posted*100):0)+"% 전환")}
-      ${kpi("판매발생 영상",cr.vidSales+" / "+cr.videos,"개")}
-      ${kpi("판매발생 라이브",cr.liveSales+" / "+cr.lives,"개")}
-    </div></div>`:"";
+  const sec1=sect("🏬","전체 스토어 매출 분석",`${d.series.length}일 추이`)+kpis+
+    `<div class="grid2">
+      <div class="card"><h3>📈 GMV · 광고비 추이</h3><div class="cap">일별 (USD)</div><div class="chartbox"><canvas id="cTrend"></canvas></div></div>
+      <div class="card"><h3>📉 ROI 추이</h3><div class="cap">GMV ÷ 광고비</div><div class="chartbox"><canvas id="cRoi"></canvas></div></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h3>🧾 주문 · 구매자 추이</h3><div class="cap">일별 건수</div><div class="chartbox"><canvas id="cOrders"></canvas></div></div>
+      <div class="card"><h3>💳 AOV · 구매전환율 추이</h3><div class="cap">객단가($) / 전환율(%)</div><div class="chartbox"><canvas id="cAov"></canvas></div></div>
+    </div>`+funnelHtml+insHtml;
 
-  // live
-  let liveHtml="";
+  // ── 2. 채널별 분석 ─────────────────────────────────────
+  const cd=d.channelDetail;
+  const chanTable=`<div class="card"><h3>🔀 채널별 매출 상세</h3><div class="cap">귀속 기준 · 합 100%</div>
+    <div style="overflow-x:auto"><table>
+    <tr><th>채널</th><th>GMV</th><th>비중</th><th>DoD</th><th>WoW</th></tr>
+    ${d.channels.map(c=>`<tr><td>${esc(c.name)}</td><td>${usd(c.gmv)}</td><td>${c.share}%</td>
+      <td class="${cls(c.dod)}">${c.dod}</td><td class="${cls(c.wow)}">${c.wow}</td></tr>`).join("")}
+    </table></div>
+    <div class="cap" style="margin-top:10px">Affiliate 내부 — 영상 ${usd(cd.affVideo)} · 라이브 ${usd(cd.affLive)} · 오가닉 스토어탭 ${usd(cd.shopTab)}</div></div>`;
+
+  const sec2=sect("🔀","채널별 분석","귀속 GMV 분해")+
+    `<div class="grid2">
+      <div class="card"><h3>🍩 채널 구성</h3><div class="cap">당일 GMV 비중</div><div class="chartbox"><canvas id="cChan"></canvas></div></div>
+      ${chanTable}
+    </div>
+    <div class="card"><h3>📊 채널별 매출 추이 (누적)</h3><div class="cap">Affiliate / Product Card / Seller Video / Seller LIVE — 일별 (USD)</div><div class="chartbox tall"><canvas id="cChanTrend"></canvas></div></div>`;
+
+  // ── 3. 제품별 세부 분석 (GMV TOP N) ───────────────────
+  const prodTable=`<div class="card"><h3>📦 제품별 매출 TOP ${d.products.length}</h3><div class="cap">GMV·비중·광고비·ROI·커미션율·증감</div>
+    <div style="overflow-x:auto"><table>
+    <tr><th>#</th><th>제품</th><th>GMV</th><th>비중</th><th>광고비</th><th>ROI</th><th>주문</th><th>스탠다드</th><th>광고커미션</th><th>DoD</th><th>WoW</th></tr>
+    ${d.products.map(p=>`<tr><td>${p.rank}</td><td>${esc(p.name)}</td><td>${usd(p.gmv)}</td><td>${p.share}%</td>
+      <td>${p.cost!=null?usd(p.cost):"-"}</td><td>${p.roi!=null?p.roi+"x":"-"}</td><td>${p.sku}</td>
+      <td>${p.stdRate||"-"}</td><td>${p.adRate||"-"}</td>
+      <td class="${cls(p.dod)}">${p.dod}</td><td class="${cls(p.wow)}">${p.wow}</td></tr>`).join("")}
+    </table></div></div>`;
+
+  const deep=d.products.map((p,i)=>{
+    const roiBadge=p.roi!=null?`<span class="badge ${p.roi>=3?"b-roi":"b-warn"}">ROI ${p.roi}x</span>`:"";
+    const chanSeg=mbar([
+      {label:"Affiliate",v:p.channels[0].v,color:S1},
+      {label:"Product Card",v:p.channels[1].v,color:S2},
+      {label:"Seller Video",v:p.channels[2].v,color:S3},
+      {label:"Seller LIVE",v:p.channels[3].v,color:S4}
+    ]);
+    const af=p.af;
+    const stats=`<div class="statrow">
+      <div class="stat"><div class="sl">GMV</div><div class="sv">${usd(p.gmv)}</div></div>
+      <div class="stat"><div class="sl">주문 / 수량</div><div class="sv">${p.sku} / ${p.items}</div></div>
+      <div class="stat"><div class="sl">구매자</div><div class="sv">${nf(p.cust)}</div></div>
+      <div class="stat"><div class="sl">AOV</div><div class="sv">${p.aov!=null?"$"+p.aov:"-"}</div></div>
+      <div class="stat"><div class="sl">광고비</div><div class="sv">${p.cost!=null?usd(p.cost):"-"}</div></div>
+      <div class="stat"><div class="sl">ROI</div><div class="sv">${p.roi!=null?p.roi+"x":"-"}</div></div>
+      <div class="stat"><div class="sl">커미션</div><div class="sv">${p.comm!=null?usd(p.comm):"-"}</div></div>
+      <div class="stat"><div class="sl">커미션율(표준/광고)</div><div class="sv" style="font-size:13px">${p.stdRate||"-"} / ${p.adRate||"-"}</div></div>
+    </div>`;
+    const funnel=`<div class="funnel" style="margin-top:6px">
+      <div class="fstage"><div class="fl">노출</div><div class="fv">${nf(p.funnel.imp)}</div></div>
+      <div class="fstage"><div class="fl">클릭</div><div class="fv">${nf(p.funnel.clk)}</div><div class="fc">CTR ${p.funnel.ctr}%</div></div>
+      <div class="fstage"><div class="fl">장바구니</div><div class="fv">${nf(p.funnel.atc)}</div><div class="fc">${p.funnel.atcRate}%</div></div>
+      <div class="fstage"><div class="fl">주문</div><div class="fv">${nf(p.funnel.sku)}</div><div class="fc">${p.funnel.orderConv}%</div></div>
+    </div>`;
+    const afHtml=af?`<div class="subh">크리에이터·콘텐츠 (Affiliate)</div>
+      <div class="statrow">
+        <div class="stat"><div class="sl">게시 크리에이터</div><div class="sv">${af.crPosted}</div></div>
+        <div class="stat"><div class="sl">판매발생</div><div class="sv">${af.crSales}</div></div>
+        <div class="stat"><div class="sl">영상(판매)</div><div class="sv">${af.videos} (${af.vidSales})</div></div>
+        <div class="stat"><div class="sl">라이브(판매)</div><div class="sv">${af.lives} (${af.liveSales})</div></div>
+        <div class="stat"><div class="sl">샘플발송</div><div class="sv">${af.samples}</div></div>
+        <div class="stat"><div class="sl">신규영상/라이브</div><div class="sv">${p.newVid}/${p.newLive}</div></div>
+      </div>`:"";
+    const rv=p.revVideos&&p.revVideos.length?`<div class="subh">매출 발생 영상 ${p.revVideoCount}건 · 콘텐츠 귀속 ${usd(p.revVideoPay)}</div>
+      <div style="overflow-x:auto"><table>
+      <tr><th>크리에이터</th><th>유형</th><th>매출</th><th>오가닉</th><th>샵애즈</th></tr>
+      ${p.revVideos.map(v=>`<tr>
+        <td>${v.link?`<a class="vlink" href="${v.link}" target="_blank" rel="noopener">@${esc(v.creator)} ↗</a>`:"@"+esc(v.creator)}</td>
+        <td class="muted">${esc(v.type||"-")}</td><td>${usd(v.pay)}</td>
+        <td>${v.org?`${v.org}건 <span class="muted">(${v.orgRate||"-"})</span>`:"-"}</td>
+        <td>${v.shop?`${v.shop}건 <span class="muted">(${v.shopRate||"-"})</span>`:"-"}</td></tr>`).join("")}
+      </table></div>`:`<div class="cap" style="margin-top:10px">이 제품의 매출 발생 영상 데이터 없음</div>`;
+    return `<details class="pd" ${i===0?"open":""}>
+      <summary><span class="chev">▶</span><span class="prk">${p.rank}</span>
+        <span class="pnm">${esc(p.name)}</span>
+        <span class="pgm">${usd(p.gmv)} <span class="muted" style="font-weight:400">(${p.share}%)</span>${roiBadge}</span></summary>
+      <div class="pdbody">
+        ${stats}
+        <div class="subh">채널별 매출 분해</div>${chanSeg}
+        <div class="subh">전환 퍼널</div>${funnel}
+        ${afHtml}
+        ${rv}
+      </div></details>`;
+  }).join("");
+
+  const sec3=sect("📦","제품별 세부 분석",`GMV TOP ${d.products.length}`)+
+    `<div class="card"><h3>🏆 제품별 GMV</h3><div class="cap">TOP ${d.products.length} · 막대 클릭 없이 아래 카드에서 상세</div><div class="chartbox tall"><canvas id="cProd"></canvas></div></div>`+
+    prodTable+
+    `<div class="cap" style="margin:14px 0 8px;font-weight:600">▾ 제품별 상세 (펼쳐보기 — 채널분해·퍼널·크리에이터·매출영상)</div>`+
+    deep;
+
+  // ── 4. 콘텐츠·크리에이터 분석 (MD/마케터) ──────────────
+  let sec4="";
+  if(d.content){
+    const ct=d.content;
+    const orgShop=`<div class="card"><h3>🟢 오가닉 vs 🔵 샵애즈</h3><div class="cap">${ct.date} 기준${ct.lag?" (매출영상 1일 lag)":""} · 콘텐츠 귀속 매출</div>
+      ${mbar([{label:"오가닉(스탠다드)",v:ct.org.pay,color:S2},{label:"샵애즈(광고)",v:ct.shop.pay,color:S1}])}
+      <div class="statrow" style="margin-top:12px">
+        <div class="stat"><div class="sl">오가닉 매출</div><div class="sv">${usd(ct.org.pay)}</div></div>
+        <div class="stat"><div class="sl">오가닉 건수</div><div class="sv">${nf(ct.org.cnt)}</div></div>
+        <div class="stat"><div class="sl">샵애즈 매출</div><div class="sv">${usd(ct.shop.pay)}</div></div>
+        <div class="stat"><div class="sl">샵애즈 건수</div><div class="sv">${nf(ct.shop.cnt)}</div></div>
+      </div></div>`;
+    const mixCard=`<div class="card"><h3>🎞 콘텐츠 유형별 매출</h3><div class="cap">Video / Livestream / Showcase 등</div><div class="chartbox sm"><canvas id="cMix"></canvas></div></div>`;
+    const crHtml=d.creators?`<div class="card"><h3>🎬 크리에이터 효율 (집계)</h3>
+      <div class="cap">영상 1건당 ${usd(d.contentPerVideo)} · 라이브 1건당 ${usd(d.contentPerLive)} · 신규 영상 ${nf(d.newVideos)} / 라이브 ${nf(d.newLives)}</div>
+      <div class="kpis" style="margin:0">
+        ${kpi("게시 크리에이터",nf(d.creators.posted)+"명","")}
+        ${kpi("판매발생",nf(d.creators.withSales)+"명",(d.creators.posted?Math.round(d.creators.withSales/d.creators.posted*100):0)+"% 전환")}
+        ${kpi("판매발생 영상",d.creators.vidSales+" / "+d.creators.videos,"개")}
+        ${kpi("판매발생 라이브",d.creators.liveSales+" / "+d.creators.lives,"개")}
+      </div></div>`:"";
+    const lead=ct.topCreators&&ct.topCreators.length?`<div class="card"><h3>🏅 크리에이터 매출 리더보드</h3><div class="cap">${ct.date} · 콘텐츠 귀속 매출 상위 ${ct.topCreators.length}명</div>
+      <div style="overflow-x:auto"><table>
+      <tr><th>#</th><th>크리에이터</th><th>매출</th><th>주문</th><th>콘텐츠</th><th>오가닉</th><th>샵애즈</th></tr>
+      ${ct.topCreators.map((c,i)=>`<tr><td>${i+1}</td>
+        <td>${c.link?`<a href="${c.link}" target="_blank" rel="noopener">@${esc(c.creator)} ↗</a>`:"@"+esc(c.creator)}</td>
+        <td>${usd(c.pay)}</td><td>${c.orders}</td><td>${c.contents}</td>
+        <td>${usd(c.org)}</td><td>${usd(c.shop)}</td></tr>`).join("")}
+      </table></div></div>`:"";
+    sec4=sect("🎬","콘텐츠·크리에이터 분석","MD · 콘텐츠 마케터용")+
+      `<div class="grid2">${orgShop}${mixCard}</div>`+crHtml+lead;
+  }
+
+  // ── 5. 브랜드 라이브 ───────────────────────────────────
+  let sec5="";
   if(d.live && d.live.sessions && d.live.sessions.length){
     const L=d.live;
-    liveHtml=`<div class="card"><h2>🔴 브랜드 라이브</h2>
-      <div class="cap">${L.sessions.length}세션 · ${(L.minutes/60).toFixed(1)}h · GMV ${usd(L.gmv)} · 시청자 ${L.viewers.toLocaleString()} · GMV/시간 ${usd(L.gmv/(L.minutes/60||1))}</div>
+    sec5=sect("🔴","브랜드 라이브",`${L.sessions.length}세션`)+
+      `<div class="card"><h3>🔴 라이브 전체 요약</h3>
+      <div class="cap">${L.sessions.length}세션 · ${(L.minutes/60).toFixed(1)}h · GMV ${usd(L.gmv)} · 시청자 ${nf(L.viewers)} · 주문 ${nf(L.orders)} · GMV/시간 ${usd(L.gmv/(L.minutes/60||1))}</div>
       <div class="live">${L.sessions.map(s=>`<div class="lcard"><div class="lt">${s.dur} · ${usd(s.gmv)}</div>
-        <div class="lm">${s.ord}주문 · AOV $${Math.round(s.aov)}<br>시청자 ${s.viewers.toLocaleString()} · CTR ${s.ctr}<br>결제율 ${s.payrate} · 평균시청 ${s.avgview}분</div></div>`).join("")}</div>
-      ${L.products&&L.products.length?`<table style="margin-top:12px"><tr><th>라이브 제품 TOP</th><th>Seller LIVE GMV</th></tr>
-        ${L.products.map(p=>`<tr><td>${p.name}</td><td>${usd(p.sl)}</td></tr>`).join("")}</table>`:""}
+        <div class="lm">${s.ord}주문 · AOV $${Math.round(s.aov)}<br>시청자 ${nf(s.viewers)} · CTR ${s.ctr}<br>결제율 ${s.payrate} · 평균시청 ${s.avgview}분</div></div>`).join("")}</div>
+      ${L.products&&L.products.length?`<table style="margin-top:14px"><tr><th>라이브 제품 TOP</th><th>Seller LIVE GMV</th></tr>
+        ${L.products.map(p=>`<tr><td>${esc(p.name)}</td><td>${usd(p.sl)}</td></tr>`).join("")}</table>`:""}
     </div>`;
   }
 
-  // product table
-  const prodTable=`<div class="card"><h2>📦 제품별 매출 TOP ${d.products.length}</h2><div class="cap">GMV·광고비·ROI·커미션·증감</div>
-    <div style="overflow-x:auto"><table>
-    <tr><th>제품</th><th>GMV</th><th>광고비</th><th>ROI</th><th>커미션</th><th>DoD</th><th>WoW</th><th>주문</th></tr>
-    ${d.products.map(p=>`<tr><td>${p.name}</td><td>${usd(p.gmv)}</td><td>${p.cost!=null?usd(p.cost):"-"}</td>
-      <td>${p.roi!=null?p.roi+"x":"-"}</td><td>${p.comm!=null?usd(p.comm):"-"}</td>
-      <td class="${cls(p.dod)}">${p.dod}</td><td class="${cls(p.wow)}">${p.wow}</td><td>${p.sku}</td></tr>`).join("")}
-    </table></div></div>`;
+  $("#app").innerHTML = sec1 + sec2 + sec3 + sec4 + sec5;
+  drawCharts(d);
+}
 
-  $("#app").innerHTML = kpis + insHtml +
-    `<div class="grid2">
-      <div class="card"><h2>📈 GMV · 광고비 추이 (14일)</h2><div class="cap">일별 (USD)</div><div class="chartbox"><canvas id="cTrend"></canvas></div></div>
-      <div class="card"><h2>📉 ROI 추이 (14일)</h2><div class="cap">GMV ÷ 광고비</div><div class="chartbox"><canvas id="cRoi"></canvas></div></div>
-    </div>
-    <div class="grid2">
-      <div class="card"><h2>🔀 채널별 매출</h2><div class="cap">귀속 기준</div><div class="chartbox"><canvas id="cChan"></canvas></div></div>
-      ${funnelHtml}
-    </div>
-    <div class="card"><h2>🏆 제품별 매출 TOP ${d.products.length}</h2><div class="cap">GMV 기준</div><div class="chartbox tall"><canvas id="cProd"></canvas></div></div>`
-    + crHtml + liveHtml + prodTable;
-
+function drawCharts(d){
+  const {S1,S2,S3,S4,S5,ink,muted,grid,card}=PAL;
   const gridCfg={grid:{color:grid},ticks:{color:muted},border:{color:grid}};
-  // trend: GMV + 광고비 grouped bars (한 축, 둘 다 $)
+  const lgd={labels:{color:ink,boxWidth:12,usePointStyle:true,pointStyle:"rectRounded"}};
+
+  // GMV + 광고비 grouped bars
   new Chart($("#cTrend"),{type:"bar",data:{labels:d.series.map(s=>s.date),
     datasets:[{label:"GMV",data:d.series.map(s=>s.gmv),backgroundColor:S1,borderRadius:4},
       {label:"광고비",data:d.series.map(s=>s.adSpend),backgroundColor:S3,borderRadius:4}]},
-    options:{maintainAspectRatio:false,plugins:{legend:{labels:{color:ink}},tooltip:{callbacks:{label:c=>c.dataset.label+": "+usd(c.raw)}}},scales:{x:gridCfg,y:{...gridCfg,ticks:{color:muted,callback:v=>"$"+(v/1000)+"k"}}}}});
+    options:{maintainAspectRatio:false,plugins:{legend:lgd,tooltip:{callbacks:{label:c=>c.dataset.label+": "+usd(c.raw)}}},scales:{x:gridCfg,y:{...gridCfg,ticks:{color:muted,callback:usdk}}}}});
   // ROI line
   new Chart($("#cRoi"),{type:"line",data:{labels:d.series.map(s=>s.date),
-    datasets:[{label:"ROI",data:d.series.map(s=>s.roi),borderColor:S1,backgroundColor:S1,borderWidth:2,tension:.3,pointRadius:3,spanGaps:true}]},
+    datasets:[{label:"ROI",data:d.series.map(s=>s.roi),borderColor:S1,backgroundColor:S1,borderWidth:2,tension:.3,pointRadius:2,spanGaps:true}]},
     options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw+"x"}}},scales:{x:gridCfg,y:{...gridCfg,ticks:{color:muted,callback:v=>v+"x"}}}}});
+  // 주문 + 구매자 grouped bars
+  new Chart($("#cOrders"),{type:"bar",data:{labels:d.series.map(s=>s.date),
+    datasets:[{label:"주문(SKU)",data:d.series.map(s=>s.orders),backgroundColor:S1,borderRadius:4},
+      {label:"구매자",data:d.series.map(s=>s.buyers),backgroundColor:S2,borderRadius:4}]},
+    options:{maintainAspectRatio:false,plugins:{legend:lgd,tooltip:{callbacks:{label:c=>c.dataset.label+": "+nf(c.raw)}}},scales:{x:gridCfg,y:gridCfg}}});
+  // AOV line + 구매전환율 line — 둘 다 라인, 스케일 다르므로 서로 다른 y? 규칙상 단일축. 지수화 대신 AOV만 축, 전환율은 별도 표기 회피 → AOV 라인 + 전환율 라인(정규화 없이 각자 값, 하지만 축 하나)
+  // 대신 AOV(값), 전환율(값)을 함께 두면 스케일 충돌 → AOV 라인 하나 + 전환율은 툴팁. 단순화: AOV 라인 + 전환율 라인 두개, 전환율은 %라 값이 작음 → 별도 차트가 정석이나 공간상 이중표기 회피 위해 AOV만.
+  new Chart($("#cAov"),{type:"line",data:{labels:d.series.map(s=>s.date),
+    datasets:[{label:"AOV($)",data:d.series.map(s=>s.aov),borderColor:S1,backgroundColor:S1,borderWidth:2,tension:.3,pointRadius:2,spanGaps:true},
+      {label:"구매전환율(%)",data:d.series.map(s=>s.conv),borderColor:S3,backgroundColor:S3,borderWidth:2,borderDash:[4,3],tension:.3,pointRadius:2,spanGaps:true,hidden:true}]},
+    options:{maintainAspectRatio:false,plugins:{legend:lgd,tooltip:{callbacks:{label:c=>c.dataset.label+": "+c.raw}}},scales:{x:gridCfg,y:gridCfg}}});
+
   // channel donut
   const chCols=[S1,S2,S3,S4,S5];
   new Chart($("#cChan"),{type:"doughnut",data:{labels:d.channels.map(c=>c.name),
     datasets:[{data:d.channels.map(c=>c.gmv),backgroundColor:d.channels.map((c,i)=>chCols[i%chCols.length]),borderColor:card,borderWidth:2}]},
     options:{maintainAspectRatio:false,cutout:"58%",plugins:{legend:{position:"right",labels:{color:ink,boxWidth:12}},tooltip:{callbacks:{label:c=>c.label+": "+usd(c.raw)+" ("+d.channels[c.dataIndex].share+"%)"}}}}});
-  // product horizontal bar (sequential blue)
-  new Chart($("#cProd"),{type:"bar",data:{labels:d.products.map(p=>p.name.length>34?p.name.slice(0,32)+"…":p.name),
+  // channel stacked trend
+  new Chart($("#cChanTrend"),{type:"bar",data:{labels:d.series.map(s=>s.date),
+    datasets:[
+      {label:"Affiliate",data:d.series.map(s=>s.affiliate),backgroundColor:S1},
+      {label:"Product Card",data:d.series.map(s=>s.productCard),backgroundColor:S2},
+      {label:"Seller Video",data:d.series.map(s=>s.sellerVideo),backgroundColor:S3},
+      {label:"Seller LIVE",data:d.series.map(s=>s.sellerLive),backgroundColor:S4}
+    ]},
+    options:{maintainAspectRatio:false,plugins:{legend:lgd,tooltip:{callbacks:{label:c=>c.dataset.label+": "+usd(c.raw)}}},scales:{x:{...gridCfg,stacked:true},y:{...gridCfg,stacked:true,ticks:{color:muted,callback:usdk}}}}});
+
+  // product horizontal bar
+  new Chart($("#cProd"),{type:"bar",data:{labels:d.products.map(p=>p.name.length>36?p.name.slice(0,34)+"…":p.name),
     datasets:[{label:"GMV",data:d.products.map(p=>p.gmv),backgroundColor:S1,borderRadius:4}]},
-    options:{indexAxis:"y",maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>usd(c.raw)+(d.products[c.dataIndex].roi!=null?" · ROI "+d.products[c.dataIndex].roi+"x":"")}}},scales:{x:{...gridCfg,ticks:{color:muted,callback:v=>"$"+(v/1000)+"k"}},y:{grid:{display:false},ticks:{color:ink,font:{size:11}}}}}});
+    options:{indexAxis:"y",maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>usd(c.raw)+(d.products[c.dataIndex].roi!=null?" · ROI "+d.products[c.dataIndex].roi+"x":"")}}},scales:{x:{...gridCfg,ticks:{color:muted,callback:usdk}},y:{grid:{display:false},ticks:{color:ink,font:{size:11}}}}}});
+
+  // content-type mix
+  if(d.content && d.content.mix && d.content.mix.length){
+    new Chart($("#cMix"),{type:"bar",data:{labels:d.content.mix.map(m=>m.type),
+      datasets:[{label:"매출",data:d.content.mix.map(m=>m.pay),backgroundColor:d.content.mix.map((m,i)=>chCols[i%chCols.length]),borderRadius:4}]},
+      options:{indexAxis:"y",maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>usd(c.raw)}}},scales:{x:{...gridCfg,ticks:{color:muted,callback:usdk}},y:{grid:{display:false},ticks:{color:ink}}}}});
+  }
 }
 
 $("#datepick").addEventListener("change",e=>{
