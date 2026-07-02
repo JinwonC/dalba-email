@@ -83,8 +83,16 @@ function parseRaw(rows) {
       t[k] = (t[k] || 0) + num(r[R[k]]);
     const id = String(r[R.id] || "").trim();
     if (id) {
-      const p = prod[d.key][id] || (prod[d.key][id] = { name: clean(r[R.name]), gmv: 0, sku: 0, sl: 0 });
-      p.gmv += num(r[R.gmv]); p.sku += num(r[R.sku]); p.sl += num(r[R.sellerLive]);
+      const p = prod[d.key][id] || (prod[d.key][id] = {
+        name: clean(r[R.name]), gmv: 0, sku: 0, orders: 0, items: 0, cust: 0,
+        sl: 0, sv: 0, aff: 0, pc: 0, imp: 0, clk: 0, atc: 0, newVid: 0, newLive: 0
+      });
+      p.gmv += num(r[R.gmv]); p.sku += num(r[R.sku]);
+      p.orders += num(r[R.orders]); p.items += num(r[R.items]); p.cust += num(r[R.cust]);
+      p.sl += num(r[R.sellerLive]); p.sv += num(r[R.sellerVideo]);
+      p.aff += num(r[R.affiliate]); p.pc += num(r[R.productCard]);
+      p.imp += num(r[R.imp]); p.clk += num(r[R.clk]); p.atc += num(r[R.atc]);
+      p.newVid += num(r[R.newVid]); p.newLive += num(r[R.newLive]);
     }
   }
   return { byDate, prod };
@@ -161,7 +169,8 @@ function aggregate(raw, targetKey, topN, adByDate, commCur, afByDate, liveByDate
         pSku: prodPrev[x.id] ? prodPrev[x.id].sku : 0,
         cost: c, roi: c ? x.gmv / c : null,
         comm, refundP: af ? af.refund : null, trueRoi: mkt ? x.gmv / mkt : null,
-        stdRate: cm ? cm.std : null, adRate: cm ? cm.ad : null
+        stdRate: cm ? cm.std : null, adRate: cm ? cm.ad : null,
+        af: af ? { videos: af.videos, lives: af.lives, crPosted: af.crPosted, crSales: af.crSales, vidSales: af.vidSales, liveSales: af.liveSales, samples: af.samples, flat: af.flat, afgmv: af.afgmv } : null
       };
     });
   const topShare = top.reduce((s, x) => s + x.gmv, 0);
@@ -236,24 +245,46 @@ function aggregateVideos(vidByDate, targetKey) {
   }
   if (!useKey) return null;
   const rows = vidByDate[useKey];
-  const prod = {};
+  const prod = {}, creators = {}, byType = {};
+  let orgPay = 0, shopPay = 0, orgCnt = 0, shopCnt = 0;
   for (const r of rows) {
     const pk = r[V.pid] || r[V.pname];
-    const p = prod[pk] || (prod[pk] = { name: clean(r[V.pname]), pay: 0, items: {} });
-    p.pay += num(r[V.pay]);
+    const pid = String(r[V.pid] || "").trim();
+    const p = prod[pk] || (prod[pk] = { name: clean(r[V.pname]), pid, pay: 0, org: 0, shop: 0, items: {} });
+    const pay = num(r[V.pay]);
+    p.pay += pay;
     const ck = r[V.ctype] + "|" + r[V.cid] + "|" + r[V.creator];
     const it = p.items[ck] || (p.items[ck] = { type: r[V.ctype], cid: r[V.cid], creator: r[V.creator], pay: 0, c: 0, org: { cnt: 0, rate: {} }, shop: { cnt: 0, rate: {} } });
-    it.pay += num(r[V.pay]); it.c++;
+    it.pay += pay; it.c++;
     const sR = String(r[V.std] || "").trim(), aR = String(r[V.shop] || "").trim();
-    if (aR.includes("%")) { it.shop.cnt++; it.shop.rate[aR] = (it.shop.rate[aR] || 0) + 1; }
-    else if (sR.includes("%")) { it.org.cnt++; it.org.rate[sR] = (it.org.rate[sR] || 0) + 1; }
+    const isShop = aR.includes("%");
+    if (isShop) { it.shop.cnt++; it.shop.rate[aR] = (it.shop.rate[aR] || 0) + 1; p.shop += pay; shopPay += pay; shopCnt++; }
+    else if (sR.includes("%")) { it.org.cnt++; it.org.rate[sR] = (it.org.rate[sR] || 0) + 1; p.org += pay; orgPay += pay; orgCnt++; }
+    // 크리에이터 리더보드 (Video/LIVE 등 콘텐츠 귀속 매출)
+    const cu = String(r[V.creator] || "").trim();
+    if (cu) {
+      const cr = creators[cu] || (creators[cu] = { creator: cu, pay: 0, orders: 0, org: 0, shop: 0, cids: {} });
+      cr.pay += pay; cr.orders++; if (isShop) cr.shop += pay; else cr.org += pay;
+      if (r[V.cid]) cr.cids[r[V.cid]] = (cr.cids[r[V.cid]] || 0) + pay;
+    }
+    // 콘텐츠 타입별 매출
+    const tp = String(r[V.ctype] || "기타").trim() || "기타";
+    byType[tp] = (byType[tp] || 0) + pay;
   }
   const plist = Object.values(prod)
     .map(p => ({ ...p, items: Object.values(p.items).sort((a, b) => b.pay - a.pay) }))
     .sort((a, b) => b.pay - a.pay);
   const totalPay = rows.reduce((s, r) => s + num(r[V.pay]), 0);
   const videoPay = rows.filter(r => r[V.ctype] === "Video").reduce((s, r) => s + num(r[V.pay]), 0);
-  return { dateKey: parseDate(useKey), key: useKey, plist, totalPay, videoPay };
+  const creatorList = Object.values(creators)
+    .map(c => ({ creator: c.creator, pay: Math.round(c.pay), orders: c.orders, org: Math.round(c.org), shop: Math.round(c.shop), contents: Object.keys(c.cids).length, topCid: modeOf(Object.fromEntries(Object.entries(c.cids).map(([k, v]) => [k, v]))) }))
+    .sort((a, b) => b.pay - a.pay);
+  const contentMix = Object.entries(byType).map(([type, pay]) => ({ type, pay: Math.round(pay) })).sort((a, b) => b.pay - a.pay);
+  return {
+    dateKey: parseDate(useKey), key: useKey, plist, totalPay, videoPay,
+    creatorList, contentMix,
+    org: { pay: Math.round(orgPay), cnt: orgCnt }, shop: { pay: Math.round(shopPay), cnt: shopCnt }
+  };
 }
 
 // ── 매출발생영상 커미션율 (제품별 대표=최빈값) ─────────────────
@@ -287,8 +318,12 @@ function parseAffiliate(rows) {
     t.crPosted += num(r[AF.crPosted]); t.crSales += num(r[AF.crSales]); t.videos += num(r[AF.videos]); t.vidSales += num(r[AF.vidSales]); t.lives += num(r[AF.lives]); t.liveSales += num(r[AF.liveSales]);
     const pid = String(r[AF.pid] || "").trim();
     if (pid && pid !== "Product ID") {
-      const p = e.pid[pid] || (e.pid[pid] = { comm: 0, refund: 0, afgmv: 0 });
+      const p = e.pid[pid] || (e.pid[pid] = { comm: 0, refund: 0, afgmv: 0, flat: 0, samples: 0, videos: 0, lives: 0, crPosted: 0, crSales: 0, vidSales: 0, liveSales: 0 });
       p.comm += num(r[AF.comm]); p.refund += num(r[AF.refund]); p.afgmv += num(r[AF.afgmv]);
+      p.flat += num(r[AF.flat]); p.samples += num(r[AF.samples]);
+      p.videos += num(r[AF.videos]); p.lives += num(r[AF.lives]);
+      p.crPosted += num(r[AF.crPosted]); p.crSales += num(r[AF.crSales]);
+      p.vidSales += num(r[AF.vidSales]); p.liveSales += num(r[AF.liveSales]);
     }
   }
   return byDate;
@@ -503,36 +538,113 @@ async function resolveTabs(sheets, sheetId) {
 }
 
 // ── 웹 대시보드용 구조화 데이터 ────────────────────────────────
-function buildJson(agg, raw, adByDate, ins) {
+function buildJson(agg, raw, adByDate, ins, vid) {
   const g = agg.g;
   const keys = Object.keys(raw.byDate).sort();
   const idx = keys.indexOf(agg.date.key);
-  const window = keys.slice(Math.max(0, idx - 13), idx + 1);
+  const window = keys.slice(Math.max(0, idx - 29), idx + 1); // 최대 30일 추이
   const series = window.map(k => {
     const t = raw.byDate[k].t;
     const spend = adByDate && adByDate[k] ? adByDate[k].total : 0;
-    return { date: raw.byDate[k].date.md, gmv: Math.round(t.gmv), adSpend: Math.round(spend), roi: spend ? +(t.gmv / spend).toFixed(2) : null, orders: Math.round(t.sku), atcRate: t.clk ? +(t.atc / t.clk * 100).toFixed(1) : null };
+    return {
+      date: raw.byDate[k].date.md, gmv: Math.round(t.gmv), adSpend: Math.round(spend),
+      roi: spend ? +(t.gmv / spend).toFixed(2) : null, orders: Math.round(t.sku),
+      buyers: Math.round(t.cust), aov: t.sku ? +(t.gmv / t.sku).toFixed(2) : null,
+      atcRate: t.clk ? +(t.atc / t.clk * 100).toFixed(1) : null,
+      ctr: t.imp ? +(t.clk / t.imp * 100).toFixed(2) : null,
+      conv: t.uclk ? +(t.cust / t.uclk * 100).toFixed(2) : null,
+      affiliate: Math.round(t.affiliate), productCard: Math.round(t.productCard),
+      sellerVideo: Math.round(t.sellerVideo), sellerLive: Math.round(t.sellerLive)
+    };
   });
+
+  // 매출발생영상 → 제품ID별 매핑 (제품 딥다이브에 영상 목록 붙이기)
+  const vidByPid = {};
+  if (vid) for (const p of vid.plist) if (p.pid) vidByPid[p.pid] = p;
+
+  const products = agg.top.map((x, rank) => {
+    const chan = [
+      { name: "Affiliate", v: Math.round(x.aff || 0) },
+      { name: "Product Card", v: Math.round(x.pc || 0) },
+      { name: "Seller Video", v: Math.round(x.sv || 0) },
+      { name: "Seller LIVE", v: Math.round(x.sl || 0) }
+    ];
+    const vp = vidByPid[x.id];
+    const revVideos = vp ? vp.items.slice(0, 15).map(it => ({
+      creator: it.creator, cid: it.cid, type: it.type, pay: Math.round(it.pay),
+      org: it.org.cnt, orgRate: modeOf(it.org.rate), shop: it.shop.cnt, shopRate: modeOf(it.shop.rate),
+      link: it.type === "Video" && it.cid ? `https://www.tiktok.com/@${it.creator}/video/${it.cid}` : null
+    })) : [];
+    return {
+      rank: rank + 1, id: x.id, name: x.name,
+      gmv: Math.round(x.gmv), share: +x.share.toFixed(1), sku: x.sku,
+      orders: Math.round(x.orders || 0), items: Math.round(x.items || 0), cust: Math.round(x.cust || 0),
+      aov: x.sku ? +(x.gmv / x.sku).toFixed(2) : null,
+      cost: x.cost != null ? Math.round(x.cost) : null,
+      roi: x.roi != null ? +x.roi.toFixed(2) : null,
+      comm: x.comm != null ? Math.round(x.comm) : null,
+      stdRate: x.stdRate, adRate: x.adRate,
+      dod: x.dod, wow: x.wow,
+      channels: chan,
+      funnel: {
+        imp: Math.round(x.imp || 0), clk: Math.round(x.clk || 0), atc: Math.round(x.atc || 0), sku: x.sku,
+        ctr: x.imp ? +(x.clk / x.imp * 100).toFixed(2) : 0,
+        atcRate: x.clk ? +(x.atc / x.clk * 100).toFixed(2) : 0,
+        orderConv: x.clk ? +(x.sku / x.clk * 100).toFixed(2) : 0
+      },
+      newVid: Math.round(x.newVid || 0), newLive: Math.round(x.newLive || 0),
+      af: x.af ? {
+        videos: Math.round(x.af.videos), lives: Math.round(x.af.lives),
+        crPosted: Math.round(x.af.crPosted), crSales: Math.round(x.af.crSales),
+        vidSales: Math.round(x.af.vidSales), liveSales: Math.round(x.af.liveSales),
+        samples: Math.round(x.af.samples), afgmv: Math.round(x.af.afgmv)
+      } : null,
+      revVideoCount: vp ? vp.items.length : 0,
+      revVideoPay: vp ? Math.round(vp.pay) : 0,
+      revVideos
+    };
+  });
+
   return {
     date: agg.date.label,
     prevDay: agg.prevDay ? agg.prevDay.md : null,
     prevWeek: agg.prevWeek ? agg.prevWeek.md : null,
     kpis: {
       gmv: Math.round(g.gmv), gmvDoD: agg.dd("gmv"), gmvWoW: agg.ww("gmv"),
-      orders: Math.round(g.sku), ordersDoD: agg.dd("sku"),
-      buyers: Math.round(g.cust), aov: +(g.gmv / (g.sku || 1)).toFixed(2),
+      orders: Math.round(g.sku), ordersDoD: agg.dd("sku"), ordersWoW: agg.ww("sku"),
+      buyers: Math.round(g.cust), buyersDoD: agg.dd("cust"),
+      items: Math.round(g.items), aov: +(g.gmv / (g.sku || 1)).toFixed(2),
       adSpend: agg.cost ? Math.round(agg.cost.cur) : null,
+      adSpendDoD: agg.cost ? agg.cost.dod : null,
+      adProduct: agg.cost ? Math.round(agg.cost.product) : null,
+      adLive: agg.cost ? Math.round(agg.cost.live) : null,
       roi: agg.roi ? +agg.roi.cur.toFixed(2) : null,
+      roiPrev: agg.roi && agg.roi.prev != null ? +agg.roi.prev.toFixed(2) : null,
       convRate: g.uclk ? +(g.cust / g.uclk * 100).toFixed(2) : 0,
-      impressions: Math.round(g.imp), visitors: Math.round(g.uclk)
+      impressions: Math.round(g.imp), clicks: Math.round(g.clk), visitors: Math.round(g.uclk),
+      ctr: g.imp ? +(g.clk / g.imp * 100).toFixed(2) : 0,
+      shopGmv: Math.round(g.shopGmv || 0)
     },
     series,
     channels: agg.channels.map(c => ({ name: c.t, gmv: Math.round(c.v), share: +c.share.toFixed(1), dod: c.dod, wow: c.wow })),
-    products: agg.top.map(x => ({ name: x.name, gmv: Math.round(x.gmv), cost: x.cost != null ? Math.round(x.cost) : null, roi: x.roi != null ? +x.roi.toFixed(1) : null, comm: x.comm != null ? Math.round(x.comm) : null, dod: x.dod, wow: x.wow, sku: x.sku })),
+    channelDetail: { affVideo: Math.round(g.affVidG || 0), affLive: Math.round(g.affLiveG || 0), shopTab: Math.round(g.shopGmv || 0) },
+    products,
     funnel: { impressions: Math.round(g.imp), clicks: Math.round(g.clk), atc: Math.round(g.atc), orders: Math.round(g.sku), ctr: g.imp ? +(g.clk / g.imp * 100).toFixed(2) : 0, atcRate: g.clk ? +(g.atc / g.clk * 100).toFixed(2) : 0, orderConv: g.clk ? +(g.sku / g.clk * 100).toFixed(2) : 0 },
     creators: agg.creators,
     contentPerVideo: +(g.affVidG / (g.newVid || 1)).toFixed(2),
-    live: agg.live ? { sessions: agg.live, products: agg.liveProd, gmv: Math.round(agg.live.reduce((s, x) => s + x.gmv, 0)), viewers: agg.live.reduce((s, x) => s + x.viewers, 0), minutes: agg.live.reduce((s, x) => s + x.min, 0) } : null,
+    contentPerLive: +(g.affLiveG / (g.newLive || 1)).toFixed(2),
+    newVideos: Math.round(g.newVid || 0), newLives: Math.round(g.newLive || 0),
+    // 매출발생영상 기반 콘텐츠/크리에이터 분석
+    content: vid ? {
+      date: vid.dateKey.label, lag: vid.key !== agg.date.key,
+      totalPay: Math.round(vid.totalPay),
+      org: vid.org, shop: vid.shop,
+      mix: vid.contentMix,
+      topCreators: vid.creatorList.slice(0, 20).map(c => ({
+        ...c, link: c.topCid ? `https://www.tiktok.com/@${c.creator}/video/${c.topCid}` : null
+      }))
+    } : null,
+    live: agg.live ? { sessions: agg.live, products: agg.liveProd, gmv: Math.round(agg.live.reduce((s, x) => s + x.gmv, 0)), viewers: agg.live.reduce((s, x) => s + x.viewers, 0), orders: agg.live.reduce((s, x) => s + x.ord, 0), minutes: agg.live.reduce((s, x) => s + x.min, 0) } : null,
     insights: ins
   };
 }
@@ -629,7 +741,7 @@ module.exports = async (req, res) => {
       const ins = withInsights ? await generateInsights(agg, vid) : null;
       res.setHeader("Cache-Control", "no-store");
       res.setHeader("Access-Control-Allow-Origin", "*");
-      res.status(200).json(buildJson(agg, raw, adByDate, ins));
+      res.status(200).json(buildJson(agg, raw, adByDate, ins, vid));
       return;
     }
 
@@ -673,4 +785,4 @@ module.exports = async (req, res) => {
 };
 
 // 테스트용 내부 노출
-module.exports._internals = { num, parseDate, parseRaw, parseAds, parseCommissions, parseAffiliate, parseLive, aggregate, parseVideos, aggregateVideos, buildMain, videoChunks, generateInsights };
+module.exports._internals = { num, parseDate, parseRaw, parseAds, parseCommissions, parseAffiliate, parseLive, aggregate, parseVideos, aggregateVideos, buildMain, videoChunks, generateInsights, buildJson };
