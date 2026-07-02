@@ -314,6 +314,51 @@ function parseCommissions(rows) {
   return out;
 }
 
+// ── SKU Order 탭: 제품(PID)×SKU(옵션/변형)별 판매금액·수량·건수 ──────
+//   열 위치가 바뀌어도 되도록 "헤더 이름"으로 컬럼을 찾는다.
+function parseSkuOrders(rows) {
+  if (!rows || rows.length < 2) return null;
+  const header = (rows[0] || []).map(h => String(h || "").toLowerCase().replace(/\s+/g, " ").trim());
+  const find = (...kws) => { for (let i = 0; i < header.length; i++) if (header[i] && kws.some(k => header[i].includes(k))) return i; return -1; };
+  const iDate = find("date", "날짜");
+  const iPid = find("product id", "상품 id", "제품 id");
+  const iSkuName = find("variation", "variant", "sku name", "옵션", "option name", "속성");
+  const iSkuId = find("sku id", "seller sku", "sku");
+  const iAmt = find("gmv", "payment amount", "sales amount", "판매금액", "매출", "결제금액", "amount", "금액");
+  const iQty = find("quantity", "qty", "수량", "판매수량", "items sold");
+  const iOrd = find("orders", "order count", "주문수", "주문 수", "건수", "sku orders");
+  const iOrdId = find("order id", "주문 id", "주문번호");
+  const sku = iSkuName >= 0 ? iSkuName : iSkuId;
+  const iName = find("product name", "상품명", "제품명");
+  if (iPid < 0 || sku < 0 || iAmt < 0) return null; // 필수 열(제품ID·SKU·금액) 없으면 미사용
+  const byDate = {};
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r]; if (!row) continue;
+    const pid = String(row[iPid] || "").trim();
+    if (!pid || pid.toLowerCase() === "product id") continue;
+    const d = iDate >= 0 ? parseDate(row[iDate]) : null;
+    const dk = d ? d.key : "_all";
+    const label = (String(row[sku] || "").trim()) || (iName >= 0 ? clean(row[iName]) : "") || "(옵션 미표기)";
+    const amt = num(row[iAmt]);
+    const qty = iQty >= 0 ? num(row[iQty]) : 0;
+    const e = byDate[dk] || (byDate[dk] = {});
+    const p = e[pid] || (e[pid] = {});
+    const s = p[label] || (p[label] = { sku: label, pay: 0, qty: 0, cnt: 0 });
+    s.pay += amt; s.qty += qty;
+    // 판매건수: 명시적 주문수 열이 있으면 합산, 아니면(주문ID/행 단위) 1건씩
+    s.cnt += (iOrd >= 0 && iOrdId < 0) ? num(row[iOrd]) : 1;
+  }
+  return byDate; // { dateKey|_all: { pid: { label: {sku,pay,qty,cnt} } } }
+}
+function skusForProduct(skuByDate, targetKey, pid) {
+  if (!skuByDate) return [];
+  const src = skuByDate[targetKey] || skuByDate["_all"] ||
+    (() => { const ks = Object.keys(skuByDate).filter(k => k <= targetKey).sort(); return ks.length ? skuByDate[ks[ks.length - 1]] : null; })();
+  const byPid = src && src[pid];
+  if (!byPid) return [];
+  return Object.values(byPid).sort((a, b) => b.pay - a.pay);
+}
+
 // ── 제품별 AF(어필리에이트) RAW: 커미션·플랫피·샘플·환불·크리에이터수 ──
 const AF = { date: 0, pid: 2, afgmv: 4, refund: 5, crSales: 10, crPosted: 11, vidSales: 12, liveSales: 13, videos: 14, lives: 15, comm: 16, samples: 17, flat: 18 };
 function parseAffiliate(rows) {
@@ -541,12 +586,16 @@ async function resolveTabs(sheets, sheetId) {
     vid: find(h => has(h, "content type") && has(h, "creator username")),
     ad: find(h => has(h, "지출금액")) || (titles.includes("광고") ? "광고" : null),
     af: find(h => has(h, "samples shipped") || (has(h, "est. commission") && has(h, "creators posted content"))),
-    live: find(h => has(h, "live duration") && (has(h, "room id") || has(h, "live-attributed gmv")))
+    live: find(h => has(h, "live duration") && (has(h, "room id") || has(h, "live-attributed gmv"))),
+    // SKU Order 탭: 탭 이름 우선, 없으면 헤더(제품ID+SKU+금액/수량)로 인식.
+    // 단, 콘텐츠 매출 탭(creator/content 열 보유)은 제외해 오탐 방지.
+    skuOrder: find((h, t) => String(t).toLowerCase().trim() === "sku order")
+      || find(h => has(h, "product id") && has(h, "sku") && !has(h, "creator username") && !has(h, "content type") && (has(h, "quantity") || has(h, "gmv") || has(h, "payment amount")))
   };
 }
 
 // ── 웹 대시보드용 구조화 데이터 ────────────────────────────────
-function buildJson(agg, raw, adByDate, ins, vid) {
+function buildJson(agg, raw, adByDate, ins, vid, skuByDate) {
   const g = agg.g;
   const keys = Object.keys(raw.byDate).sort();
   const idx = keys.indexOf(agg.date.key);
@@ -628,7 +677,12 @@ function buildJson(agg, raw, adByDate, ins, vid) {
       revVideoCount: vp ? vp.items.length : 0,
       revVideoPay: vp ? Math.round(vp.pay) : 0,
       revVideos,
-      skus: vp && vp.skus ? vp.skus.slice(0, 12).map(s => ({ sku: s.sku, pay: Math.round(s.pay), qty: Math.round(s.qty), cnt: s.cnt })) : []
+      // SKU(옵션)별 판매 — SKU Order 탭 우선, 없으면 매출발생영상 SKU 열
+      skus: (() => {
+        const fromTab = skusForProduct(skuByDate, agg.date.key, x.id);
+        const src = (fromTab && fromTab.length) ? fromTab : (vp && vp.skus ? vp.skus : []);
+        return src.slice(0, 12).map(s => ({ sku: s.sku, pay: Math.round(s.pay), qty: Math.round(s.qty), cnt: Math.round(s.cnt) }));
+      })()
     };
   });
 
@@ -734,14 +788,15 @@ module.exports = async (req, res) => {
     const sheets = google.sheets({ version: "v4", auth });
 
     // 탭 이름이 자주 바뀌므로 헤더 내용으로 자동 인식 (env 지정 시 그 값 우선)
-    let rawSheet = process.env.RAW_SHEET, vidSheet = process.env.VIDEO_SHEET, adSheet = process.env.AD_SHEET, afSheet = process.env.AF_SHEET, liveSheet = process.env.LIVE_SHEET;
-    if (!rawSheet || !vidSheet || !adSheet || !afSheet || !liveSheet) {
+    let rawSheet = process.env.RAW_SHEET, vidSheet = process.env.VIDEO_SHEET, adSheet = process.env.AD_SHEET, afSheet = process.env.AF_SHEET, liveSheet = process.env.LIVE_SHEET, skuSheet = process.env.SKU_SHEET;
+    if (!rawSheet || !vidSheet || !adSheet || !afSheet || !liveSheet || !skuSheet) {
       const det = await resolveTabs(sheets, sheetId);
       rawSheet = rawSheet || det.raw;
       vidSheet = vidSheet || det.vid;
       adSheet = adSheet || det.ad;
       afSheet = afSheet || det.af;
       liveSheet = liveSheet || det.live;
+      skuSheet = skuSheet || det.skuOrder;
     }
     if (!rawSheet) throw new Error("제품×일자 매출 탭(헤더에 'GMV range','Listing status')을 찾지 못했습니다.");
     if (!vidSheet) throw new Error("주문/콘텐츠 매출 탭(헤더에 'Content Type','Creator Username')을 찾지 못했습니다.");
@@ -750,6 +805,7 @@ module.exports = async (req, res) => {
     const adIdx = adSheet ? ranges.push(`'${adSheet}'!A:J`) - 1 : -1;
     const afIdx = afSheet ? ranges.push(`'${afSheet}'!A:S`) - 1 : -1;
     const liveIdx = liveSheet ? ranges.push(`'${liveSheet}'!A:AD`) - 1 : -1;
+    const skuIdx = skuSheet ? ranges.push(`'${skuSheet}'!A:Z`) - 1 : -1;
     const resp = await sheets.spreadsheets.values.batchGet({ spreadsheetId: sheetId, ranges });
     const vrs = resp.data.valueRanges;
     const rawRows = (vrs[0] && vrs[0].values) || [];
@@ -757,6 +813,7 @@ module.exports = async (req, res) => {
     const adRows = (adIdx >= 0 && vrs[adIdx] && vrs[adIdx].values) || [];
     const afRows = (afIdx >= 0 && vrs[afIdx] && vrs[afIdx].values) || [];
     const liveRows = (liveIdx >= 0 && vrs[liveIdx] && vrs[liveIdx].values) || [];
+    const skuRows = (skuIdx >= 0 && vrs[skuIdx] && vrs[skuIdx].values) || [];
 
     const raw = parseRaw(rawRows);
     const keys = Object.keys(raw.byDate).sort();
@@ -769,6 +826,7 @@ module.exports = async (req, res) => {
     const adByDate = parseAds(adRows);
     const agg = aggregate(raw, targetKey, topN, adByDate, commCur, parseAffiliate(afRows), parseLive(liveRows));
     const vid = aggregateVideos(parseVideos(vidRows), targetKey);
+    const skuByDate = parseSkuOrders(skuRows);
 
     // 웹 대시보드용 구조화 JSON (?format=json)
     if (req.query && req.query.format === "json") {
@@ -776,7 +834,7 @@ module.exports = async (req, res) => {
       const ins = withInsights ? await generateInsights(agg, vid) : null;
       res.setHeader("Cache-Control", "no-store");
       res.setHeader("Access-Control-Allow-Origin", "*");
-      res.status(200).json(buildJson(agg, raw, adByDate, ins, vid));
+      res.status(200).json(buildJson(agg, raw, adByDate, ins, vid, skuByDate));
       return;
     }
 
@@ -820,4 +878,4 @@ module.exports = async (req, res) => {
 };
 
 // 테스트용 내부 노출
-module.exports._internals = { num, parseDate, parseRaw, parseAds, parseCommissions, parseAffiliate, parseLive, aggregate, parseVideos, aggregateVideos, buildMain, videoChunks, generateInsights, buildJson };
+module.exports._internals = { num, parseDate, parseRaw, parseAds, parseCommissions, parseAffiliate, parseLive, aggregate, parseVideos, aggregateVideos, buildMain, videoChunks, generateInsights, buildJson, parseSkuOrders, skusForProduct };
