@@ -700,7 +700,7 @@ function buildJson(agg, raw, adByDate, ins, vid, skuByDate, afByDate, orgShopByD
       const arr = Object.entries(byCr).sort((a, b) => b[1] - a[1]);
       if (arr[0] && vp.pay) { topCreator = arr[0][0]; topCreatorShare = +(arr[0][1] / vp.pay * 100).toFixed(0); }
     }
-    const revVideos = vp ? vp.items.slice(0, 15).map(it => ({
+    const revVideos = vp ? vp.items.map(it => ({
       creator: it.creator, cid: it.cid, type: it.type, pay: Math.round(it.pay),
       org: it.org.cnt, orgRate: modeOf(it.org.rate), shop: it.shop.cnt, shopRate: modeOf(it.shop.rate),
       link: it.type === "Video" && it.cid ? `https://www.tiktok.com/@${it.creator}/video/${it.cid}` : null

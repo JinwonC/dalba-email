@@ -359,8 +359,8 @@ function render(d){
         <div class="stat"><div class="sl">샘플발송</div><div class="sv">${af.samples}</div></div>
         <div class="stat"><div class="sl">신규영상/라이브</div><div class="sv">${p.newVid}/${p.newLive}</div></div>
       </div>`:"";
-    const rv=p.revVideos&&p.revVideos.length?`<div class="subh">매출 발생 영상 ${p.revVideoCount}건 · 콘텐츠 귀속 ${usd(p.revVideoPay)}</div>
-      <div style="overflow-x:auto"><table>
+    const rv=p.revVideos&&p.revVideos.length?`<div class="subh">매출 발생 영상 전체 ${p.revVideoCount}건 · 콘텐츠 귀속 ${usd(p.revVideoPay)}${p.revVideoCount>25?" (스크롤)":""}</div>
+      <div style="overflow:auto;max-height:${p.revVideoCount>25?"460px":"none"}"><table>
       <tr><th>크리에이터</th><th>유형</th><th>매출</th><th>오가닉</th><th>샵애즈</th></tr>
       ${p.revVideos.map(v=>`<tr>
         <td>${v.link?`<a class="vlink" href="${v.link}" target="_blank" rel="noopener">@${esc(v.creator)} ↗</a>`:"@"+esc(v.creator)}</td>
