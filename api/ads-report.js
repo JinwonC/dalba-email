@@ -307,21 +307,38 @@ module.exports = async (req, res) => {
       if (!tab) throw new Error("'광고소재성과' 탭을 찾지 못했습니다. (ADS_TAB 환경변수로 지정 가능)");
     }
 
-    const resp = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range: `'${tab}'!A:Z` });
-    const rows = resp.data.values || [];
-    const parsed = parseCreatives(rows);
-    if (!parsed) throw new Error(`'${tab}' 탭에서 필수 컬럼(날짜·소재ID·지출금액)을 찾지 못했습니다.`);
+    // 파싱 결과 warm 메모리 캐시 (5분) — 프리셋 전환 시 3만행 재다운로드 방지
+    const MEM = globalThis.__adsCache || (globalThis.__adsCache = {});
+    const fresh0 = req.query && req.query.fresh === "1";
+    const ck = sheetId + "|" + tab, now = Date.now();
+    let parsed, header;
+    if (!fresh0 && MEM[ck] && now - MEM[ck].ts < 300000) { parsed = MEM[ck].parsed; header = MEM[ck].header; }
+    else {
+      const resp = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range: `'${tab}'!A:Z` });
+      const rows = resp.data.values || [];
+      parsed = parseCreatives(rows);
+      if (!parsed) throw new Error(`'${tab}' 탭에서 필수 컬럼(날짜·소재ID·지출금액)을 찾지 못했습니다.`);
+      header = rows[0];
+      MEM[ck] = { ts: now, parsed, header };
+    }
 
     // 진단 모드
     if (req.query && req.query.debug === "1") {
       res.setHeader("Cache-Control", "no-store");
-      res.status(200).json({ tab, header: rows[0], colMap: parsed.cols, rowCount: rows.length - 1, minDate: new Date(parsed.minTs).toISOString().slice(0, 10), maxDate: new Date(parsed.maxTs).toISOString().slice(0, 10), creatives: parsed.creatives.length });
+      res.status(200).json({ tab, header, colMap: parsed.cols, minDate: new Date(parsed.minTs).toISOString().slice(0, 10), maxDate: new Date(parsed.maxTs).toISOString().slice(0, 10), creatives: parsed.creatives.length });
       return;
     }
 
-    const out = buildAdsJson(parsed, (req.query && req.query.start) || null, (req.query && req.query.end) || null);
-    const fresh = req.query && req.query.fresh === "1";
-    res.setHeader("Cache-Control", fresh ? "no-store" : "s-maxage=3600, stale-while-revalidate=600");
+    // 기간: start/end 직접 지정 또는 프리셋(days=7|14|30 · month=1) — 프리셋은 서버에서 최신일 기준 계산 (1회 호출 + CDN 캐시 키 안정)
+    let startKey = (req.query && req.query.start) || null, endKey = (req.query && req.query.end) || null;
+    const iso = ts => new Date(ts).toISOString().slice(0, 10);
+    if (!startKey && req.query) {
+      const days = parseInt(req.query.days, 10);
+      if (days > 0) { startKey = iso(parsed.maxTs - (days - 1) * 86400000); endKey = iso(parsed.maxTs); }
+      else if (req.query.month === "1") { const d = new Date(parsed.maxTs); startKey = iso(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)); endKey = iso(parsed.maxTs); }
+    }
+    const out = buildAdsJson(parsed, startKey, endKey);
+    res.setHeader("Cache-Control", fresh0 ? "no-store" : "s-maxage=3600, stale-while-revalidate=600");
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.status(200).json(out);
   } catch (e) {

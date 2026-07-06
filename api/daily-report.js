@@ -31,6 +31,8 @@
 const DEFAULT_CHANNEL = "C0BAEH36VDX"; // #데일리-분석
 const DEFAULT_TOP_N = 15;
 const CHUNK_LIMIT = 3800; // Slack 메시지 1건 안전 길이
+// warm 인스턴스 메모리 캐시 (시트 읽기 결과 2분 · 탭 매핑 10분) — 연속 조회/이중 호출 가속
+const MEM = globalThis.__dalbaCache || (globalThis.__dalbaCache = {});
 
 // ── 매출raw 컬럼 인덱스(고정 레이아웃, 검증됨) ──────────────────
 const R = {
@@ -935,33 +937,46 @@ module.exports = async (req, res) => {
     }
     const sheets = google.sheets({ version: "v4", auth });
 
-    // 탭 이름이 자주 바뀌므로 헤더 내용으로 자동 인식 (env 지정 시 그 값 우선)
-    let rawSheet = process.env.RAW_SHEET, vidSheet = process.env.VIDEO_SHEET, adSheet = process.env.AD_SHEET, afSheet = process.env.AF_SHEET, liveSheet = process.env.LIVE_SHEET, skuSheet = process.env.SKU_SHEET;
-    if (!rawSheet || !vidSheet || !adSheet || !afSheet || !liveSheet || !skuSheet) {
-      const det = await resolveTabs(sheets, sheetId);
-      rawSheet = rawSheet || det.raw;
-      vidSheet = vidSheet || det.vid;
-      adSheet = adSheet || det.ad;
-      afSheet = afSheet || det.af;
-      liveSheet = liveSheet || det.live;
-      skuSheet = skuSheet || det.skuOrder;
-    }
-    if (!rawSheet) throw new Error("제품×일자 매출 탭(헤더에 'GMV range','Listing status')을 찾지 못했습니다.");
-    if (!vidSheet) throw new Error("주문/콘텐츠 매출 탭(헤더에 'Content Type','Creator Username')을 찾지 못했습니다.");
+    const fresh = req.query && req.query.fresh === "1";
+    const now = Date.now();
 
-    const ranges = [`'${rawSheet}'!A:GZ`, `'${vidSheet}'!A:AE`];
-    const adIdx = adSheet ? ranges.push(`'${adSheet}'!A:J`) - 1 : -1;
-    const afIdx = afSheet ? ranges.push(`'${afSheet}'!A:S`) - 1 : -1;
-    const liveIdx = liveSheet ? ranges.push(`'${liveSheet}'!A:AD`) - 1 : -1;
-    const skuIdx = skuSheet ? ranges.push(`'${skuSheet}'!A:Z`) - 1 : -1;
-    const resp = await sheets.spreadsheets.values.batchGet({ spreadsheetId: sheetId, ranges });
-    const vrs = resp.data.valueRanges;
-    const rawRows = (vrs[0] && vrs[0].values) || [];
-    const vidRows = (vrs[1] && vrs[1].values) || [];
-    const adRows = (adIdx >= 0 && vrs[adIdx] && vrs[adIdx].values) || [];
-    const afRows = (afIdx >= 0 && vrs[afIdx] && vrs[afIdx].values) || [];
-    const liveRows = (liveIdx >= 0 && vrs[liveIdx] && vrs[liveIdx].values) || [];
-    const skuRows = (skuIdx >= 0 && vrs[skuIdx] && vrs[skuIdx].values) || [];
+    // 시트 읽기 (warm 인스턴스 2분 캐시)
+    let sd = (!fresh && MEM["sheet:" + sheetId] && now - MEM["sheet:" + sheetId].ts < 120000) ? MEM["sheet:" + sheetId].data : null;
+    if (!sd) {
+      // 탭 이름이 자주 바뀌므로 헤더 내용으로 자동 인식 (env 지정 시 그 값 우선 · 매핑 10분 캐시)
+      let rawSheet = process.env.RAW_SHEET, vidSheet = process.env.VIDEO_SHEET, adSheet = process.env.AD_SHEET, afSheet = process.env.AF_SHEET, liveSheet = process.env.LIVE_SHEET, skuSheet = process.env.SKU_SHEET;
+      if (!rawSheet || !vidSheet || !adSheet || !afSheet || !liveSheet || !skuSheet) {
+        let det = (!fresh && MEM["tabs:" + sheetId] && now - MEM["tabs:" + sheetId].ts < 600000) ? MEM["tabs:" + sheetId].val : null;
+        if (!det) { det = await resolveTabs(sheets, sheetId); MEM["tabs:" + sheetId] = { ts: now, val: det }; }
+        rawSheet = rawSheet || det.raw;
+        vidSheet = vidSheet || det.vid;
+        adSheet = adSheet || det.ad;
+        afSheet = afSheet || det.af;
+        liveSheet = liveSheet || det.live;
+        skuSheet = skuSheet || det.skuOrder;
+      }
+      if (!rawSheet) throw new Error("제품×일자 매출 탭(헤더에 'GMV range','Listing status')을 찾지 못했습니다.");
+      if (!vidSheet) throw new Error("주문/콘텐츠 매출 탭(헤더에 'Content Type','Creator Username')을 찾지 못했습니다.");
+
+      // 범위는 실제 사용 컬럼까지만 (A:GZ→A:DM 등, 전송량 절감)
+      const ranges = [`'${rawSheet}'!A:DM`, `'${vidSheet}'!A:W`];
+      const adIdx = adSheet ? ranges.push(`'${adSheet}'!A:J`) - 1 : -1;
+      const afIdx = afSheet ? ranges.push(`'${afSheet}'!A:S`) - 1 : -1;
+      const liveIdx = liveSheet ? ranges.push(`'${liveSheet}'!A:AD`) - 1 : -1;
+      const skuIdx = skuSheet ? ranges.push(`'${skuSheet}'!A:Z`) - 1 : -1;
+      const resp = await sheets.spreadsheets.values.batchGet({ spreadsheetId: sheetId, ranges });
+      const vrs = resp.data.valueRanges;
+      sd = {
+        rawRows: (vrs[0] && vrs[0].values) || [],
+        vidRows: (vrs[1] && vrs[1].values) || [],
+        adRows: (adIdx >= 0 && vrs[adIdx] && vrs[adIdx].values) || [],
+        afRows: (afIdx >= 0 && vrs[afIdx] && vrs[afIdx].values) || [],
+        liveRows: (liveIdx >= 0 && vrs[liveIdx] && vrs[liveIdx].values) || [],
+        skuRows: (skuIdx >= 0 && vrs[skuIdx] && vrs[skuIdx].values) || []
+      };
+      MEM["sheet:" + sheetId] = { ts: now, data: sd };
+    }
+    const { rawRows, vidRows, adRows, afRows, liveRows, skuRows } = sd;
 
     const raw = parseRaw(rawRows);
     const keys = Object.keys(raw.byDate).sort();
@@ -981,10 +996,11 @@ module.exports = async (req, res) => {
     const skuByDate = parseSkuOrders(skuRows);
 
     // 웹 대시보드용 구조화 JSON (?format=json)
+    // 캐시: 기본 10분(CDN), 인사이트 포함은 1시간 — ?fresh=1 로 우회
     if (req.query && req.query.format === "json") {
       const withInsights = req.query.insights === "1";
       const ins = withInsights ? await generateInsights(agg, vid) : null;
-      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("Cache-Control", fresh ? "no-store" : (withInsights ? "s-maxage=3600, stale-while-revalidate=86400" : "s-maxage=600, stale-while-revalidate=86400"));
       res.setHeader("Access-Control-Allow-Origin", "*");
       res.status(200).json(buildJson(agg, raw, adByDate, ins, vid, skuByDate, afByDate, orgShopByDate, orgShopByPid));
       return;
