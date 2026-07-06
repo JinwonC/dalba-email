@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>d'Alba GMV Max 광고 대시보드</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#F4F6F8; --card:#ffffff; --ink:#15222E; --muted:#5B6B7B; --faint:#8595A5;
+    --blue:#2451E6; --teal:#0E8A6D; --red:#E0492F; --amber:#B45309; --gray:#8595A5;
+    --border:#E2E8F0; --grid:#EDF1F5;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans KR",-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+  .mono,td.n,.kv{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+  .wrap{max-width:1240px;margin:0 auto;padding:20px 16px 72px}
+  header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:14px}
+  h1{font-size:19px;margin:0;font-weight:700}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:2px}
+  .nav{display:inline-flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--card)}
+  .nav a{padding:7px 14px;font-size:13px;color:var(--muted);text-decoration:none}
+  .nav a.on{background:var(--blue);color:#fff;font-weight:600}
+  .btn{background:var(--card);border:1px solid var(--border);border-radius:9px;padding:7px 12px;font-size:12.5px;color:var(--ink);cursor:pointer;font-family:inherit}
+  .btn:hover{border-color:var(--blue)}
+  /* 필터 바 */
+  .fbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:16px}
+  .seg{display:inline-flex;border:1px solid var(--border);border-radius:9px;overflow:hidden}
+  .seg button{background:var(--card);color:var(--muted);border:none;padding:7px 12px;font-size:12.5px;cursor:pointer;font-family:inherit}
+  .seg button.on{background:var(--blue);color:#fff;font-weight:600}
+  input[type=date]{background:var(--card);color:var(--ink);border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-size:12.5px;font-family:inherit}
+  .pill{font-size:11.5px;color:var(--faint)}
+  /* 섹션/카드 */
+  .sect{margin:26px 0 8px;padding-bottom:8px;border-bottom:2px solid var(--border);display:flex;align-items:baseline;gap:10px}
+  .sect h2{font-size:16px;margin:0;font-weight:700}
+  .sect .sc{font-size:12px;color:var(--muted)}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px}
+  .card h3{font-size:14px;margin:0 0 2px;font-weight:600}
+  .card .cap{font-size:12px;color:var(--muted);margin:0 0 12px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  @media (max-width:860px){.grid2,.grid3{grid-template-columns:1fr}}
+  .chartbox{position:relative;height:260px}
+  .chartbox.sm{height:210px}
+  /* KPI */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+  .kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:13px 14px}
+  .kpi .l{font-size:11.5px;color:var(--muted);margin-bottom:6px}
+  .kpi .v{font-size:22px;font-weight:700;letter-spacing:-.3px;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+  .kpi .d{font-size:11.5px;margin-top:5px;color:var(--faint)}
+  .ok{color:var(--teal)} .bad{color:var(--red)}
+  /* 배지 */
+  .bg{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;white-space:nowrap}
+  .bg-kill{background:rgba(224,73,47,.12);color:var(--red)}
+  .bg-fat{background:rgba(180,83,9,.12);color:var(--amber)}
+  .bg-boost{background:rgba(14,138,109,.12);color:var(--teal)}
+  .bg-watch{background:rgba(36,81,230,.10);color:var(--blue)}
+  .bg-gate{background:rgba(133,149,165,.15);color:var(--gray)}
+  .banner{border:1px solid var(--red);background:rgba(224,73,47,.06);color:var(--red);border-radius:12px;padding:11px 14px;font-size:13px;font-weight:600;margin-bottom:14px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{border:1px solid var(--border);border-radius:20px;padding:6px 13px;font-size:12.5px;background:var(--card);cursor:pointer}
+  .chip b{font-family:"IBM Plex Mono",monospace}
+  /* 테이블 */
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th,td{text-align:right;padding:8px 8px;border-bottom:1px solid var(--grid);white-space:nowrap}
+  th:first-child,td:first-child,th.l,td.l{text-align:left}
+  th{color:var(--muted);font-weight:600;font-size:11.5px;position:sticky;top:0;background:var(--card);cursor:default}
+  tr.crow{cursor:pointer} tr.crow:hover td{background:var(--grid)}
+  tr.drow td{background:var(--bg);padding:14px 16px;white-space:normal}
+  .idcell{font-family:"IBM Plex Mono",monospace;font-size:11.5px;max-width:190px;overflow:hidden;text-overflow:ellipsis}
+  .warnb{color:var(--amber);font-size:11px}
+  select{background:var(--card);color:var(--ink);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-size:12.5px;font-family:inherit}
+  .statrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:8px;margin:10px 0}
+  .stat{background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:9px 10px}
+  .stat .sl{font-size:10.5px;color:var(--muted)} .stat .sv{font-size:15px;font-weight:600;margin-top:3px;font-family:"IBM Plex Mono",monospace}
+  .funnelmini{display:flex;gap:6px;align-items:flex-end;height:70px;margin:8px 0}
+  .funnelmini div{background:var(--blue);border-radius:3px 3px 0 0;width:44px;position:relative}
+  .funnelmini span{position:absolute;top:-17px;left:0;right:0;text-align:center;font-size:10px;color:var(--muted);font-family:"IBM Plex Mono",monospace}
+  .funnelmini em{position:absolute;bottom:-17px;left:0;right:0;text-align:center;font-size:10px;font-style:normal;color:var(--faint)}
+  .qd{border-left:3px solid var(--blue);background:var(--card);border-radius:8px;padding:9px 12px;font-size:12.5px;margin-top:18px}
+  .loading{padding:70px;text-align:center;color:var(--muted)}
+  .err{padding:18px;border:1px solid var(--red);border-radius:12px;color:var(--red);background:var(--card)}
+  input.tgt{width:64px;background:var(--card);border:1px solid var(--border);border-radius:7px;padding:4px 7px;font-size:12.5px;font-family:"IBM Plex Mono",monospace}
+  /* 패스워드 게이트 */
+  #gate{position:fixed;inset:0;background:var(--bg);display:none;align-items:center;justify-content:center;z-index:50}
+  #gate .box{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:28px;width:320px;text-align:center}
+  #gate input{width:100%;margin:12px 0;padding:9px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit}
+  #gate button{width:100%;background:var(--blue);color:#fff;border:none;border-radius:8px;padding:10px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+  .spk{display:block}
+</style>
+</head>
+<body>
+<div id="gate"><div class="box"><h3 style="margin:0">🔒 광고 대시보드</h3><div class="sub">패스워드를 입력하세요</div>
+  <input type="password" id="gpw" placeholder="password"><button onclick="tryPw()">입장</button>
+  <div class="sub" id="gerr" style="color:var(--red);margin-top:8px"></div></div></div>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>📣 d'Alba GMV Max 광고 대시보드</h1>
+      <div class="sub" id="sub">불러오는 중…</div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <nav class="nav"><a href="/report.html">매출 리포트</a><a class="on" href="/ads.html">광고 대시보드</a></nav>
+      <button class="btn" onclick="load(true)">↻ 새로고침</button>
+    </div>
+  </header>
+  <div class="fbar">
+    <span class="pill">기간</span>
+    <div class="seg" id="presets">
+      <button data-p="7">최근 7일</button><button data-p="14">최근 14일</button><button data-p="30" class="on">최근 30일</button><button data-p="m">이번 달</button><button data-p="all">전체</button>
+    </div>
+    <input type="date" id="d1"> ~ <input type="date" id="d2">
+    <button class="btn" onclick="applyCustom()">적용</button>
+    <span class="pill" style="margin-left:auto">판정 배지·누적 지표는 기간 필터와 무관하게 전체 수명 기준</span>
+  </div>
+  <div id="app"><div class="loading">데이터 불러오는 중…</div></div>
+</div>
+<script>
+const $=s=>document.querySelector(s);
+const usd=n=>"$"+Math.round(n||0).toLocaleString();
+const usd2=n=>"$"+(n||0).toLocaleString(undefined,{maximumFractionDigits:2});
+const usdk=v=>"$"+(Math.abs(v)>=1000?(v/1000).toFixed(v>=10000?0:1)+"k":Math.round(v));
+const nf=n=>Math.round(n||0).toLocaleString();
+const esc=s=>String(s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+Chart.defaults.font.family='"IBM Plex Sans KR",sans-serif';
+Chart.defaults.animation=false;
+let DATA=null, CHARTS=[], STATE={preset:"30",start:null,end:null}, SPARKN=30;
+function NC(el,cfg){ if(!el)return null; const c=new Chart(el,cfg); CHARTS.push(c); return c; }
+function resetCharts(){ CHARTS.forEach(c=>{try{c.destroy()}catch(e){}}); CHARTS=[]; }
+const BADGE={"KILL":["🔴 KILL","bg-kill"],"피로":["🟡 피로","bg-fat"],"BOOST":["🟢 BOOST","bg-boost"],"관찰중":["⚪ 관찰중","bg-watch"],"게이트탈락":["⊘ 게이트탈락","bg-gate"]};
+const pw=()=>localStorage.getItem("dashpw")||"";
+function tryPw(){ localStorage.setItem("dashpw",$("#gpw").value); $("#gate").style.display="none"; load(); }
+
+function rangeFromPreset(p,maxDate){
+  if(p==="all")return{start:null,end:null};
+  const end=new Date(maxDate+"T00:00:00Z");
+  if(p==="m"){const s=new Date(Date.UTC(end.getUTCFullYear(),end.getUTCMonth(),1));return{start:s.toISOString().slice(0,10),end:maxDate};}
+  const s=new Date(end.getTime()-(parseInt(p)-1)*86400000);
+  return{start:s.toISOString().slice(0,10),end:maxDate};
+}
+async function load(fresh){
+  try{
+    let q=[];
+    if(STATE.start)q.push("start="+STATE.start);
+    if(STATE.end)q.push("end="+STATE.end);
+    if(fresh)q.push("fresh=1");
+    if(pw())q.push("pw="+encodeURIComponent(pw()));
+    const r=await fetch("/api/ads-report"+(q.length?"?"+q.join("&"):""));
+    if(r.status===401){$("#gate").style.display="flex";$("#gerr").textContent=pw()?"패스워드가 틀렸습니다":"";return;}
+    const d=await r.json();
+    if(d.error)throw new Error(d.error);
+    DATA=d;
+    // 프리셋 → 실제 날짜 확정 (최초 로드 시 maxDate 기준으로 재요청 없이 클라 표기만)
+    if(!STATE.start&&STATE.preset!=="all"){
+      const rg=rangeFromPreset(STATE.preset,d.meta.maxDate);
+      if(rg.start&&(rg.start!==d.meta.start||rg.end!==d.meta.end)){STATE.start=rg.start;STATE.end=rg.end;return load();}
+    }
+    $("#d1").value=d.meta.start;$("#d2").value=d.meta.end;
+    render(d);
+  }catch(e){
+    $("#app").innerHTML='<div class="err">불러오기 실패: '+esc(e.message||e)+'<br>ADS_SHEET_ID 환경변수·서비스계정 공유·Redeploy를 확인하세요. (/api/ads-report?debug=1 로 진단 가능)</div>';
+    $("#sub").textContent="";
+  }
+}
+function applyCustom(){
+  STATE.start=$("#d1").value||null;STATE.end=$("#d2").value||null;STATE.preset=null;
+  document.querySelectorAll("#presets button").forEach(b=>b.classList.remove("on"));
+  load();
+}
+$("#presets").addEventListener("click",e=>{
+  const b=e.target.closest("button");if(!b)return;
+  STATE.preset=b.getAttribute("data-p");
+  document.querySelectorAll("#presets button").forEach(x=>x.classList.toggle("on",x===b));
+  if(!DATA){load();return;}
+  const rg=rangeFromPreset(STATE.preset,DATA.meta.maxDate);
+  STATE.start=rg.start;STATE.end=rg.end;load();
+});
+
+const kpi=(l,v,d)=>`<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div>${d?`<div class="d">${d}</div>`:""}</div>`;
+const sect=(i,t,c)=>`<div class="sect"><h2>${i} ${t}</h2>${c?`<span class="sc">${c}</span>`:""}</div>`;
+const gTarget=()=>parseFloat(localStorage.getItem("adTarget_global"))||4.0;
+const cTarget=n=>parseFloat(localStorage.getItem("adTarget_"+n))||gTarget();
+
+// SVG 스파크라인 (일별 지출)
+function spark(arr){
+  if(!arr)return"";
+  const a=arr.slice(-SPARKN), w=110, h=26, mx=Math.max(1,...a);
+  const pts=a.map((v,i)=>`${(i/(a.length-1||1)*w).toFixed(1)},${(h-2-(v/mx)*(h-4)).toFixed(1)}`).join(" ");
+  return `<svg class="spk" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline points="${pts}" fill="none" stroke="#2451E6" stroke-width="1.5"/></svg>`;
+}
+
+let L3={camp:"",badge:"",status:""}, curCamp=null;
+function render(d){
+  const m=d.meta, l1=d.l1;
+  $("#sub").innerHTML=`${m.start} ~ ${m.end} · 소재 ${nf(m.creatives)}개 · 데이터 최신일 ${m.maxDate}`;
+  const tgt=gTarget();
+  const roiCls=l1.blended.roi==null?"":(l1.blended.roi>=tgt?"ok":"bad");
+  const banner=l1.supplyWarning?`<div class="banner">⚠️ 소재 수급 경보 — 최근 2주 연속 신규 게이트 통과 소재가 피로 진입 소재보다 적습니다. 신규 소재 투입을 늘리세요.</div>`:"";
+
+  // ── Level 1 ──
+  const sec1=sect("📊","전체 오버뷰","이번 주 손댈 곳은?")+banner+
+    `<div class="kpis">
+      ${kpi("기간 지출",usd(l1.blended.spend),"")}
+      ${kpi("기간 GMV",usd(l1.blended.gmv),"")}
+      ${kpi("블렌디드 ROI",`<span class="${roiCls}">${l1.blended.roi??"–"}x</span>`,`타겟 ${tgt}x <a href="#" onclick="setGTarget();return false" style="color:var(--blue)">수정</a>`)}
+      ${kpi("주문수",nf(l1.blended.orders),"")}
+      ${kpi("🎬 영상 ROI",(l1.video.roi??"–")+"x",`지출 ${usd(l1.video.spend)} · GMV ${usd(l1.video.gmv)}`)}
+      ${kpi("🛒 프로덕트카드 ROI",(l1.pc.roi??"–")+"x",`지출 ${usd(l1.pc.spend)} · PC는 항상 분리 판독(착시 방지)`)}
+    </div>
+    <div class="card"><h3>액션 카운터</h3><div class="cap">클릭하면 소재 테이블로 필터 이동</div>
+      <div class="chips">
+        <span class="chip" onclick="jumpBadge('KILL')">🔴 KILL 대상 <b>${l1.actions.kill}</b></span>
+        <span class="chip" onclick="jumpBadge('피로')">🟡 피로 교체 <b>${l1.actions.fatigue}</b></span>
+        <span class="chip" onclick="jumpStatus('AUTHORIZATION_NEEDED')">⏳ AUTHORIZATION_NEEDED <b>${l1.actions.auth}</b></span>
+      </div></div>
+    <div class="grid2">
+      <div class="card"><h3>주차별 지출 · GMV</h3><div class="cap">선택 기간 내 주 단위</div><div class="chartbox"><canvas id="cWk"></canvas></div></div>
+      <div class="card"><h3>주차별 ROI</h3><div class="cap">GMV ÷ 지출</div><div class="chartbox"><canvas id="cWkRoi"></canvas></div></div>
+    </div>
+    <div class="card"><h3>소재 수급 밸런스 <span class="pill">핵심 조기경보</span></h3>
+      <div class="cap">주간 신규 $10 게이트 통과 소재 vs 피로 진입 소재 (전체 수명 기준, 최근 12주) — 통과 &lt; 피로 2주 연속이면 경고</div>
+      <div class="chartbox sm"><canvas id="cSupply"></canvas></div></div>`;
+
+  // ── Level 2 ──
+  if(!curCamp||!d.campaigns.find(c=>c.name===curCamp)) curCamp=d.campaigns[0]?d.campaigns[0].name:null;
+  const sec2=sect("🎯","캠페인 상세","타겟 ROI·예산을 조정할까?")+
+    `<div class="card"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+      <select id="campSel" onchange="pickCamp(this.value)">${d.campaigns.map(c=>`<option ${c.name===curCamp?"selected":""}>${esc(c.name)}</option>`).join("")}</select>
+      <span class="pill">캠페인 ${d.campaigns.length}개 · 지출順</span></div>
+      <div id="campBody"></div></div>`;
+
+  // ── Level 3 ──
+  const sec3=sect("🎬","소재 테이블","끄나, 두나, 증산하나?")+
+    `<div class="card">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+        <select id="fCamp" onchange="L3.camp=this.value;drawTable()"><option value="">캠페인 전체</option>${d.campaigns.map(c=>`<option>${esc(c.name)}</option>`).join("")}</select>
+        <select id="fBadge" onchange="L3.badge=this.value;drawTable()"><option value="">판정 전체</option><option>KILL</option><option>피로</option><option>BOOST</option><option>관찰중</option><option>게이트탈락</option></select>
+        <select id="fStatus" onchange="L3.status=this.value;drawTable()"><option value="">게재상태 전체</option>${[...new Set(d.creatives.map(c=>c.status))].filter(Boolean).map(s=>`<option>${esc(s)}</option>`).join("")}</select>
+        <span class="pill" style="margin-left:auto">스파크라인</span>
+        <div class="seg"><button onclick="setSpark(7,this)">7</button><button onclick="setSpark(14,this)">14</button><button class="on" onclick="setSpark(30,this)">30</button></div>
+      </div>
+      <div style="overflow:auto;max-height:720px" id="tblWrap"></div>
+    </div>`;
+
+  $("#app").innerHTML=sec1+sec2+sec3;
+  resetCharts();
+  drawL1(d);drawCamp();drawTable();
+}
+function setGTarget(){
+  const v=prompt("블렌디드 타겟 ROI (기본 4.0)",gTarget());
+  if(v&&!isNaN(parseFloat(v))){localStorage.setItem("adTarget_global",v);render(DATA);}
+}
+function setSpark(n,btn){SPARKN=n;[...btn.parentElement.children].forEach(b=>b.classList.toggle("on",b===btn));drawTable();}
+function jumpBadge(b){L3.badge=b;$("#fBadge").value=b;drawTable();$("#tblWrap").scrollIntoView({behavior:"smooth"});}
+function jumpStatus(s){L3.status=s;$("#fStatus").value=s;drawTable();$("#tblWrap").scrollIntoView({behavior:"smooth"});}
+
+function drawL1(d){
+  const grid={grid:{color:"#EDF1F5"},ticks:{color:"#5B6B7B"},border:{color:"#EDF1F5"}};
+  const lgd={labels:{color:"#15222E",boxWidth:12,usePointStyle:true,pointStyle:"rectRounded"}};
+  const wk=d.l1.weekly;
+  NC($("#cWk"),{type:"bar",data:{labels:wk.map(w=>w.label),datasets:[
+    {label:"지출",data:wk.map(w=>w.spend),backgroundColor:"#2451E6",borderRadius:4},
+    {label:"GMV",data:wk.map(w=>w.gmv),backgroundColor:"#0E8A6D",borderRadius:4}]},
+    options:{maintainAspectRatio:false,plugins:{legend:lgd,tooltip:{callbacks:{label:c=>c.dataset.label+": "+usd(c.raw)}}},scales:{x:grid,y:{...grid,ticks:{...grid.ticks,callback:usdk}}}}});
+  NC($("#cWkRoi"),{type:"line",data:{labels:wk.map(w=>w.label),datasets:[
+    {label:"ROI",data:wk.map(w=>w.roi),borderColor:"#2451E6",backgroundColor:"#2451E6",borderWidth:2,tension:.3,pointRadius:3,spanGaps:true}]},
+    options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw+"x"}}},scales:{x:grid,y:{...grid,ticks:{...grid.ticks,callback:v=>v+"x"}}}}});
+  const sw=d.l1.supplyWeeks;
+  NC($("#cSupply"),{type:"bar",data:{labels:sw.map(w=>w.label),datasets:[
+    {label:"신규 게이트 통과",data:sw.map(w=>w.passed),backgroundColor:"#0E8A6D",borderRadius:4},
+    {label:"피로 진입",data:sw.map(w=>w.fatigued),backgroundColor:"#E0492F",borderRadius:4}]},
+    options:{maintainAspectRatio:false,plugins:{legend:lgd},scales:{x:grid,y:{...grid,ticks:{...grid.ticks,stepSize:1}}}}});
+}
+
+function pickCamp(name){curCamp=name;drawCamp();}
+function drawCamp(){
+  const d=DATA;if(!d||!curCamp)return;
+  const c=d.campaigns.find(x=>x.name===curCamp);if(!c)return;
+  const tgt=cTarget(c.name);
+  const gap=c.roi!=null?+(c.roi-tgt).toFixed(2):null;
+  const gapCls=gap==null?"":(gap>=0?"ok":"bad");
+  $("#campBody").innerHTML=`
+    <div class="kpis">
+      ${kpi("기간 ROI",`<span class="${gapCls}">${c.roi??"–"}x</span>`,`타겟 <input class="tgt" id="ctgt" value="${tgt}" onchange="saveCTarget('${esc(c.name)}',this.value)">x · 갭 <b class="${gapCls}">${gap==null?"–":(gap>=0?"+":"")+gap}</b>`)}
+      ${kpi("기간 지출",usd(c.spend),`GMV ${usd(c.gmv)} · 주문 ${nf(c.orders)}`)}
+      ${kpi("위너 구조",`${c.winners}개`,`상위 3개 소재 = 캠페인 GMV의 <b>${c.top3Share}%</b>${c.top3Share>=70?" · 몰빵 리스크":""}`)}
+      ${kpi("파이프라인",`${c.pipeline.new2w}개 투입`,`최근 2주 · $10+ 통과율 ${c.pipeline.passRate==null?"–":c.pipeline.passRate+"%"} · 피로 ${c.pipeline.fatigued}개`)}
+    </div>
+    <div class="grid2">
+      <div><h3 style="font-size:13px;margin:4px 0 2px">지출 소화율 (일별)</h3><div class="cap">타겟 ROI 상향 후 지출이 급감하는지 감시</div><div class="chartbox sm"><canvas id="cCampDaily"></canvas></div></div>
+      <div><h3 style="font-size:13px;margin:4px 0 2px">위너 프로필 중앙값 <span class="pill">크리에이터 브리핑 기준</span></h3>
+        <div class="statrow">
+          <div class="stat"><div class="sl">2초 시청률</div><div class="sv">${c.winnerMedians.v2s??"–"}%</div></div>
+          <div class="stat"><div class="sl">6초 시청률</div><div class="sv">${c.winnerMedians.v6s??"–"}%</div></div>
+          <div class="stat"><div class="sl">CVR</div><div class="sv">${c.winnerMedians.cvr??"–"}%</div></div>
+        </div>
+        <div class="cap" style="margin-top:6px">벤치마크 — 게이트: 2초 25–30% / 6초 10–13% · 위너: CVR 3%+ (중앙값 5.0)</div></div>
+    </div>`;
+  const grid={grid:{color:"#EDF1F5"},ticks:{color:"#5B6B7B"},border:{color:"#EDF1F5"}};
+  NC($("#cCampDaily"),{type:"line",data:{labels:c.daily.map(x=>x.date),datasets:[
+    {label:"지출",data:c.daily.map(x=>x.spend),borderColor:"#2451E6",backgroundColor:"rgba(36,81,230,.12)",borderWidth:2,fill:true,tension:.3,pointRadius:0}]},
+    options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c2=>usd(c2.raw)}}},scales:{x:grid,y:{...grid,ticks:{...grid.ticks,callback:usdk}}}}});
+}
+function saveCTarget(name,v){if(!isNaN(parseFloat(v))){localStorage.setItem("adTarget_"+name,v);drawCamp();}}
+
+function drawTable(){
+  const d=DATA;if(!d)return;
+  let list=d.creatives;
+  if(L3.camp)list=list.filter(c=>c.camp===L3.camp);
+  if(L3.badge)list=list.filter(c=>c.badge===L3.badge);
+  if(L3.status)list=list.filter(c=>c.status===L3.status);
+  const rows=list.map((c,i)=>{
+    const b=BADGE[c.badge]||[c.badge,""];
+    const few=c.period.orders<5;
+    return `<tr class="crow" onclick="toggleRow(${i})" id="r${i}">
+      <td class="l"><span class="bg ${b[1]}">${b[0]}</span></td>
+      <td class="l idcell" title="${esc(c.id)}">${c.isPC?"🛒 ":""}${esc(c.id)}</td>
+      <td class="l" style="max-width:150px;overflow:hidden;text-overflow:ellipsis" title="${esc(c.camp)}">${esc(c.camp)}</td>
+      <td class="n">${usd(c.cum.spend)}</td><td class="n">${usd(c.cum.gmv)}</td>
+      <td class="n">${c.cum.roi??"–"}x</td><td class="n">${c.cum.cvr}%</td>
+      <td class="n">${usd(c.last7)}</td><td class="n">${usd(c.prev7)}</td>
+      <td class="n">${usd(c.period.spend)}</td>
+      <td class="n">${usd(c.period.gmv)}${few?` <span class="warnb" title="선택기간 주문 ${c.period.orders}건">⚠️</span>`:""}</td>
+      <td>${spark(c.spark)}</td>
+      <td class="l"><span class="pill">${c.confidence}</span></td>
+    </tr>
+    <tr class="drow" id="d${i}" style="display:none"><td colspan="13">
+      <div style="display:flex;gap:34px;flex-wrap:wrap;align-items:flex-start">
+        <div><div class="pill" style="margin-bottom:20px">시청 퍼널 (%)</div>
+          <div class="funnelmini">${[["2초",c.detail.v2s],["6초",c.detail.v6s],["25%",c.detail.v25],["50%",c.detail.v50],["100%",c.detail.v100]].map(([l,v])=>`<div style="height:${Math.max(3,Math.min(100,v*2.2))}%"><span>${v}%</span><em>${l}</em></div>`).join("")}</div></div>
+        <div class="statrow" style="flex:1;min-width:240px">
+          <div class="stat"><div class="sl">광고 CTR</div><div class="sv">${c.detail.ctr}%</div></div>
+          <div class="stat"><div class="sl">상품 CTR</div><div class="sv">${c.detail.pctr}%</div></div>
+          <div class="stat"><div class="sl">CVR</div><div class="sv">${c.detail.cvr}%</div></div>
+          <div class="stat"><div class="sl">게재상태</div><div class="sv" style="font-size:11px">${esc(c.status)}</div></div>
+        </div>
+      </div>
+      <div class="qd">🧭 4분면 진단 (CTR 4% / CVR 3% 기준): <b>${esc(c.quadrant)}</b></div>
+    </td></tr>`;
+  }).join("");
+  $("#tblWrap").innerHTML=`<table>
+    <tr><th class="l">판정</th><th class="l">소재 ID</th><th class="l">캠페인</th>
+    <th>누적 지출</th><th>누적 GMV</th><th>ROI</th><th>CVR</th>
+    <th>최근 7일</th><th>이전 7일</th><th>기간 지출</th><th>기간 GMV</th>
+    <th class="l">지출 추이</th><th class="l">신뢰도</th></tr>${rows}</table>
+    <div class="pill" style="padding:9px 4px">표시 ${list.length}개 / 전체 ${d.creatives.length}개 · 기본 정렬: 액션 필요 순 (KILL→피로→BOOST→관찰→게이트탈락) · 행 클릭 시 시청퍼널·4분면 상세</div>`;
+}
+function toggleRow(i){const el=$("#d"+i);if(el)el.style.display=el.style.display==="none"?"table-row":"none";}
+
+load();
+</script>
+</body>
+</html>
