@@ -127,24 +127,22 @@ const esc=s=>String(s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&g
 Chart.defaults.font.family='"IBM Plex Sans KR",sans-serif';
 Chart.defaults.animation=false;
 let DATA=null, CHARTS=[], STATE={preset:"30",start:null,end:null}, SPARKN=30;
+// 프리셋 → API 쿼리 (서버가 최신일 기준으로 기간 계산 → 호출 1번, CDN 캐시 키 안정)
+function presetQuery(){
+  if(STATE.start)return["start="+STATE.start,"end="+(STATE.end||STATE.start)];
+  if(STATE.preset==="all")return[];
+  if(STATE.preset==="m")return["month=1"];
+  return["days="+STATE.preset];
+}
 function NC(el,cfg){ if(!el)return null; const c=new Chart(el,cfg); CHARTS.push(c); return c; }
 function resetCharts(){ CHARTS.forEach(c=>{try{c.destroy()}catch(e){}}); CHARTS=[]; }
 const BADGE={"KILL":["🔴 KILL","bg-kill"],"피로":["🟡 피로","bg-fat"],"BOOST":["🟢 BOOST","bg-boost"],"관찰중":["⚪ 관찰중","bg-watch"],"게이트탈락":["⊘ 게이트탈락","bg-gate"]};
 const pw=()=>localStorage.getItem("dashpw")||"";
 function tryPw(){ localStorage.setItem("dashpw",$("#gpw").value); $("#gate").style.display="none"; load(); }
 
-function rangeFromPreset(p,maxDate){
-  if(p==="all")return{start:null,end:null};
-  const end=new Date(maxDate+"T00:00:00Z");
-  if(p==="m"){const s=new Date(Date.UTC(end.getUTCFullYear(),end.getUTCMonth(),1));return{start:s.toISOString().slice(0,10),end:maxDate};}
-  const s=new Date(end.getTime()-(parseInt(p)-1)*86400000);
-  return{start:s.toISOString().slice(0,10),end:maxDate};
-}
 async function load(fresh){
   try{
-    let q=[];
-    if(STATE.start)q.push("start="+STATE.start);
-    if(STATE.end)q.push("end="+STATE.end);
+    let q=presetQuery();
     if(fresh)q.push("fresh=1");
     if(pw())q.push("pw="+encodeURIComponent(pw()));
     const r=await fetch("/api/ads-report"+(q.length?"?"+q.join("&"):""));
@@ -152,11 +150,6 @@ async function load(fresh){
     const d=await r.json();
     if(d.error)throw new Error(d.error);
     DATA=d;
-    // 프리셋 → 실제 날짜 확정 (최초 로드 시 maxDate 기준으로 재요청 없이 클라 표기만)
-    if(!STATE.start&&STATE.preset!=="all"){
-      const rg=rangeFromPreset(STATE.preset,d.meta.maxDate);
-      if(rg.start&&(rg.start!==d.meta.start||rg.end!==d.meta.end)){STATE.start=rg.start;STATE.end=rg.end;return load();}
-    }
     $("#d1").value=d.meta.start;$("#d2").value=d.meta.end;
     render(d);
   }catch(e){
@@ -171,11 +164,9 @@ function applyCustom(){
 }
 $("#presets").addEventListener("click",e=>{
   const b=e.target.closest("button");if(!b)return;
-  STATE.preset=b.getAttribute("data-p");
+  STATE.preset=b.getAttribute("data-p");STATE.start=null;STATE.end=null;
   document.querySelectorAll("#presets button").forEach(x=>x.classList.toggle("on",x===b));
-  if(!DATA){load();return;}
-  const rg=rangeFromPreset(STATE.preset,DATA.meta.maxDate);
-  STATE.start=rg.start;STATE.end=rg.end;load();
+  load();
 });
 
 const kpi=(l,v,d)=>`<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div>${d?`<div class="d">${d}</div>`:""}</div>`;

@@ -139,16 +139,27 @@ const slc=a=>Array.isArray(a)?a.slice(-PERIOD):a;
 
 async function load(){
   try{
-    const url="/api/daily-report?format=json&insights=1"+(dateParam?("&date="+encodeURIComponent(dateParam)):"");
-    const r=await fetch(url);
+    const base="/api/daily-report?format=json"+(dateParam?("&date="+encodeURIComponent(dateParam)):"");
+    const r=await fetch(base);          // 1차: 데이터만 → 화면 즉시 렌더
     const d=await r.json();
     if(d.error) throw new Error(d.error);
     render(d);
+    // 2차: AI 인사이트는 백그라운드 (느린 Claude 호출을 첫 화면에서 분리)
+    fetch(base+"&insights=1").then(x=>x.json()).then(x=>{
+      if(x&&x.insights){DATA.insights=x.insights;renderInsights(x.insights,false);}
+      else renderInsights(null,true);
+    }).catch(()=>renderInsights(null,true));
   }catch(e){
     $("#app").innerHTML='<div class="err">불러오기 실패: '+(e.message||e)+'<br>배포/환경변수를 확인하세요.</div>';
     $("#sub").textContent="";
   }
 }
+function insCard(ins,failed){
+  if(ins)return `<div class="card"><h3>💡 AI 인사이트</h3><div class="cap">섹션별 자동 분석</div>
+    ${["overview","channel","product","content","funnel","live"].filter(x=>ins[x]).map(x=>`<div class="ins">${esc(ins[x])}</div>`).join("")}</div>`;
+  return failed?"":`<div class="card"><h3>💡 AI 인사이트</h3><div class="cap">⏳ 백그라운드에서 생성 중… (화면은 먼저 사용하세요)</div></div>`;
+}
+function renderInsights(ins,failed){const el=$("#insSlot");if(el)el.innerHTML=insCard(ins,failed);}
 
 function kpi(l,v,d){return `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div>${d?`<div class="d">${d}</div>`:""}</div>`}
 // 순차형 파랑 램프 (순위=진하게) — 구성비 도넛용
@@ -203,8 +214,7 @@ function render(d){
     ${kpi("노출·CTR",nf(k.impressions),`클릭 ${nf(k.clicks)} · CTR ${k.ctr}%`)}
   </div>`;
 
-  const insHtml=d.insights?`<div class="card"><h3>💡 AI 인사이트</h3><div class="cap">섹션별 자동 분석</div>
-    ${["overview","channel","product","content","funnel","live"].filter(x=>d.insights[x]).map(x=>`<div class="ins">${esc(d.insights[x])}</div>`).join("")}</div>`:"";
+  const insHtml=`<div id="insSlot">${insCard(d.insights,false)}</div>`;
 
   const f=d.funnel;
   const funnelHtml=`<div class="card"><h3>🛒 전환 퍼널</h3><div class="cap">단계별 전환율 추이 (%) · CTR · 방문전환 · 장바구니율 · 주문전환 · CVR</div>
