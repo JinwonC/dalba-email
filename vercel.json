@@ -8,6 +8,9 @@
   "functions": {
     "api/daily-report.js": {
       "maxDuration": 60
+    },
+    "api/ads-report.js": {
+      "maxDuration": 60
     }
   }
 }
