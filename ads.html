@@ -182,7 +182,7 @@ function spark(arr){
   return `<svg class="spk" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline points="${pts}" fill="none" stroke="#2451E6" stroke-width="1.5"/></svg>`;
 }
 
-let L3={camp:"",badge:"",status:""}, curCamp=null;
+let L3={camp:"",badge:"",status:"",q:""}, curCamp=null, PAGE=150, CURLIST=[];
 function render(d){
   const m=d.meta, l1=d.l1;
   $("#sub").innerHTML=`${m.start} ~ ${m.end} · 소재 ${nf(m.creatives)}개 · 데이터 최신일 ${m.maxDate}`;
@@ -226,9 +226,10 @@ function render(d){
   const sec3=sect("🎬","소재 테이블","끄나, 두나, 증산하나?")+
     `<div class="card">
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
-        <select id="fCamp" onchange="L3.camp=this.value;drawTable()"><option value="">캠페인 전체</option>${d.campaigns.map(c=>`<option>${esc(c.name)}</option>`).join("")}</select>
-        <select id="fBadge" onchange="L3.badge=this.value;drawTable()"><option value="">판정 전체</option><option>KILL</option><option>피로</option><option>BOOST</option><option>관찰중</option><option>게이트탈락</option></select>
-        <select id="fStatus" onchange="L3.status=this.value;drawTable()"><option value="">게재상태 전체</option>${[...new Set(d.creatives.map(c=>c.status))].filter(Boolean).map(s=>`<option>${esc(s)}</option>`).join("")}</select>
+        <select id="fCamp" onchange="L3.camp=this.value;PAGE=150;drawTable()"><option value="">캠페인 전체</option>${d.campaigns.map(c=>`<option>${esc(c.name)}</option>`).join("")}</select>
+        <select id="fBadge" onchange="L3.badge=this.value;PAGE=150;drawTable()"><option value="">판정 전체</option><option>KILL</option><option>피로</option><option>BOOST</option><option>관찰중</option><option>게이트탈락</option></select>
+        <select id="fStatus" onchange="L3.status=this.value;PAGE=150;drawTable()"><option value="">게재상태 전체</option>${[...new Set(d.creatives.map(c=>c.status))].filter(Boolean).map(s=>`<option>${esc(s)}</option>`).join("")}</select>
+        <input type="search" id="fId" placeholder="소재 ID 검색" style="border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-size:12.5px;font-family:'IBM Plex Mono',monospace;width:170px" oninput="L3.q=this.value.trim();PAGE=150;drawTable()">
         <span class="pill" style="margin-left:auto">스파크라인</span>
         <div class="seg"><button onclick="setSpark(7,this)">7</button><button onclick="setSpark(14,this)">14</button><button class="on" onclick="setSpark(30,this)">30</button></div>
       </div>
@@ -244,8 +245,8 @@ function setGTarget(){
   if(v&&!isNaN(parseFloat(v))){localStorage.setItem("adTarget_global",v);render(DATA);}
 }
 function setSpark(n,btn){SPARKN=n;[...btn.parentElement.children].forEach(b=>b.classList.toggle("on",b===btn));drawTable();}
-function jumpBadge(b){L3.badge=b;$("#fBadge").value=b;drawTable();$("#tblWrap").scrollIntoView({behavior:"smooth"});}
-function jumpStatus(s){L3.status=s;$("#fStatus").value=s;drawTable();$("#tblWrap").scrollIntoView({behavior:"smooth"});}
+function jumpBadge(b){L3.badge=b;PAGE=150;$("#fBadge").value=b;drawTable();$("#tblWrap").scrollIntoView({behavior:"smooth"});}
+function jumpStatus(s){L3.status=s;PAGE=150;$("#fStatus").value=s;drawTable();$("#tblWrap").scrollIntoView({behavior:"smooth"});}
 
 function drawL1(d){
   const grid={grid:{color:"#EDF1F5"},ticks:{color:"#5B6B7B"},border:{color:"#EDF1F5"}};
@@ -296,49 +297,69 @@ function drawCamp(){
 }
 function saveCTarget(name,v){if(!isNaN(parseFloat(v))){localStorage.setItem("adTarget_"+name,v);drawCamp();}}
 
+// 행 1개 HTML (상세행은 클릭 시 지연 생성 — DOM 절반으로 감소)
+function rowHtml(c,i){
+  const b=BADGE[c.badge]||[c.badge,""];
+  const few=c.period.orders<5;
+  return `<tr class="crow" data-i="${i}">
+    <td class="l"><span class="bg ${b[1]}">${b[0]}</span></td>
+    <td class="l idcell" title="${esc(c.id)}">${c.isPC?"🛒 ":""}${esc(c.id)}</td>
+    <td class="l" style="max-width:150px;overflow:hidden;text-overflow:ellipsis" title="${esc(c.camp)}">${esc(c.camp)}</td>
+    <td class="n">${usd(c.cum.spend)}</td><td class="n">${usd(c.cum.gmv)}</td>
+    <td class="n">${c.cum.roi??"–"}x</td><td class="n">${c.cum.cvr}%</td>
+    <td class="n">${usd(c.last7)}</td><td class="n">${usd(c.prev7)}</td>
+    <td class="n">${usd(c.period.spend)}</td>
+    <td class="n">${usd(c.period.gmv)}${few?` <span class="warnb" title="선택기간 주문 ${c.period.orders}건">⚠️</span>`:""}</td>
+    <td>${spark(c.spark)}</td>
+    <td class="l"><span class="pill">${c.confidence}</span></td>
+  </tr>`;
+}
+function detailHtml(c){
+  return `<td colspan="13">
+    <div style="display:flex;gap:34px;flex-wrap:wrap;align-items:flex-start">
+      <div><div class="pill" style="margin-bottom:20px">시청 퍼널 (%)</div>
+        <div class="funnelmini">${[["2초",c.detail.v2s],["6초",c.detail.v6s],["25%",c.detail.v25],["50%",c.detail.v50],["100%",c.detail.v100]].map(([l,v])=>`<div style="height:${Math.max(3,Math.min(100,v*2.2))}%"><span>${v}%</span><em>${l}</em></div>`).join("")}</div></div>
+      <div class="statrow" style="flex:1;min-width:240px">
+        <div class="stat"><div class="sl">광고 CTR</div><div class="sv">${c.detail.ctr}%</div></div>
+        <div class="stat"><div class="sl">상품 CTR</div><div class="sv">${c.detail.pctr}%</div></div>
+        <div class="stat"><div class="sl">CVR</div><div class="sv">${c.detail.cvr}%</div></div>
+        <div class="stat"><div class="sl">게재상태</div><div class="sv" style="font-size:11px">${esc(c.status)}</div></div>
+      </div>
+    </div>
+    <div class="qd">🧭 4분면 진단 (CTR 4% / CVR 3% 기준): <b>${esc(c.quadrant)}</b></div>
+  </td>`;
+}
 function drawTable(){
   const d=DATA;if(!d)return;
   let list=d.creatives;
   if(L3.camp)list=list.filter(c=>c.camp===L3.camp);
   if(L3.badge)list=list.filter(c=>c.badge===L3.badge);
   if(L3.status)list=list.filter(c=>c.status===L3.status);
-  const rows=list.map((c,i)=>{
-    const b=BADGE[c.badge]||[c.badge,""];
-    const few=c.period.orders<5;
-    return `<tr class="crow" onclick="toggleRow(${i})" id="r${i}">
-      <td class="l"><span class="bg ${b[1]}">${b[0]}</span></td>
-      <td class="l idcell" title="${esc(c.id)}">${c.isPC?"🛒 ":""}${esc(c.id)}</td>
-      <td class="l" style="max-width:150px;overflow:hidden;text-overflow:ellipsis" title="${esc(c.camp)}">${esc(c.camp)}</td>
-      <td class="n">${usd(c.cum.spend)}</td><td class="n">${usd(c.cum.gmv)}</td>
-      <td class="n">${c.cum.roi??"–"}x</td><td class="n">${c.cum.cvr}%</td>
-      <td class="n">${usd(c.last7)}</td><td class="n">${usd(c.prev7)}</td>
-      <td class="n">${usd(c.period.spend)}</td>
-      <td class="n">${usd(c.period.gmv)}${few?` <span class="warnb" title="선택기간 주문 ${c.period.orders}건">⚠️</span>`:""}</td>
-      <td>${spark(c.spark)}</td>
-      <td class="l"><span class="pill">${c.confidence}</span></td>
-    </tr>
-    <tr class="drow" id="d${i}" style="display:none"><td colspan="13">
-      <div style="display:flex;gap:34px;flex-wrap:wrap;align-items:flex-start">
-        <div><div class="pill" style="margin-bottom:20px">시청 퍼널 (%)</div>
-          <div class="funnelmini">${[["2초",c.detail.v2s],["6초",c.detail.v6s],["25%",c.detail.v25],["50%",c.detail.v50],["100%",c.detail.v100]].map(([l,v])=>`<div style="height:${Math.max(3,Math.min(100,v*2.2))}%"><span>${v}%</span><em>${l}</em></div>`).join("")}</div></div>
-        <div class="statrow" style="flex:1;min-width:240px">
-          <div class="stat"><div class="sl">광고 CTR</div><div class="sv">${c.detail.ctr}%</div></div>
-          <div class="stat"><div class="sl">상품 CTR</div><div class="sv">${c.detail.pctr}%</div></div>
-          <div class="stat"><div class="sl">CVR</div><div class="sv">${c.detail.cvr}%</div></div>
-          <div class="stat"><div class="sl">게재상태</div><div class="sv" style="font-size:11px">${esc(c.status)}</div></div>
-        </div>
-      </div>
-      <div class="qd">🧭 4분면 진단 (CTR 4% / CVR 3% 기준): <b>${esc(c.quadrant)}</b></div>
-    </td></tr>`;
-  }).join("");
+  if(L3.q)list=list.filter(c=>c.id.includes(L3.q));
+  CURLIST=list;
+  const shown=list.slice(0,PAGE);
+  const more=list.length-shown.length;
   $("#tblWrap").innerHTML=`<table>
     <tr><th class="l">판정</th><th class="l">소재 ID</th><th class="l">캠페인</th>
     <th>누적 지출</th><th>누적 GMV</th><th>ROI</th><th>CVR</th>
     <th>최근 7일</th><th>이전 7일</th><th>기간 지출</th><th>기간 GMV</th>
-    <th class="l">지출 추이</th><th class="l">신뢰도</th></tr>${rows}</table>
-    <div class="pill" style="padding:9px 4px">표시 ${list.length}개 / 전체 ${d.creatives.length}개 · 기본 정렬: 액션 필요 순 (KILL→피로→BOOST→관찰→게이트탈락) · 행 클릭 시 시청퍼널·4분면 상세</div>`;
+    <th class="l">지출 추이</th><th class="l">신뢰도</th></tr>${shown.map(rowHtml).join("")}</table>
+    ${more>0?`<div style="text-align:center;padding:10px"><button class="btn" onclick="PAGE+=300;drawTable()">더 보기 (+${Math.min(300,more)}개 · 남은 ${more}개)</button></div>`:""}
+    <div class="pill" style="padding:9px 4px">표시 ${shown.length}개 / 필터 ${list.length}개 / 전체 ${d.creatives.length}개 · 액션 필요 순 정렬 (KILL→피로→BOOST→관찰→게이트탈락) · 행 클릭 시 시청퍼널·4분면 상세</div>`;
 }
-function toggleRow(i){const el=$("#d"+i);if(el)el.style.display=el.style.display==="none"?"table-row":"none";}
+// 이벤트 위임: 행 클릭 → 상세행 지연 생성/토글 (+화면 밖이면 스크롤)
+document.addEventListener("click",e=>{
+  const row=e.target.closest("tr.crow");if(!row)return;
+  const next=row.nextElementSibling;
+  if(next&&next.classList.contains("drow")){
+    next.style.display=next.style.display==="none"?"table-row":"none";
+    if(next.style.display!=="none")next.scrollIntoView({block:"nearest",behavior:"smooth"});
+    return;
+  }
+  const c=CURLIST[+row.getAttribute("data-i")];if(!c)return;
+  const tr=document.createElement("tr");tr.className="drow";tr.innerHTML=detailHtml(c);
+  row.after(tr);tr.scrollIntoView({block:"nearest",behavior:"smooth"});
+});
 
 load();
 </script>
