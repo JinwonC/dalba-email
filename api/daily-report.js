@@ -492,7 +492,8 @@ function buildMain(a, ins) {
   const g = a.g;
   const tip = k => (ins && ins[k]) ? `🗒 _${ins[k]}_\n` : "";
   let o = `*📊 d'Alba 데일리 매출 리포트 — ${a.date.label}*\n`;
-  o += `_전일(${a.prevDay ? a.prevDay.md : "–"}) · 전주(${a.prevWeek ? a.prevWeek.md : "–"}) 대비_\n\n`;
+  o += `_전일(${a.prevDay ? a.prevDay.md : "–"}) · 전주(${a.prevWeek ? a.prevWeek.md : "–"}) 대비_\n`;
+  o += `🔗 *필수!* 제품 PM은 하기 웹사이트 반드시 확인해주세요 (자세한 데이터)\n${process.env.DASHBOARD_URL || "https://project-zizml.vercel.app/report.html"}\n\n`;
   // 1
   o += `*1. 전체 요약*\n`;
   o += `• 총 GMV *${money(g.gmv)}*  (DoD ${a.dd("gmv")} / WoW ${a.ww("gmv")})`;
