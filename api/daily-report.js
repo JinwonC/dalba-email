@@ -47,6 +47,77 @@ const R = {
 // ── 매출발생영상 컬럼 인덱스 ────────────────────────────────────
 const V = { date: 0, pid: 2, pname: 3, sku: 4, price: 5, pay: 6, qty: 8, creator: 12, ctype: 13, cid: 14, std: 16, shop: 21 };
 
+// ── 시트 수정(열 삽입·이동·헤더 위 행 추가)에 견고한 동적 컬럼 매핑 ──
+//   고정 인덱스(R/V/AF/AD)는 기본값이고, 각 탭의 헤더 행을 상위 6행에서 찾아
+//   "헤더 이름"으로 실제 위치를 다시 계산한다. 이름을 못 찾은 항목만 기본값 유지.
+const norm = s => String(s == null ? "" : s).toLowerCase().replace(/\s+/g, " ").trim();
+function colIdx(h, name, opt) {
+  opt = opt || {};
+  const match = c => (opt.exact === false ? c.includes(name) : c === name);
+  if (opt.last) { for (let i = h.length - 1; i >= 0; i--) if (match(h[i])) return i; return -1; }
+  for (let i = 0; i < h.length; i++) if (match(h[i])) return i;
+  return -1;
+}
+function findHeaderRow(rows, anchors, maxScan) {
+  const n = Math.min(maxScan || 6, rows.length);
+  for (let i = 0; i < n; i++) {
+    const h = (rows[i] || []).map(norm);
+    if (anchors.every(a => h.some(c => c.includes(a)))) return i;
+  }
+  return -1;
+}
+function mapRawColumns(rows) {
+  const M = { ...R };
+  const hi = findHeaderRow(rows, ["product id", "product name"], 6);
+  if (hi < 0) return M;
+  const h = (rows[hi] || []).map(norm);
+  const set = (k, name, opt) => { const i = colIdx(h, name, opt); if (i >= 0) M[k] = i; };
+  set("date", "date"); if (colIdx(h, "date") < 0) set("date", "날짜", { exact: false });
+  set("name", "product name");
+  set("id", "product id");
+  set("status", "listing status");
+  set("gmv", "gmv");                                   // 첫 번째 정확 일치(= 전체 GMV)
+  set("sellerLive", "seller live-attributed gmv");
+  set("sellerVideo", "seller video-attributed gmv");
+  set("affiliate", "creator-attributed gmv");
+  set("productCard", "seller product card gmv");
+  set("orders", "orders");
+  set("sku", "sku orders");
+  set("items", "items sold");
+  set("cust", "est. customers");
+  set("imp", "product impressions");
+  set("clk", "product clicks");
+  set("atc", "add-to-cart count");
+  set("uimp", "unique product impressions");
+  set("uclk", "unique clicks");
+  set("refund", "refunds");
+  set("refItems", "items refunded");
+  set("refCust", "refund customers");
+  set("shopImp", "shop tab product impressions");
+  set("shopClk", "shop tab product clicks");
+  set("shopGmv", "shop tab gmv");
+  set("affLiveG", "live-attributed gmv");              // 정확 일치 첫 번째 = 크리에이터 섹션
+  set("affVidG", "video-attributed gmv");
+  set("newLive", "new live counts", { last: true });   // 마지막 = 크리에이터 섹션
+  set("newVid", "new video count", { last: true });
+  return M;
+}
+function mapVideoColumns(rows) {
+  const M = { ...V };
+  const hi = findHeaderRow(rows, ["content type", "creator username"], 6);
+  if (hi < 0) return M;
+  const h = (rows[hi] || []).map(norm);
+  const set = (k, name, opt) => { const i = colIdx(h, name, opt); if (i >= 0) M[k] = i; };
+  set("date", "날짜", { exact: false }); if (colIdx(h, "날짜", { exact: false }) < 0) set("date", "date", { exact: false });
+  set("pid", "product id"); set("pname", "product name"); set("sku", "sku id");
+  set("price", "price"); set("pay", "payment amount"); set("qty", "quantity");
+  set("creator", "creator username"); set("ctype", "content type"); set("cid", "content id");
+  set("std", "standard commission rate"); set("shop", "shop ads commission rate");
+  return M;
+}
+// 요청 처리 중 현재 영상탭 매핑 (parseVideos/parseCommissions가 갱신)
+let VM = { ...V };
+
 // ── 파서/포맷 헬퍼 ─────────────────────────────────────────────
 function num(v) {
   if (v == null) return 0;
@@ -75,30 +146,31 @@ const sg = x => (x >= 0 ? "+" : "") + (x || 0).toFixed(0) + "%";
 const pct = (a, b) => (b ? (a - b) / b * 100 : 0);
 const ratePct = (a, b) => (b ? (a / b * 100).toFixed(2) + "%" : "0.00%");
 
-// ── 매출raw 집계 ───────────────────────────────────────────────
+// ── 매출raw 집계 (컬럼은 헤더 이름으로 동적 매핑) ────────────────
 function parseRaw(rows) {
+  const M = mapRawColumns(rows);
   const byDate = {}, prod = {};
+  const metricKeys = Object.keys(M).filter(k => k !== "date" && k !== "name" && k !== "id" && k !== "status");
   for (const r of rows) {
-    const d = parseDate(r[R.date]);
+    const d = parseDate(r[M.date]);
     if (!d) continue;
     if (!byDate[d.key]) { byDate[d.key] = { date: d, t: {} }; prod[d.key] = {}; }
     const t = byDate[d.key].t;
-    for (const k of Object.keys(R)) if (k !== "date" && k !== "name" && k !== "id" && k !== "status")
-      t[k] = (t[k] || 0) + num(r[R[k]]);
-    const id = String(r[R.id] || "").trim();
+    for (const k of metricKeys) t[k] = (t[k] || 0) + num(r[M[k]]);
+    const id = String(r[M.id] || "").trim();
     if (id) {
       const p = prod[d.key][id] || (prod[d.key][id] = {
-        name: clean(r[R.name]), gmv: 0, sku: 0, orders: 0, items: 0, cust: 0,
+        name: clean(r[M.name]), gmv: 0, sku: 0, orders: 0, items: 0, cust: 0,
         sl: 0, sv: 0, aff: 0, avid: 0, alive: 0, pc: 0, imp: 0, clk: 0, atc: 0, newVid: 0, newLive: 0, refund: 0
       });
-      p.gmv += num(r[R.gmv]); p.sku += num(r[R.sku]);
-      p.orders += num(r[R.orders]); p.items += num(r[R.items]); p.cust += num(r[R.cust]);
-      p.sl += num(r[R.sellerLive]); p.sv += num(r[R.sellerVideo]);
-      p.aff += num(r[R.affiliate]); p.pc += num(r[R.productCard]);
-      p.avid += num(r[R.affVidG]); p.alive += num(r[R.affLiveG]);
-      p.refund += num(r[R.refund]);
-      p.imp += num(r[R.imp]); p.clk += num(r[R.clk]); p.atc += num(r[R.atc]);
-      p.newVid += num(r[R.newVid]); p.newLive += num(r[R.newLive]);
+      p.gmv += num(r[M.gmv]); p.sku += num(r[M.sku]);
+      p.orders += num(r[M.orders]); p.items += num(r[M.items]); p.cust += num(r[M.cust]);
+      p.sl += num(r[M.sellerLive]); p.sv += num(r[M.sellerVideo]);
+      p.aff += num(r[M.affiliate]); p.pc += num(r[M.productCard]);
+      p.avid += num(r[M.affVidG]); p.alive += num(r[M.affLiveG]);
+      p.refund += num(r[M.refund]);
+      p.imp += num(r[M.imp]); p.clk += num(r[M.clk]); p.atc += num(r[M.atc]);
+      p.newVid += num(r[M.newVid]); p.newLive += num(r[M.newLive]);
     }
   }
   return { byDate, prod };
@@ -119,8 +191,22 @@ function pickComparisons(byDate, targetKey) {
 
 // ── 광고 탭(날짜·캠페인ID·지출금액C·…·PRODUCT ID G) → 일자별 광고비 ──
 // byDate[key] = { total, live(=product id 없는 행=라이브), pid:{ productId: spend } }
-const AD = { date: 0, camp: 1, spend: 2, orders: 3, pid: 6 };
+const AD0 = { date: 0, camp: 1, spend: 2, orders: 3, pid: 6 };
+function mapAdColumns(rows) {
+  const M = { ...AD0 };
+  const hi = findHeaderRow(rows, ["지출"], 6);
+  if (hi < 0) return M;
+  const h = (rows[hi] || []).map(norm);
+  const set = (k, name, opt) => { const i = colIdx(h, name, opt); if (i >= 0) M[k] = i; };
+  set("date", "날짜", { exact: false });
+  set("camp", "캠페인id", { exact: false });
+  set("spend", "지출", { exact: false });
+  set("orders", "주문수", { exact: false });
+  set("pid", "product id", { exact: false });
+  return M;
+}
 function parseAds(rows) {
+  const AD = mapAdColumns(rows);
   const byDate = {};
   for (const r of rows) {
     const d = parseDate(r[AD.date]);
@@ -235,12 +321,13 @@ function aggregate(raw, targetKey, topN, adByDate, commCur, afByDate, liveByDate
 
 // ── 매출발생영상 집계 ──────────────────────────────────────────
 function parseVideos(rows) {
+  VM = mapVideoColumns(rows); // 헤더 위치 갱신 (이후 aggregateVideos/orgShop 함수들이 사용)
   const byDate = {};
   for (const r of rows) {
-    const d = parseDate(r[V.date]);
+    const d = parseDate(r[VM.date]);
     if (!d) continue;
-    if (!(r[V.pid] || r[V.pname])) continue;
-    if (String(r[V.pname]).trim() === "Product Name" || String(r[V.pid]).trim() === "Product ID") continue; // 헤더 잔재 제외
+    if (!(r[VM.pid] || r[VM.pname])) continue;
+    if (String(r[VM.pname]).trim() === "Product Name" || String(r[VM.pid]).trim() === "Product ID") continue; // 헤더 잔재 제외
     (byDate[d.key] || (byDate[d.key] = [])).push(r);
   }
   return byDate;
@@ -257,40 +344,40 @@ function aggregateVideos(vidByDate, targetKey) {
   const prod = {}, creators = {}, byType = {};
   let orgPay = 0, shopPay = 0, orgCnt = 0, shopCnt = 0;
   for (const r of rows) {
-    const pk = r[V.pid] || r[V.pname];
-    const pid = String(r[V.pid] || "").trim();
-    const p = prod[pk] || (prod[pk] = { name: clean(r[V.pname]), pid, pay: 0, org: 0, shop: 0, items: {}, skus: {} });
-    const pay = num(r[V.pay]);
+    const pk = r[VM.pid] || r[VM.pname];
+    const pid = String(r[VM.pid] || "").trim();
+    const p = prod[pk] || (prod[pk] = { name: clean(r[VM.pname]), pid, pay: 0, org: 0, shop: 0, items: {}, skus: {} });
+    const pay = num(r[VM.pay]);
     p.pay += pay;
     // SKU(변형)별 판매금액·수량·건수
-    const skuId = String(r[V.sku] || "").trim();
+    const skuId = String(r[VM.sku] || "").trim();
     if (skuId) {
       const sk = p.skus[skuId] || (p.skus[skuId] = { sku: skuId, pay: 0, qty: 0, cnt: 0 });
-      sk.pay += pay; sk.qty += num(r[V.qty]); sk.cnt++;
+      sk.pay += pay; sk.qty += num(r[VM.qty]); sk.cnt++;
     }
-    const ck = r[V.ctype] + "|" + r[V.cid] + "|" + r[V.creator];
-    const it = p.items[ck] || (p.items[ck] = { type: r[V.ctype], cid: r[V.cid], creator: r[V.creator], pay: 0, c: 0, org: { cnt: 0, rate: {} }, shop: { cnt: 0, rate: {} } });
+    const ck = r[VM.ctype] + "|" + r[VM.cid] + "|" + r[VM.creator];
+    const it = p.items[ck] || (p.items[ck] = { type: r[VM.ctype], cid: r[VM.cid], creator: r[VM.creator], pay: 0, c: 0, org: { cnt: 0, rate: {} }, shop: { cnt: 0, rate: {} } });
     it.pay += pay; it.c++;
-    const sR = String(r[V.std] || "").trim(), aR = String(r[V.shop] || "").trim();
+    const sR = String(r[VM.std] || "").trim(), aR = String(r[VM.shop] || "").trim();
     const isShop = aR.includes("%");
     if (isShop) { it.shop.cnt++; it.shop.rate[aR] = (it.shop.rate[aR] || 0) + 1; p.shop += pay; shopPay += pay; shopCnt++; }
     else if (sR.includes("%")) { it.org.cnt++; it.org.rate[sR] = (it.org.rate[sR] || 0) + 1; p.org += pay; orgPay += pay; orgCnt++; }
     // 크리에이터 리더보드 (Video/LIVE 등 콘텐츠 귀속 매출)
-    const cu = String(r[V.creator] || "").trim();
+    const cu = String(r[VM.creator] || "").trim();
     if (cu) {
       const cr = creators[cu] || (creators[cu] = { creator: cu, pay: 0, orders: 0, org: 0, shop: 0, cids: {} });
       cr.pay += pay; cr.orders++; if (isShop) cr.shop += pay; else cr.org += pay;
-      if (r[V.cid]) cr.cids[r[V.cid]] = (cr.cids[r[V.cid]] || 0) + pay;
+      if (r[VM.cid]) cr.cids[r[VM.cid]] = (cr.cids[r[VM.cid]] || 0) + pay;
     }
     // 콘텐츠 타입별 매출
-    const tp = String(r[V.ctype] || "기타").trim() || "기타";
+    const tp = String(r[VM.ctype] || "기타").trim() || "기타";
     byType[tp] = (byType[tp] || 0) + pay;
   }
   const plist = Object.values(prod)
     .map(p => ({ ...p, items: Object.values(p.items).sort((a, b) => b.pay - a.pay), skus: Object.values(p.skus).sort((a, b) => b.pay - a.pay) }))
     .sort((a, b) => b.pay - a.pay);
-  const totalPay = rows.reduce((s, r) => s + num(r[V.pay]), 0);
-  const videoPay = rows.filter(r => r[V.ctype] === "Video").reduce((s, r) => s + num(r[V.pay]), 0);
+  const totalPay = rows.reduce((s, r) => s + num(r[VM.pay]), 0);
+  const videoPay = rows.filter(r => r[VM.ctype] === "Video").reduce((s, r) => s + num(r[VM.pay]), 0);
   const creatorList = Object.values(creators)
     .map(c => ({ creator: c.creator, pay: Math.round(c.pay), orders: c.orders, org: Math.round(c.org), shop: Math.round(c.shop), contents: Object.keys(c.cids).length, topCid: modeOf(Object.fromEntries(Object.entries(c.cids).map(([k, v]) => [k, v]))) }))
     .sort((a, b) => b.pay - a.pay);
@@ -308,9 +395,9 @@ function videoOrgShopByDate(vidByDate) {
   for (const dk in vidByDate) {
     let org = 0, shop = 0;
     for (const r of vidByDate[dk]) {
-      const pay = num(r[V.pay]);
-      if (String(r[V.shop] || "").includes("%")) shop += pay;
-      else if (String(r[V.std] || "").includes("%")) org += pay;
+      const pay = num(r[VM.pay]);
+      if (String(r[VM.shop] || "").includes("%")) shop += pay;
+      else if (String(r[VM.std] || "").includes("%")) org += pay;
     }
     out[dk] = { org, shop };
   }
@@ -323,11 +410,11 @@ function videoOrgShopByDatePid(vidByDate) {
   for (const dk in vidByDate) {
     const e = out[dk] = {};
     for (const r of vidByDate[dk]) {
-      const pid = String(r[V.pid] || "").trim(); if (!pid) continue;
-      const pay = num(r[V.pay]);
+      const pid = String(r[VM.pid] || "").trim(); if (!pid) continue;
+      const pay = num(r[VM.pay]);
       const p = e[pid] || (e[pid] = { org: 0, shop: 0 });
-      if (String(r[V.shop] || "").includes("%")) p.shop += pay;
-      else if (String(r[V.std] || "").includes("%")) p.org += pay;
+      if (String(r[VM.shop] || "").includes("%")) p.shop += pay;
+      else if (String(r[VM.std] || "").includes("%")) p.org += pay;
     }
   }
   return out;
@@ -335,16 +422,16 @@ function videoOrgShopByDatePid(vidByDate) {
 
 // ── 매출발생영상 커미션율 (제품별 대표=최빈값) ─────────────────
 //   Standard commission rate(16) / Shop Ads commission rate(21)
-const VC = { date: 0, pid: 2, std: 16, adrate: 21 };
 function parseCommissions(rows) {
+  const C = mapVideoColumns(rows); // std=스탠다드, shop=샵애즈 커미션율
   const tmp = {};
   for (const r of rows) {
-    const d = parseDate(r[VC.date]); if (!d) continue;
-    const pid = String(r[VC.pid] || "").trim(); if (!pid || pid === "Product ID") continue;
+    const d = parseDate(r[C.date]); if (!d) continue;
+    const pid = String(r[C.pid] || "").trim(); if (!pid || pid === "Product ID") continue;
     const e = tmp[d.key] || (tmp[d.key] = {});
     const p = e[pid] || (e[pid] = { std: {}, ad: {} });
-    const s = String(r[VC.std] || "").trim(); if (s.includes("%")) p.std[s] = (p.std[s] || 0) + 1;
-    const a = String(r[VC.adrate] || "").trim(); if (a.includes("%")) p.ad[a] = (p.ad[a] || 0) + 1;
+    const s = String(r[C.std] || "").trim(); if (s.includes("%")) p.std[s] = (p.std[s] || 0) + 1;
+    const a = String(r[C.shop] || "").trim(); if (a.includes("%")) p.ad[a] = (p.ad[a] || 0) + 1;
   }
   const mode = o => { let b = null, m = 0; for (const k in o) if (o[k] > m) { m = o[k]; b = k; } return b; };
   const out = {};
@@ -398,8 +485,30 @@ function skusForProduct(skuByDate, targetKey, pid) {
 }
 
 // ── 제품별 AF(어필리에이트) RAW: 커미션·플랫피·샘플·환불·크리에이터수 ──
-const AF = { date: 0, pid: 2, afgmv: 4, refund: 5, crSales: 10, crPosted: 11, vidSales: 12, liveSales: 13, videos: 14, lives: 15, comm: 16, samples: 17, flat: 18 };
+const AF0 = { date: 0, pid: 2, afgmv: 4, refund: 5, crSales: 10, crPosted: 11, vidSales: 12, liveSales: 13, videos: 14, lives: 15, comm: 16, samples: 17, flat: 18 };
+function mapAfColumns(rows) {
+  const M = { ...AF0 };
+  const hi = findHeaderRow(rows, ["product id"], 6);
+  if (hi < 0) return M;
+  const h = (rows[hi] || []).map(norm);
+  const set = (k, name, opt) => { const i = colIdx(h, name, opt); if (i >= 0) M[k] = i; };
+  set("date", "date", { exact: false });
+  set("pid", "product id");
+  set("afgmv", "affiliate-attributed gmv", { exact: false });
+  set("refund", "refunds");
+  set("crSales", "creators with sales", { exact: false });
+  set("crPosted", "creators posted content", { exact: false });
+  set("vidSales", "videos with sales", { exact: false });
+  set("liveSales", "live streams with sales", { exact: false });
+  set("videos", "videos");
+  set("lives", "live streams");
+  set("comm", "est. commission", { exact: false });
+  set("samples", "samples shipped", { exact: false });
+  set("flat", "est. flat fee", { exact: false });
+  return M;
+}
 function parseAffiliate(rows) {
+  const AF = mapAfColumns(rows);
   const byDate = {};
   for (const r of rows) {
     const d = parseDate(r[AF.date]); if (!d) continue;
@@ -612,16 +721,19 @@ async function alreadyPosted(token, channel, label) {
 }
 
 // 탭을 이름이 아니라 헤더 내용으로 식별 (탭 rename에 견고)
+// 헤더가 꼭 1행에 없어도 되도록 상위 5행을 모두 스캔한다.
 async function resolveTabs(sheets, sheetId) {
   const meta = await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: "sheets.properties.title" });
   const titles = (meta.data.sheets || []).map(s => s.properties.title);
-  const ranges = titles.map(t => `'${t}'!A1:BZ1`);
+  const ranges = titles.map(t => `'${t}'!A1:BZ5`);
   const hb = await sheets.spreadsheets.values.batchGet({ spreadsheetId: sheetId, ranges });
-  const headers = (hb.data.valueRanges || []).map(v => ((v.values && v.values[0]) || []).map(x => String(x).toLowerCase()));
+  const headers = (hb.data.valueRanges || []).map(v => ((v.values || []).flat()).map(x => String(x).toLowerCase()));
   const has = (h, kw) => h.some(c => c.includes(kw));
   const find = pred => { for (let i = 0; i < titles.length; i++) if (headers[i] && pred(headers[i], titles[i])) return titles[i]; return null; };
   return {
-    raw: find(h => has(h, "gmv range") && has(h, "listing status")),
+    raw: find(h => (has(h, "gmv range") && has(h, "listing status"))
+      || (has(h, "seller live-attributed gmv") && has(h, "product id"))
+      || (has(h, "listing status") && has(h, "product impressions"))),
     vid: find(h => has(h, "content type") && has(h, "creator username")),
     ad: find(h => has(h, "지출금액")) || (titles.includes("광고") ? "광고" : null),
     af: find(h => has(h, "samples shipped") || (has(h, "est. commission") && has(h, "creators posted content"))),
@@ -938,6 +1050,26 @@ module.exports = async (req, res) => {
     }
     const sheets = google.sheets({ version: "v4", auth });
 
+    // 진단 모드: 탭 인식·컬럼 매핑 상태 확인 (?debug=1)
+    if (req.query && req.query.debug === "1") {
+      const det = await resolveTabs(sheets, sheetId);
+      const out = { tabs: det };
+      if (det.raw) {
+        const rr = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range: `'${det.raw}'!A1:DZ6` });
+        const rrows = rr.data.values || [];
+        const hi = findHeaderRow(rrows, ["product id", "product name"], 6);
+        out.rawHeaderRow = hi;
+        out.rawHeaderSample = hi >= 0 ? (rrows[hi] || []).slice(0, 25) : (rrows[0] || []).slice(0, 25);
+        out.rawColMap = mapRawColumns(rrows);
+      } else {
+        const meta2 = await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: "sheets.properties.title" });
+        out.allTabs = (meta2.data.sheets || []).map(s => s.properties.title);
+      }
+      res.setHeader("Cache-Control", "no-store");
+      res.status(200).json(out);
+      return;
+    }
+
     const fresh = req.query && req.query.fresh === "1";
     const now = Date.now();
 
@@ -1047,4 +1179,4 @@ module.exports = async (req, res) => {
 };
 
 // 테스트용 내부 노출
-module.exports._internals = { num, parseDate, parseRaw, parseAds, parseCommissions, parseAffiliate, parseLive, aggregate, parseVideos, aggregateVideos, buildMain, videoChunks, generateInsights, buildJson, parseSkuOrders, skusForProduct, videoOrgShopByDate, videoOrgShopByDatePid };
+module.exports._internals = { num, parseDate, parseRaw, parseAds, parseCommissions, parseAffiliate, parseLive, aggregate, parseVideos, aggregateVideos, buildMain, videoChunks, generateInsights, buildJson, parseSkuOrders, skusForProduct, videoOrgShopByDate, videoOrgShopByDatePid, mapRawColumns, mapVideoColumns, mapAfColumns, mapAdColumns, findHeaderRow };
