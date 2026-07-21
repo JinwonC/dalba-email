@@ -268,12 +268,25 @@ function render(d){
     </table></div>
     <div class="cap" style="margin-top:10px">Affiliate 내부 — 영상 ${usd(cd.affVideo)} · 라이브 ${usd(cd.affLive)} · 오가닉 스토어탭 ${usd(cd.shopTab)}</div></div>`;
 
+  // 채널별 트래픽 질 / 직접vs간접 / 채널 AOV (RAW 채널 블록)
+  const cfTable=d.channelFunnel?`<div style="overflow-x:auto;margin-top:10px"><table>
+    <tr><th>채널</th><th>노출</th><th>클릭</th><th>CTR</th><th>장바구니율</th><th>주문</th><th>주문전환</th></tr>
+    ${d.channelFunnel.map(c=>`<tr><td>${esc(c.name)}</td><td>${nf(c.imp)}</td><td>${nf(c.clk)}</td><td>${c.ctr??"–"}%</td><td>${c.atcRate??"–"}%</td><td>${nf(c.orders)}</td><td>${c.conv??"–"}%</td></tr>`).join("")}
+    </table></div>`:"";
+  const advChan=(d.channelFunnel||d.directIndirect||d.channelAov)?`
+    <div class="grid2">
+      ${d.channelFunnel?`<div class="card"><h3>🚦 채널별 트래픽 질 (퍼널 비교)</h3><div class="cap">같은 노출이라도 채널마다 전환이 다름 — 예산·콘텐츠 배분 근거</div><div class="chartbox"><canvas id="cChFunnel"></canvas></div>${cfTable}</div>`:""}
+      <div>
+        ${d.directIndirect?`<div class="card"><h3>↪️ 직접 vs 간접 매출</h3><div class="cap">직접=콘텐츠에서 바로 구매 · 간접=보고 나중에 구매(이연 효과)</div><div class="chartbox sm"><canvas id="cDirInd"></canvas></div></div>`:""}
+        ${d.channelAov?`<div class="card"><h3>💳 채널별 AOV</h3><div class="cap">채널 GMV ÷ 채널 주문 — 어디서 사는 손님이 객단가가 높나</div><div class="chartbox sm"><canvas id="cChAov"></canvas></div></div>`:""}
+      </div>
+    </div>`:"";
   const sec2=sect("🔀","채널별 분석","귀속 GMV 분해")+
     `<div class="grid2">
       <div class="card"><h3>🍩 채널 구성</h3><div class="cap">당일 GMV 비중</div><div class="chartbox"><canvas id="cChan"></canvas></div></div>
       ${chanTable}
-    </div>
-    <div class="card"><h3>📊 채널별 매출 추이 (누적)</h3><div class="cap">Affiliate / Product Card / Seller Video / Seller LIVE — 일별 (USD)</div><div class="chartbox tall"><canvas id="cChanTrend"></canvas></div></div>`;
+    </div>`+advChan+
+    `<div class="card"><h3>📊 채널별 매출 추이 (누적)</h3><div class="cap">Affiliate / Product Card / Seller Video / Seller LIVE — 일별 (USD)</div><div class="chartbox tall"><canvas id="cChanTrend"></canvas></div></div>`;
 
   // ── 2.5 심화 분석 ──────────────────────────────────────
   const campTable=(d.campaigns&&d.campaigns.length)?`<div class="card"><h3>📣 캠페인별 광고 효율 (당일)</h3><div class="cap">지출·주문·CPO(주문당 광고비) · 매출은 스토어 전체로 잡혀 제외</div>
@@ -388,6 +401,11 @@ function render(d){
         ${stats}
         <div class="subh">매출 추이 · 퍼널</div>${charts}
         <div class="subh">채널별 매출 분해</div>${chanSeg}
+        ${p.chFunnel?`<div class="subh">채널별 트래픽 질</div>
+        <div style="overflow-x:auto"><table>
+          <tr><th>채널</th><th>노출</th><th>클릭</th><th>CTR</th><th>주문</th><th>주문전환</th></tr>
+          ${p.chFunnel.map(c=>`<tr><td>${esc(c.name)}</td><td>${nf(c.imp)}</td><td>${nf(c.clk)}</td><td>${c.ctr??"–"}%</td><td>${nf(c.orders)}</td><td>${c.conv??"–"}%</td></tr>`).join("")}
+        </table></div>`:""}
         <div class="subh">전환 퍼널 (수치)</div>${funnel}
         ${skuTable}
         ${afHtml}
@@ -455,8 +473,21 @@ function render(d){
         <td>${usd(c.pay)}</td><td>${c.orders}</td><td>${c.contents}</td>
         <td>${usd(c.org)}</td><td>${usd(c.shop)}</td></tr>`).join("")}
       </table></div></div>`:"";
+    const svc=d.sellerVsCreator;
+    const svcCard=svc?`<div class="card"><h3>📺 셀러(자사) vs 크리에이터 콘텐츠 생산성</h3>
+      <div class="cap">자사 계정 운영 ROI 판단 — 콘텐츠 수와 건당 매출 비교</div>
+      <div class="grid2">
+        <div><div class="subh">신규 콘텐츠 수</div><div class="chartbox sm"><canvas id="cSvcCnt"></canvas></div></div>
+        <div><div class="subh">콘텐츠 1건당 매출</div><div class="chartbox sm"><canvas id="cSvcEff"></canvas></div></div>
+      </div>
+      <div class="statrow">
+        <div class="stat"><div class="sl">셀러 영상</div><div class="sv">${nf(svc.seller.vids)}개 · ${usd(svc.seller.vidGmv)}</div></div>
+        <div class="stat"><div class="sl">크리에이터 영상</div><div class="sv">${nf(svc.creator.vids)}개 · ${usd(svc.creator.vidGmv)}</div></div>
+        <div class="stat"><div class="sl">셀러 라이브</div><div class="sv">${nf(svc.seller.lives)}개 · ${usd(svc.seller.liveGmv)}</div></div>
+        <div class="stat"><div class="sl">크리에이터 라이브</div><div class="sv">${nf(svc.creator.lives)}개 · ${usd(svc.creator.liveGmv)}</div></div>
+      </div></div>`:"";
     sec4=sect("🎬","콘텐츠·크리에이터 분석","MD · 콘텐츠 마케터용")+
-      `<div class="grid2">${orgShop}${mixCard}</div>`+crHtml+lead;
+      `<div class="grid2">${orgShop}${mixCard}</div>`+svcCard+crHtml+lead;
   }
 
   // ── 5. 브랜드 라이브 ───────────────────────────────────
@@ -601,6 +632,40 @@ function drawCharts(d){
       {label:"ROI≥3",data:pts.filter(p=>p.roi>=3).map(p=>({x:p.cost,y:p.roi,r:8+Math.sqrt(p.gmv/(d.kpis.gmv||1))*22,n:p.name})),backgroundColor:S2+"cc"},
       {label:"ROI<3",data:pts.filter(p=>p.roi<3).map(p=>({x:p.cost,y:p.roi,r:8+Math.sqrt(p.gmv/(d.kpis.gmv||1))*22,n:p.name})),backgroundColor:(S6||S3)+"cc"}]},
     options:{maintainAspectRatio:false,plugins:{legend:lgd,tooltip:{callbacks:{label:c=>c.raw.n.slice(0,30)+" · 광고비 "+usd(c.raw.x)+" / ROI "+c.raw.y+"x"}}},scales:{x:{...gridCfg,title:{display:true,text:"광고비 $",color:muted},ticks:{color:muted,callback:usdk}},y:{...gridCfg,title:{display:true,text:"ROI",color:muted},ticks:{color:muted,callback:v=>v+"x"}}}}});}
+
+  // 채널별 트래픽 질 — 단계(x) × 채널(시리즈) 그룹 막대
+  if($("#cChFunnel")&&d.channelFunnel){
+    const chColors=[S4,S3,S1,S5]; // Seller LIVE, Seller Video, 크리에이터, Product Card
+    NC($("#cChFunnel"),{type:"bar",data:{labels:["CTR","장바구니율","주문전환"],
+      datasets:d.channelFunnel.map((c,i)=>({label:c.name,data:[c.ctr,c.atcRate,c.conv],backgroundColor:chColors[i%4],borderRadius:3}))},
+      options:{maintainAspectRatio:false,plugins:{legend:lgd,tooltip:{callbacks:{label:c=>c.dataset.label+": "+(c.raw==null?"–":c.raw+"%")}}},scales:{x:gridCfg,y:{...gridCfg,ticks:{color:muted,callback:v=>v+"%"}}}}});
+  }
+  // 직접 vs 간접 매출 (채널별 스택)
+  if($("#cDirInd")&&d.directIndirect){
+    NC($("#cDirInd"),{type:"bar",data:{labels:d.directIndirect.map(c=>c.name),
+      datasets:[{label:"직접",data:d.directIndirect.map(c=>c.direct),backgroundColor:S1},
+        {label:"간접(이연)",data:d.directIndirect.map(c=>c.indirect),backgroundColor:S3}]},
+      options:{maintainAspectRatio:false,plugins:{legend:lgd,tooltip:{callbacks:{label:c=>{const t=d.directIndirect[c.dataIndex];const tot=t.direct+t.indirect;return c.dataset.label+": "+usd(c.raw)+(tot?" ("+(c.raw/tot*100).toFixed(0)+"%)":"");}}}},scales:{x:{...gridCfg,stacked:true},y:{...gridCfg,stacked:true,ticks:{color:muted,callback:usdk}}}}});
+  }
+  // 채널별 AOV
+  if($("#cChAov")&&d.channelAov){
+    NC($("#cChAov"),{type:"bar",data:{labels:d.channelAov.map(c=>c.name),
+      datasets:[{label:"AOV",data:d.channelAov.map(c=>c.aov),backgroundColor:S2,borderRadius:4}]},
+      options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>"$"+c.raw}}},scales:{x:gridCfg,y:{...gridCfg,ticks:{color:muted,callback:v=>"$"+v}}}}});
+  }
+  // 셀러 vs 크리에이터 콘텐츠
+  if($("#cSvcCnt")&&d.sellerVsCreator){
+    const s=d.sellerVsCreator;
+    NC($("#cSvcCnt"),{type:"bar",data:{labels:["영상","라이브"],
+      datasets:[{label:"셀러(자사)",data:[s.seller.vids,s.seller.lives],backgroundColor:S1,borderRadius:4},
+        {label:"크리에이터",data:[s.creator.vids,s.creator.lives],backgroundColor:S2,borderRadius:4}]},
+      options:{maintainAspectRatio:false,plugins:{legend:lgd,tooltip:{callbacks:{label:c=>c.dataset.label+": "+nf(c.raw)+"개"}}},scales:{x:gridCfg,y:gridCfg}}});
+    const eff=(gm,n)=>n?+(gm/n).toFixed(2):0;
+    NC($("#cSvcEff"),{type:"bar",data:{labels:["영상 1건당","라이브 1건당"],
+      datasets:[{label:"셀러(자사)",data:[eff(s.seller.vidGmv,s.seller.vids),eff(s.seller.liveGmv,s.seller.lives)],backgroundColor:S1,borderRadius:4},
+        {label:"크리에이터",data:[eff(s.creator.vidGmv,s.creator.vids),eff(s.creator.liveGmv,s.creator.lives)],backgroundColor:S2,borderRadius:4}]},
+      options:{maintainAspectRatio:false,plugins:{legend:lgd,tooltip:{callbacks:{label:c=>c.dataset.label+": "+usd(c.raw)}}},scales:{x:gridCfg,y:{...gridCfg,ticks:{color:muted,callback:usdk}}}}});
+  }
 
   // store funnel — 전환율 추이 (여러 선)
   drawRateTrend("cFunnel",d.series.map(s=>s.date),[

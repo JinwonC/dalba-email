@@ -100,6 +100,24 @@ function mapRawColumns(rows) {
   set("affVidG", "video-attributed gmv");
   set("newLive", "new live counts", { last: true });   // 마지막 = 크리에이터 섹션
   set("newVid", "new video count", { last: true });
+  // ── 채널 심화 지표 ──
+  // 간접(이연) GMV — 고유 헤더명
+  set("iSL", "seller live indirect gmv");
+  set("iSV", "seller video indirect gmv");
+  set("iCL", "creator live indirect gmv");             // 첫 번째(상단 요약 섹션)
+  set("iCV", "creator video indirect gmv");
+  // 셀러 자사 콘텐츠 수 — 첫 번째 등장(셀러 블록), 마지막은 크리에이터
+  set("newLiveS", "new live counts");
+  set("newVidS", "new video count");
+  // 채널 블록별 퍼널/주문 — 동일 헤더명이 블록 순서대로 반복됨:
+  //   [전체, Seller LIVE, Seller Video, 크리에이터, Product Card] 순 → n번째 등장으로 선택
+  const occ = name => { const a = []; for (let i = 0; i < h.length; i++) if (h[i] === name) a.push(i); return a; };
+  const pick = (arr, n, def) => (arr.length > n ? arr[n] : def);
+  const impO = occ("product impressions"), clkO = occ("product clicks"), atcO = occ("add-to-cart count"), ordO = occ("attributed sku orders");
+  M.impSL = pick(impO, 1, 65); M.impSV = pick(impO, 2, 90); M.impCR = pick(impO, 3, 117); M.impPC = pick(impO, 4, 165);
+  M.clkSL = pick(clkO, 1, 66); M.clkSV = pick(clkO, 2, 91); M.clkCR = pick(clkO, 3, 118); M.clkPC = pick(clkO, 4, 166);
+  M.atcSL = pick(atcO, 1, 68); M.atcSV = pick(atcO, 2, 93); M.atcCR = pick(atcO, 3, 120); M.atcPC = pick(atcO, 4, 168);
+  M.ordSL = pick(ordO, 0, 56); M.ordSV = pick(ordO, 1, 81); M.ordCR = pick(ordO, 2, 110); M.ordPC = pick(ordO, 3, 157);
   return M;
 }
 function mapVideoColumns(rows) {
@@ -171,6 +189,14 @@ function parseRaw(rows) {
       p.refund += num(r[M.refund]);
       p.imp += num(r[M.imp]); p.clk += num(r[M.clk]); p.atc += num(r[M.atc]);
       p.newVid += num(r[M.newVid]); p.newLive += num(r[M.newLive]);
+      // 채널별 퍼널(노출/클릭/주문) — 딥다이브 채널 트래픽 질 표
+      if (M.impSL != null) {
+        const cf = p.cf || (p.cf = { sl: [0, 0, 0], sv: [0, 0, 0], cr: [0, 0, 0], pc: [0, 0, 0] });
+        cf.sl[0] += num(r[M.impSL]); cf.sl[1] += num(r[M.clkSL]); cf.sl[2] += num(r[M.ordSL]);
+        cf.sv[0] += num(r[M.impSV]); cf.sv[1] += num(r[M.clkSV]); cf.sv[2] += num(r[M.ordSV]);
+        cf.cr[0] += num(r[M.impCR]); cf.cr[1] += num(r[M.clkCR]); cf.cr[2] += num(r[M.ordCR]);
+        cf.pc[0] += num(r[M.impPC]); cf.pc[1] += num(r[M.clkPC]); cf.pc[2] += num(r[M.ordPC]);
+      }
     }
   }
   return { byDate, prod };
@@ -849,6 +875,13 @@ function buildJson(agg, raw, adByDate, ins, vid, skuByDate, afByDate, orgShopByD
         orderConv: x.clk ? +(x.sku / x.clk * 100).toFixed(2) : 0
       },
       series: prodSeries(x.id),
+      // 채널별 트래픽 질 (노출·클릭·주문·CTR·전환)
+      chFunnel: x.cf ? ["sl", "sv", "cr", "pc"].map((k, ci) => ({
+        name: ["Seller LIVE", "Seller Video", "크리에이터", "Product Card"][ci],
+        imp: Math.round(x.cf[k][0]), clk: Math.round(x.cf[k][1]), orders: Math.round(x.cf[k][2]),
+        ctr: x.cf[k][0] ? +(x.cf[k][1] / x.cf[k][0] * 100).toFixed(2) : null,
+        conv: x.cf[k][1] ? +(x.cf[k][2] / x.cf[k][1] * 100).toFixed(2) : null
+      })) : null,
       newVid: Math.round(x.newVid || 0), newLive: Math.round(x.newLive || 0),
       af: x.af ? {
         videos: Math.round(x.af.videos), lives: Math.round(x.af.lives),
@@ -956,11 +989,48 @@ function buildJson(agg, raw, adByDate, ins, vid, skuByDate, afByDate, orgShopByD
   const refundTop = allProds.filter(x => x.refund > 0).map(x => ({ name: x.name, refund: Math.round(x.refund), gmv: Math.round(x.gmv), rate: x.gmv ? +(x.refund / x.gmv * 100).toFixed(1) : 0 }))
     .sort((a, b) => b.refund - a.refund).slice(0, 10);
 
+  // ── 채널 심화 (RAW 채널 블록 기반) ────────────────────
+  const chf = (name, imp, clk, atc, ord) => ({
+    name, imp: Math.round(imp || 0), clk: Math.round(clk || 0), atc: Math.round(atc || 0), orders: Math.round(ord || 0),
+    ctr: imp ? +(clk / imp * 100).toFixed(2) : null,
+    atcRate: clk ? +(atc / clk * 100).toFixed(2) : null,
+    conv: clk ? +(ord / clk * 100).toFixed(2) : null
+  });
+  // 1) 채널별 퍼널(트래픽 질) 비교
+  const channelFunnel = (g.impSL != null) ? [
+    chf("Seller LIVE", g.impSL, g.clkSL, g.atcSL, g.ordSL),
+    chf("Seller Video", g.impSV, g.clkSV, g.atcSV, g.ordSV),
+    chf("크리에이터", g.impCR, g.clkCR, g.atcCR, g.ordCR),
+    chf("Product Card", g.impPC, g.clkPC, g.atcPC, g.ordPC)
+  ] : null;
+  // 3) 직접(귀속) vs 간접(이연) GMV
+  const directIndirect = (g.iSL != null) ? [
+    { name: "Seller LIVE", direct: Math.round(g.sellerLive || 0), indirect: Math.round(g.iSL || 0) },
+    { name: "Seller Video", direct: Math.round(g.sellerVideo || 0), indirect: Math.round(g.iSV || 0) },
+    { name: "Affiliate LIVE", direct: Math.round(g.affLiveG || 0), indirect: Math.round(g.iCL || 0) },
+    { name: "Affiliate Video", direct: Math.round(g.affVidG || 0), indirect: Math.round(g.iCV || 0) }
+  ] : null;
+  // 4) 채널별 AOV (= 채널 GMV ÷ 채널 주문, 비율 평균의 함정 회피)
+  const aovOf = (gmv2, ord) => ord ? +(gmv2 / ord).toFixed(2) : null;
+  const channelAov = (g.ordSL != null) ? [
+    { name: "전체", aov: aovOf(g.gmv, g.sku) },
+    { name: "Seller LIVE", aov: aovOf(g.sellerLive, g.ordSL) },
+    { name: "Seller Video", aov: aovOf(g.sellerVideo, g.ordSV) },
+    { name: "크리에이터", aov: aovOf(g.affiliate, g.ordCR) },
+    { name: "Product Card", aov: aovOf(g.productCard, g.ordPC) }
+  ] : null;
+  // 2) 셀러(자사) vs 크리에이터 콘텐츠 생산성
+  const sellerVsCreator = (g.newVidS != null) ? {
+    seller: { vids: Math.round(g.newVidS || 0), lives: Math.round(g.newLiveS || 0), vidGmv: Math.round(g.sellerVideo || 0), liveGmv: Math.round(g.sellerLive || 0) },
+    creator: { vids: Math.round(g.newVid || 0), lives: Math.round(g.newLive || 0), vidGmv: Math.round(g.affVidG || 0), liveGmv: Math.round(g.affLiveG || 0) }
+  } : null;
+
   return {
     date: agg.date.label,
     prevDay: agg.prevDay ? agg.prevDay.md : null,
     prevWeek: agg.prevWeek ? agg.prevWeek.md : null,
     pareto, waterfall, campaigns, funnelWoW, anomalies, forecast: fc, weekly, refundTop,
+    channelFunnel, directIndirect, channelAov, sellerVsCreator,
     kpis: {
       gmv: Math.round(g.gmv), gmvDoD: agg.dd("gmv"), gmvWoW: agg.ww("gmv"),
       orders: Math.round(g.sku), ordersDoD: agg.dd("sku"), ordersWoW: agg.ww("sku"),
@@ -1114,8 +1184,8 @@ module.exports = async (req, res) => {
       if (!rawSheet) throw new Error("제품×일자 매출 탭을 찾지 못했습니다. (RAW_SHEET 환경변수 확인)");
       if (!vidSheet) throw new Error("주문/콘텐츠 매출 탭(헤더에 'Content Type','Creator Username')을 찾지 못했습니다.");
 
-      // 범위는 실제 사용 컬럼까지만 (A:GZ→A:DM 등, 전송량 절감)
-      const ranges = [`'${rawSheet}'!A:DM`, `'${vidSheet}'!A:W`];
+      // 범위는 실제 사용 컬럼까지만 (채널 블록 포함 177열=FU, 전송량 절감)
+      const ranges = [`'${rawSheet}'!A:FU`, `'${vidSheet}'!A:W`];
       const adIdx = adSheet ? ranges.push(`'${adSheet}'!A:J`) - 1 : -1;
       const afIdx = afSheet ? ranges.push(`'${afSheet}'!A:S`) - 1 : -1;
       const liveIdx = liveSheet ? ranges.push(`'${liveSheet}'!A:AD`) - 1 : -1;
