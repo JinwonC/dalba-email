@@ -446,7 +446,7 @@ function parseSkuOrders(rows) {
   const header = (rows[0] || []).map(h => String(h || "").toLowerCase().replace(/\s+/g, " ").trim());
   const find = (...kws) => { for (let i = 0; i < header.length; i++) if (header[i] && kws.some(k => header[i].includes(k))) return i; return -1; };
   const iDate = find("date", "날짜");
-  const iPid = find("product id", "상품 id", "제품 id");
+  const iPid = find("product id", "상품id", "상품 id", "제품id", "제품 id", "productid");
   const iSkuName = find("variation", "variant", "sku name", "옵션", "option name", "속성");
   const iSkuId = find("sku id", "seller sku", "sku");
   const iAmt = find("gmv", "payment amount", "sales amount", "판매금액", "매출", "결제금액", "amount", "금액");
@@ -1067,9 +1067,9 @@ module.exports = async (req, res) => {
       const out = { allTabs: titles };
       const wantTab = req.query.tab && titles.find(t => t.includes(req.query.tab));
       if (wantTab) {
-        const rr = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range: `'${wantTab}'!A1:BH8` });
+        const rr = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range: `'${wantTab}'!A1:HZ3` });
         out.tab = wantTab;
-        out.rows = (rr.data.values || []).map(r => r.slice(0, 60));
+        out.rows = (rr.data.values || []).map(r => r.slice(0, 234));
       } else {
         out.tabs = await resolveTabs(sheets, sheetId);
         const hb = await sheets.spreadsheets.values.batchGet({ spreadsheetId: sheetId, ranges: titles.map(t => `'${t}'!A1:AN3`) });
