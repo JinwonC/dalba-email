@@ -487,14 +487,17 @@ function skusForProduct(skuByDate, targetKey, pid) {
 // ── 제품별 AF(어필리에이트) RAW: 커미션·플랫피·샘플·환불·크리에이터수 ──
 const AF0 = { date: 0, pid: 2, afgmv: 4, refund: 5, crSales: 10, crPosted: 11, vidSales: 12, liveSales: 13, videos: 14, lives: 15, comm: 16, samples: 17, flat: 18 };
 function mapAfColumns(rows) {
-  const M = { ...AF0 };
   const hi = findHeaderRow(rows, ["product id"], 6);
-  if (hi < 0) return M;
+  if (hi < 0) return { ...AF0 };
+  // 헤더 행을 찾았으면 이름으로만 매핑 — 없는 컬럼은 -1(=0으로 집계).
+  // (시트 개편으로 컬럼이 삭제됐을 때 엉뚱한 열을 읽는 것을 방지)
   const h = (rows[hi] || []).map(norm);
-  const set = (k, name, opt) => { const i = colIdx(h, name, opt); if (i >= 0) M[k] = i; };
+  const M = {};
+  const set = (k, name, opt) => { const i = colIdx(h, name, opt); if (M[k] == null || M[k] < 0) M[k] = i; };
   set("date", "date", { exact: false });
   set("pid", "product id");
   set("afgmv", "affiliate-attributed gmv", { exact: false });
+  set("afgmv", "creator-attributed gmv");            // 개편된 탭의 동일 지표 명칭
   set("refund", "refunds");
   set("crSales", "creators with sales", { exact: false });
   set("crPosted", "creators posted content", { exact: false });
@@ -731,11 +734,12 @@ async function resolveTabs(sheets, sheetId) {
   const has = (h, kw) => h.some(c => c.includes(kw));
   const find = pred => { for (let i = 0; i < titles.length; i++) if (headers[i] && pred(headers[i], titles[i])) return titles[i]; return null; };
   return {
-    raw: find(h => (has(h, "gmv range") && has(h, "listing status"))
+    raw: find(h => !has(h, "samples shipped") && ( // AF 탭(샘플 열 보유) 오인 방지
+      (has(h, "gmv range") && has(h, "listing status"))
       || (has(h, "seller live-attributed gmv") && has(h, "product id"))
       || (has(h, "listing status") && has(h, "product impressions"))
-      // 일반형: 제품ID + 노출 지표 + GMV가 함께 있는 탭 (다른 탭들은 노출 지표가 없음)
-      || (has(h, "product id") && (has(h, "impression") || has(h, "노출")) && (has(h, "gmv") || has(h, "매출")))),
+      // 일반형: 제품ID + 노출 지표 + GMV가 함께 있는 탭
+      || (has(h, "product id") && (has(h, "impression") || has(h, "노출")) && (has(h, "gmv") || has(h, "매출"))))),
     vid: find(h => has(h, "content type") && has(h, "creator username")),
     ad: find(h => has(h, "지출금액")) || (titles.includes("광고") ? "광고" : null),
     af: find(h => has(h, "samples shipped") || (has(h, "est. commission") && has(h, "creators posted content"))),
@@ -743,7 +747,9 @@ async function resolveTabs(sheets, sheetId) {
     // SKU Order 탭: 탭 이름 우선, 없으면 헤더(제품ID+SKU+금액/수량)로 인식.
     // 단, 콘텐츠 매출 탭(creator/content 열 보유)은 제외해 오탐 방지.
     skuOrder: find((h, t) => String(t).toLowerCase().replace(/\s/g, "").includes("skuorder"))
-      || find(h => has(h, "product id") && has(h, "sku") && !has(h, "creator username") && !has(h, "content type") && (has(h, "quantity") || has(h, "gmv") || has(h, "payment amount")))
+      || find(h => has(h, "product id") && has(h, "sku") && !has(h, "creator username") && !has(h, "content type") && (has(h, "quantity") || has(h, "gmv") || has(h, "payment amount"))),
+    // 수식 오류(#ERROR!/#REF! 등)가 있는 탭 — 진단 메시지용
+    broken: titles.filter((t, i) => headers[i] && headers[i].some(c => c.startsWith("#error") || c.startsWith("#ref") || c.startsWith("#n/a") || c.startsWith("#value")))
   };
 }
 
@@ -1098,8 +1104,14 @@ module.exports = async (req, res) => {
         afSheet = afSheet || det.af;
         liveSheet = liveSheet || det.live;
         skuSheet = skuSheet || det.skuOrder;
+        if (!rawSheet) {
+          const hint = det.broken && det.broken.length
+            ? ` ⚠️ 탭 [${det.broken.join(", ")}] 에 수식 오류(#ERROR! 등)가 있습니다 — 시트에서 해당 탭 A1 수식을 복구하면 자동으로 정상화됩니다.`
+            : " (?debug=1 로 탭·헤더 상태 확인 가능)";
+          throw new Error("제품×일자 매출 탭을 찾지 못했습니다." + hint);
+        }
       }
-      if (!rawSheet) throw new Error("제품×일자 매출 탭(헤더에 'GMV range','Listing status')을 찾지 못했습니다.");
+      if (!rawSheet) throw new Error("제품×일자 매출 탭을 찾지 못했습니다. (RAW_SHEET 환경변수 확인)");
       if (!vidSheet) throw new Error("주문/콘텐츠 매출 탭(헤더에 'Content Type','Creator Username')을 찾지 못했습니다.");
 
       // 범위는 실제 사용 컬럼까지만 (A:GZ→A:DM 등, 전송량 절감)
