@@ -733,14 +733,16 @@ async function resolveTabs(sheets, sheetId) {
   return {
     raw: find(h => (has(h, "gmv range") && has(h, "listing status"))
       || (has(h, "seller live-attributed gmv") && has(h, "product id"))
-      || (has(h, "listing status") && has(h, "product impressions"))),
+      || (has(h, "listing status") && has(h, "product impressions"))
+      // 일반형: 제품ID + 노출 지표 + GMV가 함께 있는 탭 (다른 탭들은 노출 지표가 없음)
+      || (has(h, "product id") && (has(h, "impression") || has(h, "노출")) && (has(h, "gmv") || has(h, "매출")))),
     vid: find(h => has(h, "content type") && has(h, "creator username")),
     ad: find(h => has(h, "지출금액")) || (titles.includes("광고") ? "광고" : null),
     af: find(h => has(h, "samples shipped") || (has(h, "est. commission") && has(h, "creators posted content"))),
     live: find(h => has(h, "live duration") && (has(h, "room id") || has(h, "live-attributed gmv"))),
     // SKU Order 탭: 탭 이름 우선, 없으면 헤더(제품ID+SKU+금액/수량)로 인식.
     // 단, 콘텐츠 매출 탭(creator/content 열 보유)은 제외해 오탐 방지.
-    skuOrder: find((h, t) => String(t).toLowerCase().trim() === "sku order")
+    skuOrder: find((h, t) => String(t).toLowerCase().replace(/\s/g, "").includes("skuorder"))
       || find(h => has(h, "product id") && has(h, "sku") && !has(h, "creator username") && !has(h, "content type") && (has(h, "quantity") || has(h, "gmv") || has(h, "payment amount")))
   };
 }
@@ -1051,19 +1053,28 @@ module.exports = async (req, res) => {
     const sheets = google.sheets({ version: "v4", auth });
 
     // 진단 모드: 탭 인식·컬럼 매핑 상태 확인 (?debug=1)
+    //   ?debug=1            → 탭 인식 결과 + 전 탭 헤더 샘플(상위 3행×40열) + RAW 컬럼 매핑
+    //   ?debug=1&tab=<이름> → 해당 탭의 상위 8행×60열 원본 덤프
     if (req.query && req.query.debug === "1") {
-      const det = await resolveTabs(sheets, sheetId);
-      const out = { tabs: det };
-      if (det.raw) {
-        const rr = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range: `'${det.raw}'!A1:DZ6` });
-        const rrows = rr.data.values || [];
-        const hi = findHeaderRow(rrows, ["product id", "product name"], 6);
-        out.rawHeaderRow = hi;
-        out.rawHeaderSample = hi >= 0 ? (rrows[hi] || []).slice(0, 25) : (rrows[0] || []).slice(0, 25);
-        out.rawColMap = mapRawColumns(rrows);
+      const meta2 = await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: "sheets.properties.title" });
+      const titles = (meta2.data.sheets || []).map(s => s.properties.title);
+      const out = { allTabs: titles };
+      const wantTab = req.query.tab && titles.find(t => t.includes(req.query.tab));
+      if (wantTab) {
+        const rr = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range: `'${wantTab}'!A1:BH8` });
+        out.tab = wantTab;
+        out.rows = (rr.data.values || []).map(r => r.slice(0, 60));
       } else {
-        const meta2 = await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: "sheets.properties.title" });
-        out.allTabs = (meta2.data.sheets || []).map(s => s.properties.title);
+        out.tabs = await resolveTabs(sheets, sheetId);
+        const hb = await sheets.spreadsheets.values.batchGet({ spreadsheetId: sheetId, ranges: titles.map(t => `'${t}'!A1:AN3`) });
+        out.headSample = {};
+        (hb.data.valueRanges || []).forEach((v, i) => { out.headSample[titles[i]] = (v.values || []).map(r => r.slice(0, 40)); });
+        if (out.tabs.raw) {
+          const rr = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range: `'${out.tabs.raw}'!A1:DZ6` });
+          const rrows = rr.data.values || [];
+          out.rawHeaderRow = findHeaderRow(rrows, ["product id", "product name"], 6);
+          out.rawColMap = mapRawColumns(rrows);
+        }
       }
       res.setHeader("Cache-Control", "no-store");
       res.status(200).json(out);
