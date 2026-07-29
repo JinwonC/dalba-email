@@ -248,11 +248,17 @@ function beforeAfter(camp,dateKey,n){
 }
 
 // SVG 스파크라인 (일별 지출)
-function spark(arr){
+// 스파크라인 — 각 계열은 자기 최대값 기준으로 스케일 (지출/매출 규모 차이가 커서 공유축은 형태가 뭉개짐)
+function spark(arr,color,label){
   if(!arr)return"";
   const a=arr.slice(-SPARKN), w=110, h=26, mx=Math.max(1,...a);
+  const col=color||"#2451E6";
   const pts=a.map((v,i)=>`${(i/(a.length-1||1)*w).toFixed(1)},${(h-2-(v/mx)*(h-4)).toFixed(1)}`).join(" ");
-  return `<svg class="spk" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline points="${pts}" fill="none" stroke="#2451E6" stroke-width="1.5"/></svg>`;
+  const area=`0,${h} ${pts} ${w},${h}`;
+  const tot=a.reduce((s,v)=>s+v,0);
+  return `<svg class="spk" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><title>${label||""} 최근 ${a.length}일 합계 ${usd(tot)} · 최대 ${usd(mx)}</title>`+
+    `<polygon points="${area}" fill="${col}" opacity="0.10"/>`+
+    `<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.5"/></svg>`;
 }
 
 let L3={camp:"",badge:"",status:"",q:""}, curCamp=null, PAGE=150, CURLIST=[];
@@ -520,12 +526,13 @@ function rowHtml(c,i){
     <td class="n">${usd(c.last7)}</td><td class="n">${usd(c.prev7)}</td>
     <td class="n">${usd(c.period.spend)}</td>
     <td class="n">${usd(c.period.gmv)}${few?` <span class="warnb" title="선택기간 주문 ${c.period.orders}건">⚠️</span>`:""}</td>
-    <td>${spark(c.spark)}</td>
+    <td>${spark(c.spark,"#2451E6","지출")}</td>
+    <td>${spark(c.sparkG,"#0E8A6D","매출")}</td>
     <td class="l"><span class="pill">${c.confidence}</span></td>
   </tr>`;
 }
 function detailHtml(c){
-  return `<td colspan="13">
+  return `<td colspan="14">
     <div style="display:flex;gap:34px;flex-wrap:wrap;align-items:flex-start">
       <div><div class="pill" style="margin-bottom:20px">시청 퍼널 (%)</div>
         <div class="funnelmini">${[["2초",c.detail.v2s],["6초",c.detail.v6s],["25%",c.detail.v25],["50%",c.detail.v50],["100%",c.detail.v100]].map(([l,v])=>`<div style="height:${Math.max(3,Math.min(100,v*2.2))}%"><span>${v}%</span><em>${l}</em></div>`).join("")}</div></div>
@@ -563,7 +570,9 @@ const L3COLS=[
   {k:"rank",l:"판정",cls:"l"},{k:"id",l:"소재 ID",cls:"l"},{k:"camp",l:"캠페인",cls:"l"},
   {k:"cum.spend",l:"누적 지출"},{k:"cum.gmv",l:"누적 GMV"},{k:"cum.roi",l:"ROI"},{k:"cum.cvr",l:"CVR"},
   {k:"last7",l:"최근 7일"},{k:"prev7",l:"이전 7일"},{k:"period.spend",l:"기간 지출"},{k:"period.gmv",l:"기간 GMV"},
-  {k:null,l:"지출 추이",cls:"l"},{k:"confidence",l:"신뢰도",cls:"l"}
+  {k:null,l:'<span style="color:#2451E6">■</span> 지출 추이',cls:"l"},
+  {k:null,l:'<span style="color:#0E8A6D">■</span> 매출 추이',cls:"l"},
+  {k:"confidence",l:"신뢰도",cls:"l"}
 ];
 const gv=(o,k)=>k.split(".").reduce((a,p)=>a==null?a:a[p],o);
 function thL3(c){
