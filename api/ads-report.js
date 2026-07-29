@@ -147,12 +147,18 @@ function judge(c, latestTs) {
   return { badge, rank, confidence, cum, roi, cvr, ctr, l7, p7, quadrant, wr };
 }
 
+// 비디오 링크 — TikTok은 @핸들이 달라도 video ID로 리다이렉트되므로 핸들 미상이면 임시값 사용
+function vidLink(id, creator) {
+  if (!/^\d{6,}$/.test(String(id || ""))) return null;
+  return `https://www.tiktok.com/@${creator || "tiktok"}/video/${id}`;
+}
+
 // 주 시작(월요일) ts
 function weekStart(ts) { const d = new Date(ts); const dow = (d.getUTCDay() + 6) % 7; return ts - dow * DAY; }
 function wkLabel(ts) { const d = new Date(ts); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}~`; }
 
 // ── 전체 집계 ──────────────────────────────────────────────────
-function buildAdsJson(parsed, startKey, endKey, targetHistory) {
+function buildAdsJson(parsed, startKey, endKey, targetHistory, creatorMap) {
   const { creatives, minTs, maxTs } = parsed;
   const latestTs = maxTs;
   const pStart = startKey ? parseDate(startKey).ts : minTs;
@@ -173,6 +179,8 @@ function buildAdsJson(parsed, startKey, endKey, targetHistory) {
     }
     return {
       id: c.id, isPC: c.isPC, camp: c.camp, status: c.status,
+      creator: (!c.isPC && creatorMap && creatorMap[c.id]) || null,
+      link: c.isPC ? null : vidLink(c.id, creatorMap && creatorMap[c.id]),
       badge: j.badge, rank: j.rank, confidence: j.confidence, quadrant: j.quadrant,
       cum: { spend: r2(j.cum.spend), gmv: r2(j.cum.gmv), orders: Math.round(j.cum.orders), roi: j.cum.spend ? r2(j.cum.gmv / j.cum.spend) : null, cvr: r2(j.cvr) },
       last7: r2(j.l7), prev7: r2(j.p7),
@@ -296,6 +304,8 @@ function buildAdsJson(parsed, startKey, endKey, targetHistory) {
   const movements = opsRows.slice(0, 120).map(r => {
     const o = {
       id: r.c.id, isPC: r.c.isPC, camp: r.c.camp, status: r.c.status, bucket: r.bucket, delta: r2(r.delta),
+      creator: (!r.c.isPC && creatorMap && creatorMap[r.c.id]) || null,
+      link: r.c.isPC ? null : vidLink(r.c.id, creatorMap && creatorMap[r.c.id]),
       cur: { spend: r2(r.cur.spend), gmv: r2(r.cur.gmv), orders: Math.round(r.cur.orders), roi: roiOf(r.cur.gmv, r.cur.spend) },
       prev: { spend: r2(r.prev.spend), gmv: r2(r.prev.gmv), orders: Math.round(r.prev.orders), roi: roiOf(r.prev.gmv, r.prev.spend) },
       cvr: r.c.wSpend ? r2(r.c.w.cvr / r.c.wSpend) : 0,
@@ -333,6 +343,38 @@ function buildAdsJson(parsed, startKey, endKey, targetHistory) {
     campaigns,
     creatives: list
   };
+}
+
+// ── (선택) 매출 시트 교차 참조: Content ID(=비디오 ID) → 크리에이터 핸들 ──
+//   광고 시트엔 크리에이터 정보가 없어서, 매출지표 시트의 `매출발생영상` 탭에서 끌어온다.
+//   SHEET_ID 미설정이거나 탭이 없으면 조용히 빈 맵 반환(링크는 임시 핸들로 동작).
+async function fetchCreatorMap(sheets) {
+  const sid = process.env.SHEET_ID;
+  if (!sid) return {};
+  try {
+    const meta = await sheets.spreadsheets.get({ spreadsheetId: sid, fields: "sheets.properties.title" });
+    const titles = (meta.data.sheets || []).map(s => s.properties.title);
+    const hb = await sheets.spreadsheets.values.batchGet({ spreadsheetId: sid, ranges: titles.map(t => `'${t}'!A1:AE4`) });
+    let tab = null, ci = -1, vi = -1;
+    (hb.data.valueRanges || []).forEach((v, i) => {
+      if (tab) return;
+      for (const r of (v.values || [])) {
+        const h = r.map(x => String(x || "").toLowerCase().replace(/\s+/g, ""));
+        const c = h.findIndex(x => x.includes("creatorusername"));
+        const d = h.findIndex(x => x.includes("contentid"));
+        if (c >= 0 && d >= 0) { tab = titles[i]; ci = c; vi = d; break; }
+      }
+    });
+    if (!tab) return {};
+    const rr = await sheets.spreadsheets.values.get({ spreadsheetId: sid, range: `'${tab}'!A:AE` });
+    const map = {};
+    for (const r of (rr.data.values || [])) {
+      if (!r) continue;
+      const cid = String(r[vi] || "").trim(), cu = String(r[ci] || "").trim();
+      if (cid && cu && /^\d{6,}$/.test(cid) && !map[cid]) map[cid] = cu;
+    }
+    return map;
+  } catch (e) { return {}; }
 }
 
 // ── (선택) 타겟 ROI 변경 이력 탭 — 날짜/캠페인/이전/변경 후 ─────
@@ -402,8 +444,8 @@ module.exports = async (req, res) => {
     const MEM = globalThis.__adsCache || (globalThis.__adsCache = {});
     const fresh0 = req.query && req.query.fresh === "1";
     const ck = sheetId + "|" + tab, now = Date.now();
-    let parsed, header, targetHistory;
-    if (!fresh0 && MEM[ck] && now - MEM[ck].ts < 300000) { parsed = MEM[ck].parsed; header = MEM[ck].header; targetHistory = MEM[ck].targetHistory; }
+    let parsed, header, targetHistory, creatorMap;
+    if (!fresh0 && MEM[ck] && now - MEM[ck].ts < 300000) { parsed = MEM[ck].parsed; header = MEM[ck].header; targetHistory = MEM[ck].targetHistory; creatorMap = MEM[ck].creatorMap; }
     else {
       const resp = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range: `'${tab}'!A:Z` });
       const rows = resp.data.values || [];
@@ -421,13 +463,23 @@ module.exports = async (req, res) => {
           targetHistory = parseTargetHistory(tr.data.values || []);
         }
       } catch (e) { /* 이력 탭은 선택 사항 */ }
-      MEM[ck] = { ts: now, parsed, header, targetHistory };
+      // 매출 시트에서 비디오ID → 크리에이터 핸들 교차 참조 (선택)
+      creatorMap = await fetchCreatorMap(sheets);
+      MEM[ck] = { ts: now, parsed, header, targetHistory, creatorMap };
     }
 
     // 진단 모드
     if (req.query && req.query.debug === "1") {
       res.setHeader("Cache-Control", "no-store");
-      res.status(200).json({ tab, header, colMap: parsed.cols, minDate: new Date(parsed.minTs).toISOString().slice(0, 10), maxDate: new Date(parsed.maxTs).toISOString().slice(0, 10), creatives: parsed.creatives.length });
+      const vids = parsed.creatives.filter(c => !c.isPC);
+      const matched = vids.filter(c => creatorMap && creatorMap[c.id]).length;
+      res.status(200).json({
+        tab, header, colMap: parsed.cols,
+        minDate: new Date(parsed.minTs).toISOString().slice(0, 10), maxDate: new Date(parsed.maxTs).toISOString().slice(0, 10),
+        creatives: parsed.creatives.length,
+        creatorMatch: { videoCreatives: vids.length, matched, mapSize: Object.keys(creatorMap || {}).length, sample: vids.slice(0, 5).map(c => ({ id: c.id, creator: (creatorMap || {})[c.id] || null })) },
+        targetHistory: (targetHistory || []).length
+      });
       return;
     }
 
@@ -439,7 +491,7 @@ module.exports = async (req, res) => {
       if (days > 0) { startKey = iso(parsed.maxTs - (days - 1) * 86400000); endKey = iso(parsed.maxTs); }
       else if (req.query.month === "1") { const d = new Date(parsed.maxTs); startKey = iso(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)); endKey = iso(parsed.maxTs); }
     }
-    const out = buildAdsJson(parsed, startKey, endKey, targetHistory);
+    const out = buildAdsJson(parsed, startKey, endKey, targetHistory, creatorMap);
     res.setHeader("Cache-Control", fresh0 ? "no-store" : "s-maxage=3600, stale-while-revalidate=600");
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.status(200).json(out);
@@ -449,4 +501,4 @@ module.exports = async (req, res) => {
 };
 
 // 테스트용 내부 노출
-module.exports._internals = { num, parseDate, mapColumns, parseCreatives, judge, buildAdsJson, parseTargetHistory, fatiguedAt, sumRange, cumUntil };
+module.exports._internals = { num, parseDate, mapColumns, parseCreatives, judge, buildAdsJson, parseTargetHistory, vidLink, fatiguedAt, sumRange, cumUntil };
