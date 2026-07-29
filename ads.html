@@ -67,6 +67,8 @@
   th,td{text-align:right;padding:8px 8px;border-bottom:1px solid var(--grid);white-space:nowrap}
   th:first-child,td:first-child,th.l,td.l{text-align:left}
   th{color:var(--muted);font-weight:600;font-size:11.5px;position:sticky;top:0;background:var(--card);cursor:default}
+  th[onclick]:hover{color:var(--blue)}
+  th[data-on]{color:var(--blue);font-weight:700}
   tr.crow{cursor:pointer} tr.crow:hover td{background:var(--grid)}
   tr.drow td{background:var(--bg);padding:14px 16px;white-space:normal}
   .idcell{font-family:"IBM Plex Mono",monospace;font-size:11.5px;max-width:190px;overflow:hidden;text-overflow:ellipsis}
@@ -245,6 +247,7 @@ function spark(arr){
 }
 
 let L3={camp:"",badge:"",status:"",q:""}, curCamp=null, PAGE=150, CURLIST=[];
+let L3SORT={key:null,dir:-1};   // key=null → 기본(액션 필요 순), dir -1=내림차순
 function render(d){
   const m=d.meta, l1=d.l1;
   $("#sub").innerHTML=`${m.start} ~ ${m.end} · 소재 ${nf(m.creatives)}개 · 데이터 최신일 ${m.maxDate}`;
@@ -534,16 +537,47 @@ function drawTable(){
   if(L3.badge)list=list.filter(c=>c.badge===L3.badge);
   if(L3.status)list=list.filter(c=>c.status===L3.status);
   if(L3.q)list=list.filter(c=>c.id.includes(L3.q));
+  list=sortL3(list);
   CURLIST=list;
   const shown=list.slice(0,PAGE);
   const more=list.length-shown.length;
+  const sortLabel=L3SORT.key
+    ? `${(L3COLS.find(c=>c.k===L3SORT.key)||{}).l} ${L3SORT.dir===-1?"내림차순":"오름차순"} (헤더 다시 클릭 → 기본 정렬)`
+    : "액션 필요 순 (KILL→피로→BOOST→관찰→게이트탈락) · 헤더 클릭으로 정렬";
   $("#tblWrap").innerHTML=`<table>
-    <tr><th class="l">판정</th><th class="l">소재 ID</th><th class="l">캠페인</th>
-    <th>누적 지출</th><th>누적 GMV</th><th>ROI</th><th>CVR</th>
-    <th>최근 7일</th><th>이전 7일</th><th>기간 지출</th><th>기간 GMV</th>
-    <th class="l">지출 추이</th><th class="l">신뢰도</th></tr>${shown.map(rowHtml).join("")}</table>
+    <tr>${L3COLS.map(thL3).join("")}</tr>${shown.map(rowHtml).join("")}</table>
     ${more>0?`<div style="text-align:center;padding:10px"><button class="btn" onclick="PAGE+=300;drawTable()">더 보기 (+${Math.min(300,more)}개 · 남은 ${more}개)</button></div>`:""}
-    <div class="pill" style="padding:9px 4px">표시 ${shown.length}개 / 필터 ${list.length}개 / 전체 ${d.creatives.length}개 · 액션 필요 순 정렬 (KILL→피로→BOOST→관찰→게이트탈락) · 행 클릭 시 시청퍼널·4분면 상세</div>`;
+    <div class="pill" style="padding:9px 4px">표시 ${shown.length}개 / 필터 ${list.length}개 / 전체 ${d.creatives.length}개 · 정렬: ${sortLabel} · 행 클릭 시 시청퍼널·4분면 상세</div>`;
+}
+// ── 소재 테이블 정렬 ───────────────────────────────────────────
+const L3COLS=[
+  {k:"rank",l:"판정",cls:"l"},{k:"id",l:"소재 ID",cls:"l"},{k:"camp",l:"캠페인",cls:"l"},
+  {k:"cum.spend",l:"누적 지출"},{k:"cum.gmv",l:"누적 GMV"},{k:"cum.roi",l:"ROI"},{k:"cum.cvr",l:"CVR"},
+  {k:"last7",l:"최근 7일"},{k:"prev7",l:"이전 7일"},{k:"period.spend",l:"기간 지출"},{k:"period.gmv",l:"기간 GMV"},
+  {k:null,l:"지출 추이",cls:"l"},{k:"confidence",l:"신뢰도",cls:"l"}
+];
+const gv=(o,k)=>k.split(".").reduce((a,p)=>a==null?a:a[p],o);
+function thL3(c){
+  const on=L3SORT.key===c.k;
+  const ind=!c.k?"":(on?(L3SORT.dir===-1?" ▼":" ▲"):' <span style="opacity:.3">↕</span>');
+  return `<th class="${c.cls||""}"${c.k?` onclick="sortL3By('${c.k}')" style="cursor:pointer;user-select:none"${on?' data-on="1"':""}`:""}>${c.l}${ind}</th>`;
+}
+// 클릭 1회=내림차순 → 2회=오름차순 → 3회=기본(액션 필요 순)
+function sortL3By(k){
+  if(L3SORT.key===k){ if(L3SORT.dir===-1)L3SORT.dir=1; else {L3SORT.key=null;L3SORT.dir=-1;} }
+  else { L3SORT.key=k; L3SORT.dir=-1; }
+  PAGE=150; drawTable();
+}
+function sortL3(list){
+  const {key,dir}=L3SORT;
+  if(!key) return list.slice().sort((a,b)=>a.rank-b.rank||b.cum.spend-a.cum.spend);
+  return list.slice().sort((a,b)=>{
+    const av=gv(a,key), bv=gv(b,key);
+    if(av==null&&bv==null)return 0;
+    if(av==null)return 1; if(bv==null)return -1;   // 값 없음은 항상 뒤로
+    if(typeof av==="string"||typeof bv==="string") return dir*String(av).localeCompare(String(bv));
+    return dir*(av-bv);
+  });
 }
 // 이벤트 위임: 행 클릭 → 상세행 지연 생성/토글 (+화면 밖이면 스크롤)
 document.addEventListener("click",e=>{
