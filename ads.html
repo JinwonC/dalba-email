@@ -71,7 +71,9 @@
   th[data-on]{color:var(--blue);font-weight:700}
   tr.crow{cursor:pointer} tr.crow:hover td{background:var(--grid)}
   tr.drow td{background:var(--bg);padding:14px 16px;white-space:normal}
-  .idcell{font-family:"IBM Plex Mono",monospace;font-size:11.5px;max-width:190px;overflow:hidden;text-overflow:ellipsis}
+  .idcell{font-family:"IBM Plex Mono",monospace;font-size:11.5px;max-width:210px;overflow:hidden;text-overflow:ellipsis}
+  .idcell a{color:var(--blue);text-decoration:none}
+  .idcell a:hover{text-decoration:underline}
   .warnb{color:var(--amber);font-size:11px}
   select{background:var(--card);color:var(--ink);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-size:12.5px;font-family:inherit}
   .statrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:8px;margin:10px 0}
@@ -145,6 +147,13 @@ function presetQuery(){
 function NC(el,cfg){ if(!el)return null; const c=new Chart(el,cfg); CHARTS.push(c); return c; }
 function resetCharts(){ CHARTS.forEach(c=>{try{c.destroy()}catch(e){}}); CHARTS=[]; }
 const BADGE={"KILL":["🔴 KILL","bg-kill"],"피로":["🟡 피로","bg-fat"],"BOOST":["🟢 BOOST","bg-boost"],"관찰중":["⚪ 관찰중","bg-watch"],"게이트탈락":["⊘ 게이트탈락","bg-gate"]};
+// 소재 ID 셀 — 영상이면 TikTok 링크(핸들 미상이면 임시 핸들, ID만으로 열림) + 크리에이터 표기
+function idCell(x){
+  if(x.isPC) return "🛒 "+esc(x.id);
+  const link=x.link||(/^\d{6,}$/.test(x.id)?`https://www.tiktok.com/@tiktok/video/${x.id}`:null);
+  const idTxt=link?`<a href="${link}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${esc(x.id)} ↗</a>`:esc(x.id);
+  return idTxt+(x.creator?`<div style="font-size:10.5px;color:var(--muted)">@${esc(x.creator)}</div>`:"");
+}
 const pw=()=>localStorage.getItem("dashpw")||"";
 function tryPw(){ localStorage.setItem("dashpw",$("#gpw").value); $("#gate").style.display="none"; load(); }
 
@@ -374,7 +383,7 @@ function drawOpsTable(){
     const [tag,tcls]=causeTag(m);
     return `<tr class="orow" data-i="${i}">
       <td class="l"><span class="bg ${b[1]}">${b[0]}</span></td>
-      <td class="l idcell" title="${esc(m.id)}">${m.isPC?"🛒 ":""}${esc(m.id)}</td>
+      <td class="l idcell" title="${esc(m.id)}">${idCell(m)}</td>
       <td class="l" style="max-width:130px;overflow:hidden;text-overflow:ellipsis" title="${esc(m.camp)}">${esc(m.camp)}</td>
       <td class="n" style="color:var(--muted)">${usd(m.prev.spend)} / ${usd(m.prev.gmv)}${m.prev.roi!=null?` (${m.prev.roi}x)`:""}</td>
       <td class="n"><b>${usd(m.cur.spend)}</b> / ${usd(m.cur.gmv)}${m.cur.roi!=null?` (${m.cur.roi}x)`:""}</td>
@@ -504,7 +513,7 @@ function rowHtml(c,i){
   const few=c.period.orders<5;
   return `<tr class="crow" data-i="${i}">
     <td class="l"><span class="bg ${b[1]}">${b[0]}</span></td>
-    <td class="l idcell" title="${esc(c.id)}">${c.isPC?"🛒 ":""}${esc(c.id)}</td>
+    <td class="l idcell" title="${esc(c.id)}">${idCell(c)}</td>
     <td class="l" style="max-width:150px;overflow:hidden;text-overflow:ellipsis" title="${esc(c.camp)}">${esc(c.camp)}</td>
     <td class="n">${usd(c.cum.spend)}</td><td class="n">${usd(c.cum.gmv)}</td>
     <td class="n">${c.cum.roi??"–"}x</td><td class="n">${c.cum.cvr}%</td>
