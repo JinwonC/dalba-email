@@ -168,13 +168,14 @@ function buildAdsJson(parsed, startKey, endKey, targetHistory, creatorMap) {
   const list = creatives.map(c => {
     const j = judge(c, latestTs);
     const period = sumRange(c, pStart, pEnd);
-    // 스파크라인: 최신일 기준 최근 30일 일별 지출 (게이트 통과 소재만 — payload 절약)
-    let spark = null;
+    // 스파크라인: 최신일 기준 최근 30일 일별 지출·매출 (게이트 통과 소재만 — payload 절약)
+    let spark = null, sparkG = null;
     if (j.cum.spend >= 10) {
-      spark = [];
+      spark = []; sparkG = [];
       for (let t = latestTs - 29 * DAY; t <= latestTs; t += DAY) {
-        const k = new Date(t).toISOString().slice(0, 10);
-        spark.push(c.daily[k] ? r2(c.daily[k].spend) : 0);
+        const k = new Date(t).toISOString().slice(0, 10), e = c.daily[k];
+        spark.push(e ? r2(e.spend) : 0);
+        sparkG.push(e ? Math.round(e.gmv) : 0);
       }
     }
     return {
@@ -185,7 +186,7 @@ function buildAdsJson(parsed, startKey, endKey, targetHistory, creatorMap) {
       cum: { spend: r2(j.cum.spend), gmv: r2(j.cum.gmv), orders: Math.round(j.cum.orders), roi: j.cum.spend ? r2(j.cum.gmv / j.cum.spend) : null, cvr: r2(j.cvr) },
       last7: r2(j.l7), prev7: r2(j.p7),
       period: { spend: r2(period.spend), gmv: r2(period.gmv), orders: Math.round(period.orders), roi: period.spend ? r2(period.gmv / period.spend) : null },
-      spark,
+      spark, sparkG,
       detail: { v2s: r2(j.wr("v2s")), v6s: r2(j.wr("v6s")), v25: r2(j.wr("v25")), v50: r2(j.wr("v50")), v100: r2(j.wr("v100")), ctr: r2(j.ctr), pctr: r2(j.wr("pctr")), cvr: r2(j.cvr) }
     };
   }).sort((a, b) => a.rank - b.rank || b.cum.spend - a.cum.spend);
