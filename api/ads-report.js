@@ -152,7 +152,7 @@ function weekStart(ts) { const d = new Date(ts); const dow = (d.getUTCDay() + 6)
 function wkLabel(ts) { const d = new Date(ts); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}~`; }
 
 // ── 전체 집계 ──────────────────────────────────────────────────
-function buildAdsJson(parsed, startKey, endKey) {
+function buildAdsJson(parsed, startKey, endKey, targetHistory) {
   const { creatives, minTs, maxTs } = parsed;
   const latestTs = maxTs;
   const pStart = startKey ? parseDate(startKey).ts : minTs;
@@ -260,12 +260,103 @@ function buildAdsJson(parsed, startKey, endKey) {
   }).sort((a, b) => b.spend - a.spend);
 
   const fmt = ts => new Date(ts).toISOString().slice(0, 10);
+
+  // ── 운영 뷰: 선택 기간 vs 직전 동일 길이 기간 ──────────────────
+  //   일별(길이 1일) = D vs D-1, 주간(7일) = 최근7일 vs 그 이전7일 — 동일 로직
+  const winLen = Math.max(1, Math.round((pEnd - pStart) / DAY) + 1);
+  const qEnd = pStart - DAY, qStart = pStart - winLen * DAY;
+  const roiOf = (gg, ss) => ss ? +(gg / ss).toFixed(2) : null;
+  const zero = () => ({ spend: 0, gmv: 0, orders: 0 });
+  const curT = zero(), prevT = zero();
+  let activeCur = 0, activePrev = 0;
+  const statusCounts = {}, campOps = {}, opsRows = [];
+  for (const c of creatives) {
+    const cur = sumRange(c, pStart, pEnd), prev = sumRange(c, qStart, qEnd);
+    const life = sumRange(c, -Infinity, Infinity);
+    if (life.spend > 0) { const st = c.status || "-"; statusCounts[st] = (statusCounts[st] || 0) + 1; }
+    curT.spend += cur.spend; curT.gmv += cur.gmv; curT.orders += cur.orders;
+    prevT.spend += prev.spend; prevT.gmv += prev.gmv; prevT.orders += prev.orders;
+    if (cur.spend > 0) activeCur++;
+    if (prev.spend > 0) activePrev++;
+    const co = campOps[c.camp] || (campOps[c.camp] = { name: c.camp, cur: zero(), prev: zero(), active: 0, activePrev: 0 });
+    co.cur.spend += cur.spend; co.cur.gmv += cur.gmv; co.cur.orders += cur.orders;
+    co.prev.spend += prev.spend; co.prev.gmv += prev.gmv; co.prev.orders += prev.orders;
+    if (cur.spend > 0) co.active++;
+    if (prev.spend > 0) co.activePrev++;
+    if (cur.spend <= 0 && prev.spend <= 0) continue;
+    let bucket;
+    if (prev.spend >= 5 && cur.spend === 0) bucket = "증발";
+    else if (prev.spend > 0 && cur.spend > 0 && cur.spend < prev.spend * 0.5) bucket = "급감";
+    else if (prev.spend > 0 && cur.spend > prev.spend * 1.5) bucket = "급증";
+    else if (prev.spend === 0 && cur.spend > 0) bucket = "신규";
+    else bucket = "유지";
+    opsRows.push({ c, cur, prev, bucket, delta: cur.spend - prev.spend });
+  }
+  opsRows.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+  const movements = opsRows.slice(0, 120).map(r => {
+    const o = {
+      id: r.c.id, isPC: r.c.isPC, camp: r.c.camp, status: r.c.status, bucket: r.bucket, delta: r2(r.delta),
+      cur: { spend: r2(r.cur.spend), gmv: r2(r.cur.gmv), orders: Math.round(r.cur.orders), roi: roiOf(r.cur.gmv, r.cur.spend) },
+      prev: { spend: r2(r.prev.spend), gmv: r2(r.prev.gmv), orders: Math.round(r.prev.orders), roi: roiOf(r.prev.gmv, r.prev.spend) },
+      cvr: r.c.wSpend ? r2(r.c.w.cvr / r.c.wSpend) : 0,
+      lifeRoi: (() => { const l = sumRange(r.c, -Infinity, Infinity); return roiOf(l.gmv, l.spend); })()
+    };
+    // 추이 차트용 일별 시계열 (변화가 있는 소재만 — payload 절감), 압축 배열 [날짜, 지출, 매출, 주문]
+    if (r.bucket !== "유지") {
+      const d = [];
+      for (let t = latestTs - 59 * DAY; t <= latestTs; t += DAY) {
+        const k = fmt(t), e = r.c.daily[k];
+        d.push([k.slice(5), e ? r2(e.spend) : 0, e ? r2(e.gmv) : 0, e ? Math.round(e.orders) : 0]);
+      }
+      o.d = d;
+    }
+    return o;
+  });
+  const opsCampaigns = Object.values(campOps).filter(c => c.cur.spend > 0 || c.prev.spend > 0).map(c => ({
+    name: c.name, spend: r2(c.cur.spend), gmv: r2(c.cur.gmv), orders: Math.round(c.cur.orders), roi: roiOf(c.cur.gmv, c.cur.spend),
+    pSpend: r2(c.prev.spend), pGmv: r2(c.prev.gmv), pRoi: roiOf(c.prev.gmv, c.prev.spend),
+    active: c.active, activePrev: c.activePrev
+  })).sort((a, b) => b.spend - a.spend);
+  const ops = {
+    len: winLen,
+    cur: { start: fmt(pStart), end: fmt(pEnd), spend: r2(curT.spend), gmv: r2(curT.gmv), orders: Math.round(curT.orders), roi: roiOf(curT.gmv, curT.spend), active: activeCur },
+    prev: { start: fmt(qStart), end: fmt(qEnd), spend: r2(prevT.spend), gmv: r2(prevT.gmv), orders: Math.round(prevT.orders), roi: roiOf(prevT.gmv, prevT.spend), active: activePrev },
+    statusCounts, campaigns: opsCampaigns, movements,
+    counts: opsRows.reduce((a, r) => { a[r.bucket] = (a[r.bucket] || 0) + 1; return a; }, {}),
+    shown: Math.min(120, opsRows.length), total: opsRows.length
+  };
+
   return {
     meta: { minDate: fmt(minTs), maxDate: fmt(latestTs), start: fmt(pStart), end: fmt(pEnd), creatives: list.length, generatedAt: new Date().toISOString() },
     l1: { blended, video, pc, weekly, supplyWeeks, supplyWarning, actions },
+    ops, targetHistory: targetHistory || [],
     campaigns,
     creatives: list
   };
+}
+
+// ── (선택) 타겟 ROI 변경 이력 탭 — 날짜/캠페인/이전/변경 후 ─────
+function parseTargetHistory(rows) {
+  if (!rows || rows.length < 2) return [];
+  const h = (rows[0] || []).map(x => String(x || "").toLowerCase().replace(/\s+/g, ""));
+  // 키워드 우선순위 순으로 탐색 + 이미 쓴 열 제외 ("이전 타겟" vs "변경 타겟" 혼동 방지)
+  const find = (kws, skip) => {
+    for (const k of kws) for (let i = 0; i < h.length; i++)
+      if (h[i] && h[i].includes(k) && (!skip || !skip.includes(i))) return i;
+    return -1;
+  };
+  const iD = find(["날짜", "date"]), iC = find(["캠페인", "campaign"]);
+  const iFrom = find(["이전", "기존", "from", "before"]);
+  const iTo = find(["변경후", "변경", "신규", "새", "after", "to", "타겟"], [iFrom]);
+  if (iD < 0 || iC < 0) return [];
+  const out = [];
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r]; if (!row) continue;
+    const d = parseDate(row[iD]); if (!d) continue;
+    const camp = String(row[iC] || "").trim(); if (!camp) continue;
+    out.push({ date: d.key, camp, from: iFrom >= 0 ? num(row[iFrom]) : null, to: iTo >= 0 ? num(row[iTo]) : null });
+  }
+  return out.sort((a, b) => a.date < b.date ? -1 : 1);
 }
 
 module.exports = async (req, res) => {
@@ -311,15 +402,26 @@ module.exports = async (req, res) => {
     const MEM = globalThis.__adsCache || (globalThis.__adsCache = {});
     const fresh0 = req.query && req.query.fresh === "1";
     const ck = sheetId + "|" + tab, now = Date.now();
-    let parsed, header;
-    if (!fresh0 && MEM[ck] && now - MEM[ck].ts < 300000) { parsed = MEM[ck].parsed; header = MEM[ck].header; }
+    let parsed, header, targetHistory;
+    if (!fresh0 && MEM[ck] && now - MEM[ck].ts < 300000) { parsed = MEM[ck].parsed; header = MEM[ck].header; targetHistory = MEM[ck].targetHistory; }
     else {
       const resp = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range: `'${tab}'!A:Z` });
       const rows = resp.data.values || [];
       parsed = parseCreatives(rows);
       if (!parsed) throw new Error(`'${tab}' 탭에서 필수 컬럼(날짜·소재ID·지출금액)을 찾지 못했습니다.`);
       header = rows[0];
-      MEM[ck] = { ts: now, parsed, header };
+      // (선택) 타겟 ROI 변경 이력 탭 — 있으면 읽고, 없으면 조용히 건너뜀
+      targetHistory = [];
+      try {
+        const meta3 = await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: "sheets.properties.title" });
+        const th = (meta3.data.sheets || []).map(s => s.properties.title)
+          .find(t => { const s = t.replace(/\s/g, ""); return s.includes("타겟") && (s.includes("이력") || s.includes("변경")); });
+        if (th) {
+          const tr = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range: `'${th}'!A:F` });
+          targetHistory = parseTargetHistory(tr.data.values || []);
+        }
+      } catch (e) { /* 이력 탭은 선택 사항 */ }
+      MEM[ck] = { ts: now, parsed, header, targetHistory };
     }
 
     // 진단 모드
@@ -337,7 +439,7 @@ module.exports = async (req, res) => {
       if (days > 0) { startKey = iso(parsed.maxTs - (days - 1) * 86400000); endKey = iso(parsed.maxTs); }
       else if (req.query.month === "1") { const d = new Date(parsed.maxTs); startKey = iso(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)); endKey = iso(parsed.maxTs); }
     }
-    const out = buildAdsJson(parsed, startKey, endKey);
+    const out = buildAdsJson(parsed, startKey, endKey, targetHistory);
     res.setHeader("Cache-Control", fresh0 ? "no-store" : "s-maxage=3600, stale-while-revalidate=600");
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.status(200).json(out);
@@ -347,4 +449,4 @@ module.exports = async (req, res) => {
 };
 
 // 테스트용 내부 노출
-module.exports._internals = { num, parseDate, mapColumns, parseCreatives, judge, buildAdsJson, fatiguedAt, sumRange, cumUntil };
+module.exports._internals = { num, parseDate, mapColumns, parseCreatives, judge, buildAdsJson, parseTargetHistory, fatiguedAt, sumRange, cumUntil };

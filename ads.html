@@ -107,12 +107,18 @@
     </div>
   </header>
   <div class="fbar">
-    <span class="pill">기간</span>
+    <div class="seg" id="modeseg"><button data-m="range" class="on">기간 누적</button><button data-m="day">일별</button></div>
+    <span class="pill" id="modeHint">기간</span>
     <div class="seg" id="presets">
       <button data-p="7">최근 7일</button><button data-p="14">최근 14일</button><button data-p="30" class="on">최근 30일</button><button data-p="m">이번 달</button><button data-p="all">전체</button>
     </div>
-    <input type="date" id="d1"> ~ <input type="date" id="d2">
-    <button class="btn" onclick="applyCustom()">적용</button>
+    <span id="rangeWrap"><input type="date" id="d1"> ~ <input type="date" id="d2">
+    <button class="btn" onclick="applyCustom()">적용</button></span>
+    <span id="dayWrap" style="display:none">
+      <button class="btn" onclick="stepDay(-1)">◀ 전일</button>
+      <input type="date" id="dday" onchange="pickDay(this.value)">
+      <button class="btn" onclick="stepDay(1)">익일 ▶</button>
+    </span>
     <span class="pill" style="margin-left:auto">판정 배지·누적 지표는 기간 필터와 무관하게 전체 수명 기준</span>
   </div>
   <div id="app"><div class="loading">데이터 불러오는 중…</div></div>
@@ -126,7 +132,7 @@ const nf=n=>Math.round(n||0).toLocaleString();
 const esc=s=>String(s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 Chart.defaults.font.family='"IBM Plex Sans KR",sans-serif';
 Chart.defaults.animation=false;
-let DATA=null, CHARTS=[], STATE={preset:"30",start:null,end:null}, SPARKN=30;
+let DATA=null, CHARTS=[], STATE={preset:"30",start:null,end:null}, SPARKN=30, MODE="range", OPSF="";
 // 프리셋 → API 쿼리 (서버가 최신일 기준으로 기간 계산 → 호출 1번, CDN 캐시 키 안정)
 function presetQuery(){
   if(STATE.start)return["start="+STATE.start,"end="+(STATE.end||STATE.start)];
@@ -151,6 +157,7 @@ async function load(fresh){
     if(d.error)throw new Error(d.error);
     DATA=d;
     $("#d1").value=d.meta.start;$("#d2").value=d.meta.end;
+    if(!$("#dday").value)$("#dday").value=d.meta.maxDate;
     render(d);
   }catch(e){
     $("#app").innerHTML='<div class="err">불러오기 실패: '+esc(e.message||e)+'<br>ADS_SHEET_ID 환경변수·서비스계정 공유·Redeploy를 확인하세요. (/api/ads-report?debug=1 로 진단 가능)</div>';
@@ -168,11 +175,66 @@ $("#presets").addEventListener("click",e=>{
   document.querySelectorAll("#presets button").forEach(x=>x.classList.toggle("on",x===b));
   load();
 });
+// 모드 토글: 기간 누적 ↔ 일별(하루 = 기간 길이 1일, 비교 대상은 전일)
+$("#modeseg").addEventListener("click",e=>{
+  const b=e.target.closest("button");if(!b)return;
+  MODE=b.getAttribute("data-m");
+  [...$("#modeseg").children].forEach(x=>x.classList.toggle("on",x===b));
+  const day=MODE==="day";
+  $("#presets").style.display=day?"none":"inline-flex";
+  $("#rangeWrap").style.display=day?"none":"inline";
+  $("#dayWrap").style.display=day?"inline":"none";
+  $("#modeHint").textContent=day?"날짜":"기간";
+  if(day){
+    const dv=$("#dday").value||(DATA?DATA.meta.maxDate:"");
+    if(dv){$("#dday").value=dv;STATE.start=dv;STATE.end=dv;}
+  }else{STATE.start=null;STATE.end=null;STATE.preset=STATE.preset||"30";}
+  load();
+});
+function pickDay(v){ if(!v)return; STATE.start=v;STATE.end=v; load(); }
+function stepDay(n){
+  const cur=$("#dday").value||(DATA?DATA.meta.maxDate:null); if(!cur)return;
+  const t=new Date(cur+"T00:00:00Z").getTime()+n*86400000;
+  const v=new Date(t).toISOString().slice(0,10);
+  const mx=DATA?DATA.meta.maxDate:null, mn=DATA?DATA.meta.minDate:null;
+  if(mx&&v>mx)return; if(mn&&v<mn)return;
+  $("#dday").value=v; pickDay(v);
+}
 
 const kpi=(l,v,d)=>`<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div>${d?`<div class="d">${d}</div>`:""}</div>`;
 const sect=(i,t,c)=>`<div class="sect"><h2>${i} ${t}</h2>${c?`<span class="sc">${c}</span>`:""}</div>`;
 const gTarget=()=>parseFloat(localStorage.getItem("adTarget_global"))||4.0;
 const cTarget=n=>parseFloat(localStorage.getItem("adTarget_"+n))||gTarget();
+// 타겟 ROI 변경 이력 — 시트 탭(팀 공유)이 있으면 그걸 쓰고, 없으면 브라우저 로컬 기록
+const BA_N=7; // 타겟 변경 전후 비교 일수
+function localTargetHistory(){ try{return JSON.parse(localStorage.getItem("adTargetHist")||"[]")}catch(e){return []} }
+function addTargetChange(camp){
+  const cur=cTarget(camp);
+  const to=prompt(`[${camp}] 타겟 ROI 변경 기록\n현재 ${cur}x → 새 타겟은?`,cur);
+  if(!to||isNaN(parseFloat(to)))return;
+  const date=prompt("변경일 (YYYY-MM-DD)",DATA?DATA.meta.maxDate:"");
+  if(!date)return;
+  const h=localTargetHistory();
+  h.push({date,camp,from:cur,to:parseFloat(to)});
+  localStorage.setItem("adTargetHist",JSON.stringify(h));
+  localStorage.setItem("adTarget_"+camp,String(parseFloat(to)));  // 현재 타겟도 갱신
+  render(DATA);
+}
+function allTargetHistory(camp){
+  return (DATA&&DATA.targetHistory||[]).concat(localTargetHistory())
+    .filter(h=>!camp||h.camp===camp).sort((a,b)=>a.date<b.date?-1:1);
+}
+// 변경일 전후 N일 비교 (캠페인 일별 지출 + 전체 소재 일별에서 산출)
+function beforeAfter(camp,dateKey,n){
+  const rows=(DATA&&DATA.ops&&DATA.ops.movements||[]).filter(m=>m.camp===camp&&m.d);
+  if(!rows.length)return null;
+  const labs=rows[0].d.map(x=>x[0]);
+  const idx=labs.indexOf(dateKey.slice(5)); if(idx<0)return null;
+  const acc=(s,e)=>{let sp=0,gm=0;for(const r of rows)for(let i=Math.max(0,s);i<=Math.min(labs.length-1,e);i++){sp+=r.d[i][1];gm+=r.d[i][2];}return {sp,gm};};
+  const b=acc(idx-n,idx-1), a=acc(idx,idx+n-1);
+  return { before:{spend:b.sp,gmv:b.gm,roi:b.sp?+(b.gm/b.sp).toFixed(2):null},
+           after:{spend:a.sp,gmv:a.gm,roi:a.sp?+(a.gm/a.sp).toFixed(2):null} };
+}
 
 // SVG 스파크라인 (일별 지출)
 function spark(arr){
@@ -214,6 +276,9 @@ function render(d){
       <div class="cap">주간 신규 $10 게이트 통과 소재 vs 피로 진입 소재 (전체 수명 기준, 최근 12주) — 통과 &lt; 피로 2주 연속이면 경고</div>
       <div class="chartbox sm"><canvas id="cSupply"></canvas></div></div>`;
 
+  // ── 운영 뷰 (일별/기간 vs 직전 동일기간) ──
+  const secOps=d.ops?renderOps(d.ops):"";
+
   // ── Level 2 ──
   if(!curCamp||!d.campaigns.find(c=>c.name===curCamp)) curCamp=d.campaigns[0]?d.campaigns[0].name:null;
   const sec2=sect("🎯","캠페인 상세","타겟 ROI·예산을 조정할까?")+
@@ -236,9 +301,127 @@ function render(d){
       <div style="overflow:auto;max-height:720px" id="tblWrap"></div>
     </div>`;
 
-  $("#app").innerHTML=sec1+sec2+sec3;
+  $("#app").innerHTML=sec1+secOps+sec2+sec3;
   resetCharts();
-  drawL1(d);drawCamp();drawTable();
+  drawL1(d);drawCamp();drawTable();drawOpsTable();
+}
+
+// ── 운영 뷰 ────────────────────────────────────────────────────
+const BK={"증발":["🔴 지출 증발","bg-kill"],"급감":["🟠 지출 급감","bg-fat"],"급증":["🟢 지출 급증","bg-boost"],"신규":["⚪ 신규 진입","bg-watch"],"유지":["· 유지","bg-gate"]};
+const dlt=(cur,prev,fmt)=>{ // 증감 표기 (+/− 부호 명시)
+  if(prev==null||cur==null)return "";
+  const df=cur-prev, pc=prev?(df/prev*100):null;
+  const sign=df>0?"+":(df<0?"−":"");
+  const body=fmt?fmt(Math.abs(df)):Math.abs(df);
+  return `<span class="${df>=0?"ok":"bad"}">${sign}${body}${pc!=null?` (${sign}${Math.abs(pc).toFixed(0)}%)`:""}</span>`;
+};
+function renderOps(o){
+  const label=o.len===1?`${o.cur.start} (전일 ${o.prev.start} 대비)`:`${o.cur.start}~${o.cur.end} · ${o.len}일 (직전 ${o.prev.start}~${o.prev.end} 대비)`;
+  const kpis=`<div class="kpis">
+    ${kpi("지출",usd(o.cur.spend),`전기간 ${usd(o.prev.spend)} · ${dlt(o.cur.spend,o.prev.spend,v=>usd(v))}`)}
+    ${kpi("매출",usd(o.cur.gmv),`전기간 ${usd(o.prev.gmv)} · ${dlt(o.cur.gmv,o.prev.gmv,v=>usd(v))}`)}
+    ${kpi("ROI",(o.cur.roi??"–")+"x",`전기간 ${o.prev.roi??"–"}x · ${o.cur.roi!=null&&o.prev.roi!=null?dlt(o.cur.roi,o.prev.roi,v=>v.toFixed(2)+"x"):""}`)}
+    ${kpi("주문",nf(o.cur.orders),`전기간 ${nf(o.prev.orders)} · ${dlt(o.cur.orders,o.prev.orders,v=>nf(v))}`)}
+    ${kpi("지출 발생 소재",nf(o.cur.active)+"개",`전기간 ${nf(o.prev.active)}개 · ${dlt(o.cur.active,o.prev.active,v=>nf(v)+"개")}`)}
+  </div>`;
+  const st=Object.entries(o.statusCounts||{}).sort((a,b)=>b[1]-a[1]);
+  const stChips=`<div class="card"><h3>📡 게재상태</h3><div class="cap">지출 이력이 있는 소재 기준 · 클릭하면 소재 테이블 필터</div>
+    <div class="chips">${st.map(([k,v])=>`<span class="chip" onclick="jumpStatus('${esc(k)}')">${esc(k)} <b>${v}</b></span>`).join("")||'<span class="pill">데이터 없음</span>'}</div></div>`;
+  const ct=o.counts||{};
+  const bkChips=`<div class="chips" style="margin-bottom:10px">
+    ${["증발","급감","급증","신규"].map(b=>`<span class="chip" onclick="opsFilter('${b}')" style="${OPSF===b?"border-color:var(--blue);font-weight:700":""}">${BK[b][0]} <b>${ct[b]||0}</b></span>`).join("")}
+    <span class="chip" onclick="opsFilter('')" style="${OPSF===""?"border-color:var(--blue);font-weight:700":""}">전체 <b>${o.total}</b></span></div>`;
+  const camps=`<div class="card"><h3>📊 캠페인별 ${o.len===1?"당일":"기간"} 실적</h3><div class="cap">직전 동일 기간과 비교 · 지출順</div>
+    <div style="overflow-x:auto"><table>
+    <tr><th class="l">캠페인</th><th>지출</th><th>Δ지출</th><th>매출</th><th>Δ매출</th><th>ROI</th><th>전ROI</th><th>주문</th><th>활성 소재</th></tr>
+    ${o.campaigns.map(c=>`<tr><td class="l">${esc(c.name)}</td>
+      <td class="n">${usd(c.spend)}</td><td class="n">${dlt(c.spend,c.pSpend,v=>usd(v))}</td>
+      <td class="n">${usd(c.gmv)}</td><td class="n">${dlt(c.gmv,c.pGmv,v=>usd(v))}</td>
+      <td class="n">${c.roi??"–"}x</td><td class="n" style="color:var(--muted)">${c.pRoi??"–"}x</td>
+      <td class="n">${nf(c.orders)}</td><td class="n">${c.active} <span style="color:var(--muted)">/ ${c.activePrev}</span></td></tr>`).join("")}
+    </table></div></div>`;
+  const moves=`<div class="card"><h3>💸 지출 이동 (소재별)</h3>
+    <div class="cap">Δ지출 큰 순 · 행 클릭 시 일별 지출·매출 추이 · 원인 태그는 캠페인 타겟 ROI 기준</div>
+    ${bkChips}<div style="overflow:auto;max-height:640px" id="opsWrap"></div></div>`;
+  return sect("📅",o.len===1?"일별 운영":"기간 운영",label)+kpis+
+    `<div class="grid2">${stChips}${camps}</div>`+moves;
+}
+function opsFilter(b){OPSF=b;render(DATA);}
+// 원인 태그 — 타겟 ROI(캠페인별 설정) 대비 판단
+function causeTag(m){
+  const t=cTarget(m.camp);
+  const st=String(m.status||"").toUpperCase();
+  if(/AUTHORIZATION|REJECT|NOT_DELIVER/.test(st)) return ["운영이슈 — "+m.status+" 확인","bad"];
+  if(m.bucket==="증발"||m.bucket==="급감"){
+    const roi=m.prev.roi??m.lifeRoi;
+    if(roi!=null&&roi>=t) return [`ROI ${roi}x ≥ 타겟 ${t}x — 타겟 아님, 소재 피로/인벤토리 → 신규 소재 투입`,"ok"];
+    return [`ROI ${roi??"–"}x < 타겟 ${t}x — 타겟이 공격적, 완화 검토`,"bad"];
+  }
+  if(m.bucket==="급증") return ["알고리즘이 밀어주는 중 — 유사 소재 증산 여지","ok"];
+  if(m.bucket==="신규") return ["신규 진입 — 게이트($10) 통과 여부 관찰","" ];
+  return ["",""];
+}
+function drawOpsTable(){
+  const el=$("#opsWrap"); if(!el||!DATA||!DATA.ops)return;
+  let list=DATA.ops.movements;
+  if(OPSF)list=list.filter(m=>m.bucket===OPSF);
+  else list=list.filter(m=>m.bucket!=="유지");
+  const rows=list.map((m,i)=>{
+    const b=BK[m.bucket]||[m.bucket,""];
+    const [tag,tcls]=causeTag(m);
+    return `<tr class="orow" data-i="${i}">
+      <td class="l"><span class="bg ${b[1]}">${b[0]}</span></td>
+      <td class="l idcell" title="${esc(m.id)}">${m.isPC?"🛒 ":""}${esc(m.id)}</td>
+      <td class="l" style="max-width:130px;overflow:hidden;text-overflow:ellipsis" title="${esc(m.camp)}">${esc(m.camp)}</td>
+      <td class="n" style="color:var(--muted)">${usd(m.prev.spend)} / ${usd(m.prev.gmv)}${m.prev.roi!=null?` (${m.prev.roi}x)`:""}</td>
+      <td class="n"><b>${usd(m.cur.spend)}</b> / ${usd(m.cur.gmv)}${m.cur.roi!=null?` (${m.cur.roi}x)`:""}</td>
+      <td class="n ${m.delta>=0?"ok":"bad"}">${m.delta>=0?"+":"−"}${usd(Math.abs(m.delta))}</td>
+      <td class="l" style="max-width:280px;white-space:normal"><span class="${tcls}" style="font-size:11.5px">${tag}</span></td>
+    </tr>`;
+  }).join("");
+  el.innerHTML=`<table>
+    <tr><th class="l">변화</th><th class="l">소재 ID</th><th class="l">캠페인</th>
+    <th>직전 (지출/매출)</th><th>선택 (지출/매출)</th><th>Δ지출</th><th class="l">원인 추정 · 액션</th></tr>${rows}</table>
+    <div class="pill" style="padding:9px 4px">${list.length}개 표시${DATA.ops.total>DATA.ops.shown?` · 전체 ${DATA.ops.total}개 중 변화량 상위 ${DATA.ops.shown}개만 로드`:""}</div>`;
+  el.__list=list;
+}
+// 행 클릭 → 일별 지출·매출 추이 (지연 생성)
+document.addEventListener("click",e=>{
+  const row=e.target.closest("tr.orow"); if(!row)return;
+  const next=row.nextElementSibling;
+  if(next&&next.classList.contains("odrow")){
+    const show=next.style.display==="none";
+    next.style.display=show?"table-row":"none";
+    if(show)next.scrollIntoView({block:"nearest",behavior:"smooth"});
+    return;
+  }
+  const list=$("#opsWrap").__list||[]; const m=list[+row.getAttribute("data-i")]; if(!m)return;
+  const tr=document.createElement("tr"); tr.className="odrow";
+  const cid="ospark"+Math.abs(hashCode(m.id+m.camp));
+  tr.innerHTML=`<td colspan="7"><div class="cap">${esc(m.id)} · ${esc(m.camp)} — 최근 60일 일별 지출·매출${m.d?"":" (데이터 없음)"}</div>
+    <div class="chartbox sm"><canvas id="${cid}"></canvas></div></td>`;
+  row.after(tr);
+  if(m.d)drawOpsSpark(cid,m);
+  tr.scrollIntoView({block:"nearest",behavior:"smooth"});
+});
+function hashCode(s){let h=0;for(let i=0;i<s.length;i++){h=(h<<5)-h+s.charCodeAt(i);h|=0;}return h;}
+function drawOpsSpark(cid,m){
+  const grid={grid:{color:"#EDF1F5"},ticks:{color:"#5B6B7B"},border:{color:"#EDF1F5"}};
+  const labs=m.d.map(x=>x[0]);
+  // 타겟 ROI 변경 마커
+  const hist=(DATA.targetHistory||[]).concat(localTargetHistory()).filter(h=>h.camp===m.camp);
+  const marks=hist.map(h=>labs.indexOf(h.date.slice(5))).filter(i=>i>=0);
+  const markerPlugin={id:"mk",afterDraw(c){const {ctx,chartArea,scales}=c;marks.forEach(i=>{const x=scales.x.getPixelForValue(i);
+    ctx.save();ctx.strokeStyle="#E0492F";ctx.setLineDash([4,3]);ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(x,chartArea.top);ctx.lineTo(x,chartArea.bottom);ctx.stroke();
+    ctx.fillStyle="#E0492F";ctx.font="10px sans-serif";ctx.fillText("타겟변경",x+3,chartArea.top+11);ctx.restore();});}};
+  NC($("#"+cid),{data:{labels:labs,datasets:[
+    {type:"bar",label:"지출",data:m.d.map(x=>x[1]),backgroundColor:"#2451E6",borderRadius:2},
+    {type:"bar",label:"매출",data:m.d.map(x=>x[2]),backgroundColor:"#0E8A6D",borderRadius:2}]},
+    options:{maintainAspectRatio:false,plugins:{legend:{labels:{color:"#15222E",boxWidth:12,usePointStyle:true,pointStyle:"rectRounded"}},
+      tooltip:{callbacks:{label:c=>c.dataset.label+": "+usd(c.raw),afterBody:it=>{const i=it[0].dataIndex;return "주문 "+nf(m.d[i][3]);}}}},
+      scales:{x:{...grid,ticks:{...grid.ticks,maxTicksLimit:12}},y:{...grid,ticks:{...grid.ticks,callback:usdk}}}},
+    plugins:[markerPlugin]});
 }
 function setGTarget(){
   const v=prompt("블렌디드 타겟 ROI (기본 4.0)",gTarget());
@@ -282,6 +465,21 @@ function drawCamp(){
     </div>
     <div class="grid2">
       <div><h3 style="font-size:13px;margin:4px 0 2px">지출 소화율 (일별)</h3><div class="cap">타겟 ROI 상향 후 지출이 급감하는지 감시</div><div class="chartbox sm"><canvas id="cCampDaily"></canvas></div></div>
+      <div><h3 style="font-size:13px;margin:4px 0 2px">타겟 ROI 변경 이력 <button class="btn" style="padding:3px 8px;font-size:11.5px" onclick="addTargetChange('${esc(c.name)}')">+ 기록</button></h3>
+        <div class="cap">변경 전후 ${BA_N}일 지출·매출 비교 — 공격적 타겟의 실제 효과</div>
+        ${(()=>{const hs=allTargetHistory(c.name);
+          if(!hs.length)return `<div class="pill" style="padding:6px 0">기록 없음 — 타겟을 바꿀 때 <b>+기록</b>을 누르면 이후 전후 비교가 자동으로 계산됩니다.<br>(팀 공유를 원하면 시트에 <b>「타겟변경이력」</b> 탭: 날짜 / 캠페인 / 이전 / 변경 후)</div>`;
+          return hs.slice(-3).reverse().map(h=>{const ba=beforeAfter(c.name,h.date,BA_N);
+            return `<div class="qd" style="margin:8px 0 0">📌 <b>${h.date}</b> · ${h.from??"–"}x → <b>${h.to??"–"}x</b>
+              ${ba?`<div class="statrow" style="margin:8px 0 0">
+                <div class="stat"><div class="sl">지출</div><div class="sv" style="font-size:13px">${usd(ba.before.spend)} → ${usd(ba.after.spend)}<br>${dlt(ba.after.spend,ba.before.spend,v=>usd(v))}</div></div>
+                <div class="stat"><div class="sl">매출</div><div class="sv" style="font-size:13px">${usd(ba.before.gmv)} → ${usd(ba.after.gmv)}<br>${dlt(ba.after.gmv,ba.before.gmv,v=>usd(v))}</div></div>
+                <div class="stat"><div class="sl">ROI</div><div class="sv" style="font-size:13px">${ba.before.roi??"–"}x → ${ba.after.roi??"–"}x</div></div>
+              </div>`:`<div class="pill" style="margin-top:6px">해당 날짜가 최근 60일 밖이거나 데이터 부족</div>`}</div>`;
+          }).join("");})()}
+      </div>
+    </div>
+    <div class="grid2" style="margin-top:12px">
       <div><h3 style="font-size:13px;margin:4px 0 2px">위너 프로필 중앙값 <span class="pill">크리에이터 브리핑 기준</span></h3>
         <div class="statrow">
           <div class="stat"><div class="sl">2초 시청률</div><div class="sv">${c.winnerMedians.v2s??"–"}%</div></div>
