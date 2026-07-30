@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>아웃리치 팀 대시보드</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Apple SD Gothic Neo","Malgun Gothic",sans-serif; background:#f7f7f5; color:#1d1d1f; font-size:14px; }
+  .wrap { padding:22px 20px 56px; max-width:1200px; margin:0 auto; }
+  .top { display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:10px; }
+  h1 { font-size:21px; margin:0; font-weight:720; display:flex; align-items:center; gap:8px; }
+  .sub { color:#6b6b6b; font-size:12.5px; margin-top:3px; }
+  .right { text-align:right; }
+  button.reload { border:1px solid #d8d8d4; background:#fff; border-radius:8px; padding:6px 13px; cursor:pointer; font-size:12.5px; }
+  button.reload:hover { background:#f0f0ee; }
+  .logout { border:none; background:none; color:#999; font-size:11.5px; cursor:pointer; margin-left:8px; text-decoration:underline; }
+
+  /* 날짜 컨트롤 */
+  .controls { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:16px 0 6px; }
+  .controls label { font-size:12px; color:#777; }
+  .controls input[type=date] { border:1px solid #ddd; border-radius:8px; padding:6px 9px; font-size:13px; font-family:inherit; }
+  .controls .go { border:1px solid #1d1d1f; background:#1d1d1f; color:#fff; border-radius:8px; padding:7px 15px; cursor:pointer; font-size:12.5px; }
+  .presets { display:flex; gap:6px; }
+  .preset { border:1px solid #e2e2de; background:#fff; color:#444; border-radius:999px; padding:5px 13px; cursor:pointer; font-size:12px; }
+  .preset.active { background:#1d1d1f; color:#fff; border-color:#1d1d1f; }
+
+  .stats { display:flex; gap:12px; margin:18px 0 6px; flex-wrap:wrap; }
+  .stat { background:#fff; border:1px solid #ececec; border-radius:14px; padding:12px 20px; min-width:118px; }
+  .stat .n { font-size:26px; font-weight:760; line-height:1.1; font-variant-numeric:tabular-nums; }
+  .stat .l { font-size:11.5px; color:#888; margin-top:3px; }
+
+  h2 { font-size:12px; color:#999; font-weight:700; letter-spacing:.06em; text-transform:uppercase; margin:26px 0 12px; }
+
+  /* 직원 테이블 */
+  table { width:100%; border-collapse:collapse; background:#fff; border:1px solid #ececec; border-radius:14px; overflow:hidden; }
+  th,td { text-align:left; padding:13px 14px; border-bottom:1px solid #f0f0ee; vertical-align:middle; }
+  th { font-size:11px; color:#999; font-weight:600; text-transform:uppercase; letter-spacing:.03em; background:#fafafa; }
+  tr:last-child td { border-bottom:none; }
+  .emp-name { font-weight:700; font-size:15px; }
+  .num { font-variant-numeric:tabular-nums; font-weight:660; font-size:15px; }
+  .muted0 { color:#c0392b; }             /* 발송 0 직원 강조 */
+  .warnchip { font-size:10px; font-weight:700; color:#c0392b; background:#fdecea; border:1px solid #f3c4bf; border-radius:5px; padding:1px 6px; margin-left:6px; }
+  .barwrap { display:flex; align-items:center; gap:9px; min-width:150px; }
+  .track { flex:1; height:9px; background:#f0efe9; border-radius:99px; overflow:hidden; }
+  .fill { height:100%; background:#B78A22; border-radius:99px; }
+  /* 진행 단계 미니 스택 */
+  .stages { display:flex; gap:3px; align-items:center; }
+  .seg { height:16px; border-radius:3px; font-size:0; }
+  .s-first { background:#e6e2d6; } .s-replied { background:#8fbfe0; }
+  .s-neg { background:#e0b24a; } .s-contract { background:#3fae74; }
+  .stage-legend { display:flex; gap:14px; flex-wrap:wrap; font-size:11.5px; color:#777; margin:6px 2px 0; }
+  .dot { display:inline-block; width:9px; height:9px; border-radius:3px; margin-right:5px; vertical-align:-1px; }
+  .nr { font-weight:700; }
+  .nr.zero { color:#3fae74; } .nr.some { color:#c0392b; }
+  a.open { color:#1a73e8; text-decoration:none; font-size:12px; white-space:nowrap; }
+
+  /* 회신 필요 상세 */
+  details.nrbox { margin-top:4px; }
+  details.nrbox summary { cursor:pointer; color:#c0392b; font-size:12px; }
+  .nrlist { margin:8px 0 2px; padding:0; list-style:none; display:flex; flex-direction:column; gap:6px; }
+  .nrlist li { font-size:12px; color:#555; display:flex; gap:8px; align-items:baseline; }
+  .nrlist .age { color:#c0392b; font-weight:600; white-space:nowrap; }
+
+  /* 중복 (빨간색) */
+  .dupsec .card { background:#fff; border:1px solid #ececec; border-radius:14px; padding:6px 4px; }
+  .duprow { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 16px; border-bottom:1px solid #f5eaea; }
+  .duprow:last-child { border-bottom:none; }
+  .dupsec.has .duprow { color:#c0392b; }
+  .duprow .who { font-weight:700; }
+  .duptag { font-size:11.5px; font-weight:700; color:#c0392b; background:#fdecea; border:1px solid #f3c4bf; border-radius:6px; padding:2px 9px; }
+  .okrow { display:flex; align-items:center; gap:9px; padding:14px 16px; color:#3fae74; font-weight:600; }
+
+  .msg { text-align:center; padding:40px; color:#999; }
+  .err { background:#fff3f2; border:1px solid #f3c4bf; color:#b3322a; padding:12px 14px; border-radius:10px; margin:12px 0; font-size:13px; }
+  .cap { font-size:11.5px; color:#b58900; margin-top:8px; }
+
+  /* 게이트 */
+  #gate { position:fixed; inset:0; background:#f7f7f5; display:none; align-items:center; justify-content:center; z-index:50; }
+  .gate-card { background:#fff; border:1px solid #ececec; border-radius:16px; padding:34px 32px; width:340px; max-width:90%; text-align:center; box-shadow:0 8px 30px rgba(0,0,0,.06); }
+  .gate-card h2 { font-size:17px; margin:0 0 6px; color:#1d1d1f; letter-spacing:0; text-transform:none; }
+  .gate-card p { font-size:12.5px; color:#888; margin:0 0 18px; }
+  .gate-card input { width:100%; padding:11px 13px; border:1px solid #ddd; border-radius:9px; font-size:14px; margin-bottom:10px; }
+  .gate-card button { width:100%; padding:11px; background:#1d1d1f; color:#fff; border:none; border-radius:9px; font-size:13.5px; cursor:pointer; }
+  .gate-err { color:#c0392b; font-size:12px; min-height:16px; margin-bottom:4px; }
+
+  @media (max-width:720px){
+    th.hidesm, td.hidesm { display:none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="gate-card">
+    <h2>🔒 아웃리치 팀 대시보드</h2>
+    <p>비밀번호를 입력하세요</p>
+    <div class="gate-err" id="gateErr"></div>
+    <input id="gatePw" type="password" placeholder="비밀번호" onkeydown="if(event.key==='Enter')submitPw()" />
+    <button onclick="submitPw()">들어가기</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>📊 아웃리치 팀 대시보드</h1>
+      <div class="sub">@dalbausa.com 6명 · 참조(CC) 메일 실시간 집계 · 담당자=발신, 크리에이터=수신</div>
+    </div>
+    <div class="right">
+      <button class="reload" onclick="load()">새로고침</button>
+      <button class="logout" onclick="logout()">로그아웃</button>
+      <div class="sub" id="updated"></div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="presets" id="presets"></div>
+    <span style="color:#ccc">|</span>
+    <label>시작 <input type="date" id="from"></label>
+    <label>끝 <input type="date" id="to"></label>
+    <button class="go" onclick="applyRange()">조회</button>
+  </div>
+
+  <div class="stats" id="stats"></div>
+  <div id="content"><div class="msg">불러오는 중…</div></div>
+</div>
+
+<script>
+let DATA = null;
+const PRESETS = [
+  { key:"today", label:"오늘", days:0 },
+  { key:"7",     label:"최근 7일", days:6 },
+  { key:"30",    label:"최근 30일", days:29 }
+];
+let activePreset = "7";
+
+function esc(s){ return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function pw(){ return localStorage.getItem("dpw") || ""; }
+function showGate(msg){ document.getElementById("gateErr").textContent=msg||""; document.getElementById("gate").style.display="flex"; document.getElementById("gatePw").focus(); }
+function hideGate(){ document.getElementById("gate").style.display="none"; }
+function submitPw(){ localStorage.setItem("dpw", document.getElementById("gatePw").value); hideGate(); load(); }
+function logout(){ localStorage.removeItem("dpw"); showGate(); }
+
+function ymd(d){ return d.toISOString().slice(0,10); }
+function setPreset(key){
+  activePreset = key;
+  const p = PRESETS.find(x=>x.key===key);
+  const to = new Date();
+  const from = new Date(to.getTime() - p.days*864e5);
+  document.getElementById("from").value = ymd(from);
+  document.getElementById("to").value = ymd(to);
+  renderPresets();
+  load();
+}
+function applyRange(){ activePreset=""; renderPresets(); load(); }
+function renderPresets(){
+  document.getElementById("presets").innerHTML = PRESETS.map(p=>
+    '<div class="preset'+(activePreset===p.key?' active':'')+'" onclick="setPreset(\''+p.key+'\')">'+p.label+'</div>'
+  ).join("");
+}
+
+async function load(){
+  const from = document.getElementById("from").value;
+  const to = document.getElementById("to").value;
+  document.getElementById("content").innerHTML='<div class="msg">불러오는 중…</div>';
+  try {
+    const r = await fetch('/api/team?from='+from+'&to='+to, { cache:'no-store', headers:{ 'x-dashboard-password': pw() } });
+    if(r.status===401){ showGate("비밀번호가 올바르지 않습니다."); return; }
+    const data = await r.json();
+    if(data.error) throw new Error(data.error);
+    hideGate();
+    DATA = data; render();
+  } catch(e){
+    document.getElementById("content").innerHTML='<div class="err">불러오지 못했습니다: '+esc(String(e.message||e))+'</div>';
+  }
+}
+
+function statCard(n,l,color){ return '<div class="stat"><div class="n" style="color:'+(color||'#1d1d1f')+'">'+n+'</div><div class="l">'+l+'</div></div>'; }
+
+function render(){
+  const d = DATA;
+  document.getElementById("updated").textContent = d.updated ? '업데이트 '+new Date(d.updated).toLocaleString('ko-KR') : '';
+  const t = d.totals||{};
+  document.getElementById("stats").innerHTML =
+    statCard(t.outbound||0,"총 아웃바운드","#B78A22") +
+    statCard(t.replies||0,"받은 답장","#3fae74") +
+    statCard(t.needsReply||0,"회신 필요", (t.needsReply?'#c0392b':'#3fae74')) +
+    statCard(t.duplicates||0,"중복 컨택", (t.duplicates?'#c0392b':'#3fae74')) +
+    statCard((t.activeEmployees||0)+'<span style="font-size:15px;color:#aaa">/'+(t.teamSize||6)+'</span>',"활동 직원");
+
+  const maxOut = Math.max(1, ...(d.employees||[]).map(e=>e.outbound));
+  let rows = (d.employees||[]).map(e=>{
+    const zero = e.outbound===0;
+    const st = e.stages||{first:0,replied:0,negotiating:0,contract:0};
+    const stotal = (st.first+st.replied+st.negotiating+st.contract)||1;
+    const seg = (cls,v)=> v>0 ? '<div class="seg '+cls+'" style="width:'+Math.max(6,Math.round(v/stotal*120))+'px" title="'+v+'"></div>' : '';
+    const stageBar = '<div class="stages">'+seg('s-first',st.first)+seg('s-replied',st.replied)+seg('s-neg',st.negotiating)+seg('s-contract',st.contract)+'</div>';
+
+    let nrCell;
+    if(e.needsReplyCount>0){
+      const items = (e.needsReply||[]).map(x=>
+        '<li><span class="age">'+x.ageHours+'h</span> <span>'+esc(x.creatorEmail)+'</span> '+
+        '<a class="open" href="'+esc(x.link)+'" target="_blank" rel="noopener">열기 ↗</a></li>').join("");
+      nrCell = '<span class="nr some">'+e.needsReplyCount+'</span>'+
+        '<details class="nrbox"><summary>보기</summary><ul class="nrlist">'+items+'</ul></details>';
+    } else {
+      nrCell = '<span class="nr zero">0</span>';
+    }
+
+    return '<tr>'+
+      '<td class="emp-name '+(zero?'muted0':'')+'">'+esc(e.name)+(zero?'<span class="warnchip">발송 0</span>':'')+'</td>'+
+      '<td><div class="barwrap"><span class="num '+(zero?'muted0':'')+'">'+e.outbound+'</span>'+
+        '<div class="track"><div class="fill" style="width:'+Math.round(e.outbound/maxOut*100)+'%"></div></div></div></td>'+
+      '<td class="num hidesm">'+e.creators+'</td>'+
+      '<td class="num" style="color:#3fae74">'+e.replies+'</td>'+
+      '<td class="hidesm">'+stageBar+'</td>'+
+      '<td>'+nrCell+'</td>'+
+    '</tr>';
+  }).join("");
+
+  const legend = '<div class="stage-legend">'+
+    '<span><i class="dot s-first"></i>첫 컨택</span>'+
+    '<span><i class="dot s-replied"></i>답장 옴</span>'+
+    '<span><i class="dot s-neg"></i>단가·조건 협상</span>'+
+    '<span><i class="dot s-contract"></i>계약·서명</span></div>';
+
+  // 중복 섹션
+  const dups = d.duplicates||[];
+  let dupHtml;
+  if(dups.length){
+    dupHtml = '<div class="dupsec has"><div class="card">'+ dups.map(x=>
+      '<div class="duprow"><span class="who">'+esc(x.creatorEmail)+'</span>'+
+      '<span class="duptag">'+esc((x.employees||[]).join(' + '))+'</span></div>').join("") +
+      '</div></div>';
+  } else {
+    dupHtml = '<div class="dupsec"><div class="card"><div class="okrow">✓ 이 기간 중복 컨택 없음</div></div></div>';
+  }
+
+  document.getElementById("content").innerHTML =
+    '<h2>직원별 활동</h2>'+
+    '<table><thead><tr><th>담당자</th><th>아웃바운드</th><th class="hidesm">크리에이터</th><th>답장</th>'+
+    '<th class="hidesm">진행 단계</th><th>회신 필요</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+    legend +
+    (d.capped ? '<div class="cap">⚠ 이 기간 메일이 많아 최근 '+150+'스레드까지만 집계했습니다. 기간을 좁히면 정확해집니다.</div>' : '')+
+    '<h2>중복 컨택 <span style="color:#c0392b">●</span></h2>'+ dupHtml;
+}
+
+// 시작
+renderPresets();
+setPreset("7");   // 기본 최근 7일 → load()
+if(!pw()) showGate();
+</script>
+</body>
+</html>
