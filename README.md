@@ -78,7 +78,8 @@ vercel        # 프로젝트 폴더에서
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`
   - ⚠️ refresh token에 **Sheets 읽기 스코프** 포함 필요:
     `https://www.googleapis.com/auth/spreadsheets.readonly`
-- `SHEET_ID` — 스프레드시트 ID (예: `1RjXg3xO1UMhG_Ykmprn4v4bx2gVntOkjW-SE3RZOzhU`)
+- `SHEET_ID` — 미국(US) 스프레드시트 ID (예: `1RjXg3xO1UMhG_Ykmprn4v4bx2gVntOkjW-SE3RZOzhU`)
+- (선택) `UK_SHEET_ID` — 영국(UK) 스프레드시트 ID. 설정하면 `/report.html?market=uk` 동작
 - (선택) `RAW_SHEET` 기본 `매출raw` · `VIDEO_SHEET` 기본 `매출발생영상`
 - (선택) `TOP_N` — 랭킹 개수, 기본 10
 - `SLACK_BOT_TOKEN` (+ `SLACK_CHANNEL`, 기본 `C0BAEH36VDX` = #데일리-분석) — 봇에 `chat:write` 권한 + 채널 초대 필요
@@ -95,6 +96,18 @@ vercel        # 프로젝트 폴더에서
   - 동작: 입력 날짜로 리포트를 #데일리-분석에 게시 (커맨드는 입력한 채널이 아니라 항상 #데일리-분석으로 게시)
   - ⚠️ 게시 메시지가 여러 건이라 3초 응답 제한을 넘길 수 있으나, 메시지는 정상 게시됨. `CRON_SECRET`을 설정했다면 슬래시 커맨드는 예외 처리되어 동작.
 - 또는 브라우저에서 `…/api/daily-report?date=2026-06-13` 직접 호출.
+
+### 🇬🇧 영국(UK) 매출 대시보드
+같은 `report.html`을 **시장 전환**으로 재사용한다. 헤더의 `[🇺🇸 US] [🇬🇧 UK]` 버튼으로 이동.
+- URL: `/report.html?market=uk` · API: `/api/daily-report?format=json&market=uk`
+- 통화는 API가 내려주는 `symbol`을 따라 자동 전환 (US `$` / UK `£`)
+- 탭은 **헤더 이름으로 자동 인식** — UK 시트("UK 데이터 대시보드 RAW")의 6탭 중
+  제품별 RAW / Affiliate 제품별 / 크리에이터 주문 / SKU / 광고 소재를 각각 raw·af·vid·skuOrder·ad로 매핑
+- UK 광고 탭은 영문 헤더(`Date/Product ID/Cost/Orders(SKU)/Grossrevenue`)라 **영문 별칭**으로 인식.
+  캠페인 열이 없어 캠페인별 효율 카드는 비고, 제품별 광고비·ROI는 정상 계산됨
+- 브랜드 라이브 탭이 없으면 해당 섹션은 자동으로 숨겨짐
+- 설정: Vercel 환경변수 `UK_SHEET_ID` 추가 + 시트를 서비스계정에 뷰어 공유 → Redeploy
+- ⚠️ Slack 자동 리포트(크론)는 **US 전용** — 시장 파라미터 없이 실행되면 항상 US
 
 ## GMV Max 광고 대시보드 (ads.html + api/ads-report.js)
 

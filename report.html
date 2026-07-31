@@ -112,6 +112,7 @@
   <header>
     <div><h1>📊 d'Alba 데일리 매출 대시보드</h1><div class="sub" id="sub">불러오는 중…</div></div>
     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <nav class="seg" id="mktseg" style="text-decoration:none"></nav>
       <nav class="seg" style="text-decoration:none"><a href="/report.html" style="padding:6px 12px;font-size:12.5px;background:var(--s1);color:#fff;font-weight:700;text-decoration:none">매출 리포트</a><a href="/ads.html" style="padding:6px 12px;font-size:12.5px;color:var(--muted);text-decoration:none;background:var(--card)">광고 대시보드</a></nav>
       <div class="seg" id="periodseg"><button data-p="7">최근 1주</button><button data-p="14" class="on">2주</button><button data-p="30">전체</button></div>
       <div><label class="pill">날짜 </label><input type="date" id="datepick"></div>
@@ -122,12 +123,14 @@
 <script>
 const $=s=>document.querySelector(s);
 const css=v=>getComputedStyle(document.body).getPropertyValue(v).trim();
-const usd=n=>"$"+Math.round(n||0).toLocaleString();
-const usdk=v=>"$"+(Math.abs(v)>=1000?(v/1000).toFixed(v>=10000?0:1)+"k":Math.round(v));
+let SYM="$";   // 통화 기호 — API 응답(symbol)에 따라 시장별로 바뀜 ($ / £)
+const usd=n=>SYM+Math.round(n||0).toLocaleString();
+const usdk=v=>SYM+(Math.abs(v)>=1000?(v/1000).toFixed(v>=10000?0:1)+"k":Math.round(v));
 const nf=n=>Math.round(n||0).toLocaleString();
 const cls=s=>{const t=String(s||"");return t.startsWith("-")?"down":(t.startsWith("+")?"up":"")};
 const qs=new URLSearchParams(location.search);
 const dateParam=qs.get("date")||"";
+const MARKET=(qs.get("market")||"us").toLowerCase()==="uk"?"uk":"us";
 Chart.defaults.font.family=getComputedStyle(document.body).fontFamily;
 Chart.defaults.animation=false;
 let PAL={}, DATA=null, PERIOD=14, CHARTS=[];
@@ -139,10 +142,11 @@ const slc=a=>Array.isArray(a)?a.slice(-PERIOD):a;
 
 async function load(){
   try{
-    const base="/api/daily-report?format=json"+(dateParam?("&date="+encodeURIComponent(dateParam)):"");
+    const base="/api/daily-report?format=json&market="+MARKET+(dateParam?("&date="+encodeURIComponent(dateParam)):"");
     const r=await fetch(base);          // 1차: 데이터만 → 화면 즉시 렌더
     const d=await r.json();
     if(d.error) throw new Error(d.error);
+    if(d.symbol) SYM=d.symbol;          // 통화 기호 적용 (US $ / UK £)
     render(d);
     // 2차: AI 인사이트는 백그라운드 (느린 Claude 호출을 첫 화면에서 분리)
     fetch(base+"&insights=1").then(x=>x.json()).then(x=>{
@@ -199,7 +203,7 @@ function render(d){
   PAL={S1:css("--s1"),S2:css("--s2"),S3:css("--s3"),S4:css("--s4"),S5:css("--s5"),S6:css("--s6"),
     ink:css("--ink"),muted:css("--muted"),grid:css("--grid"),card:css("--card")};
   const {S1,S2,S3,S4,S5}=PAL;
-  $("#sub").innerHTML=`${d.date} 기준 · 전일(${d.prevDay||"–"}) · 전주(${d.prevWeek||"–"}) 대비`;
+  $("#sub").innerHTML=`${MARKET==="uk"?"🇬🇧 영국 · ":"🇺🇸 미국 · "}${d.date} 기준 · 전일(${d.prevDay||"–"}) · 전주(${d.prevWeek||"–"}) 대비 · 통화 ${d.currency||"USD"}`;
 
   const k=d.kpis;
   // ── 1. 전체 스토어 매출 분석 ───────────────────────────
@@ -755,6 +759,7 @@ function drawOpenProducts(){
 $("#datepick").addEventListener("change",e=>{
   const v=e.target.value; const u=new URL(location.href);
   if(v)u.searchParams.set("date",v); else u.searchParams.delete("date");
+  if(MARKET==="uk")u.searchParams.set("market","uk");   // 날짜 변경 시 시장 유지
   location.href=u.toString();
 });
 // 기간 토글 (7/14/30일) — 시계열 차트만 파기 후 재생성
@@ -764,6 +769,13 @@ $("#periodseg").addEventListener("click",e=>{
   [...$("#periodseg").children].forEach(x=>x.classList.toggle("on",x===b));
   resetCharts(); Object.keys(drawnProd).forEach(k=>delete drawnProd[k]); drawCharts(DATA);
 });
+// 시장 토글 (US ↔ UK) — 날짜는 시트마다 달라서 초기화
+$("#mktseg").innerHTML=[["us","🇺🇸 US"],["uk","🇬🇧 UK"]].map(([k,l])=>{
+  const on=MARKET===k;
+  const u=new URL(location.href); u.searchParams.delete("date");
+  if(k==="us")u.searchParams.delete("market"); else u.searchParams.set("market",k);
+  return `<a href="${u.pathname+u.search}" style="padding:6px 12px;font-size:12.5px;text-decoration:none;${on?"background:var(--s1);color:#fff;font-weight:700":"color:var(--muted);background:var(--card)"}">${l}</a>`;
+}).join("");
 if(dateParam)$("#datepick").value=dateParam;
 load();
 </script>
