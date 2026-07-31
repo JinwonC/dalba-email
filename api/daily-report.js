@@ -139,10 +139,21 @@ let VM = { ...V };
 // ── 파서/포맷 헬퍼 ─────────────────────────────────────────────
 function num(v) {
   if (v == null) return 0;
-  const s = String(v).replace(/,/g, "").replace(/%/g, "").trim();
+  // 통화기호(£ $ €)·쉼표·퍼센트 제거 — 시장별 시트가 £1,234.56 형태로 오는 경우 대비
+  const s = String(v).replace(/[,%$£€\s]/g, "").trim();
   if (s === "" || s === "-") return 0;
   const n = parseFloat(s);
   return Number.isFinite(n) ? n : 0;
+}
+
+// ── 시장(국가)별 설정 ──────────────────────────────────────────
+const MARKETS = {
+  us: { env: "SHEET_ID", currency: "USD", symbol: "$", label: "US", flag: "🇺🇸" },
+  uk: { env: "UK_SHEET_ID", currency: "GBP", symbol: "£", label: "UK", flag: "🇬🇧" }
+};
+function pickMarket(q) {
+  const m = String((q && q.market) || "us").toLowerCase();
+  return MARKETS[m] ? { key: m, ...MARKETS[m] } : { key: "us", ...MARKETS.us };
 }
 function parseDate(v) {
   const m = String(v || "").match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
@@ -219,16 +230,23 @@ function pickComparisons(byDate, targetKey) {
 // byDate[key] = { total, live(=product id 없는 행=라이브), pid:{ productId: spend } }
 const AD0 = { date: 0, camp: 1, spend: 2, orders: 3, pid: 6 };
 function mapAdColumns(rows) {
-  const M = { ...AD0 };
-  const hi = findHeaderRow(rows, ["지출"], 6);
-  if (hi < 0) return M;
+  // 헤더 행 탐색: 한글(지출금액) 또는 영문(cost) 광고 탭 모두 지원
+  let hi = findHeaderRow(rows, ["지출"], 6);
+  let ko = true;
+  if (hi < 0) { hi = findHeaderRow(rows, ["cost"], 6); ko = false; }
+  if (hi < 0) return { ...AD0 };
   const h = (rows[hi] || []).map(norm);
-  const set = (k, name, opt) => { const i = colIdx(h, name, opt); if (i >= 0) M[k] = i; };
-  set("date", "날짜", { exact: false });
-  set("camp", "캠페인id", { exact: false });
-  set("spend", "지출", { exact: false });
-  set("orders", "주문수", { exact: false });
-  set("pid", "product id", { exact: false });
+  // 헤더를 찾았으면 이름 매핑만 사용 (없는 열은 -1 → 0 집계)
+  const M = {};
+  const set = (k, ...names) => {
+    for (const n of names) { const i = colIdx(h, n, { exact: false }); if (i >= 0) { M[k] = i; return; } }
+    M[k] = -1;
+  };
+  set("date", "날짜", "date");
+  set("camp", "캠페인id", "campaign id", "campaignid");
+  set("spend", "지출", "cost");
+  set("orders", "주문수", "orders(sku)", "sku orders", "orders");
+  set("pid", "product id", "productid");
   return M;
 }
 function parseAds(rows) {
@@ -767,7 +785,10 @@ async function resolveTabs(sheets, sheetId) {
       // 일반형: 제품ID + 노출 지표 + GMV가 함께 있는 탭
       || (has(h, "product id") && (has(h, "impression") || has(h, "노출")) && (has(h, "gmv") || has(h, "매출"))))),
     vid: find(h => has(h, "content type") && has(h, "creator username")),
-    ad: find(h => has(h, "지출금액")) || (titles.includes("광고") ? "광고" : null),
+    // 광고비 탭: 한글(지출금액) 또는 영문 소재 성과(cost+videoid+grossrevenue) — 매출 대시보드의 광고비·ROI 계산용
+    ad: find(h => has(h, "지출금액"))
+      || find(h => has(h, "cost") && has(h, "videoid") && has(h, "grossrevenue"))
+      || (titles.includes("광고") ? "광고" : null),
     af: find(h => has(h, "samples shipped") || (has(h, "est. commission") && has(h, "creators posted content"))),
     live: find(h => has(h, "live duration") && (has(h, "room id") || has(h, "live-attributed gmv"))),
     // SKU Order 탭: 탭 이름 우선, 없으면 헤더(제품ID+SKU+금액/수량)로 인식.
@@ -780,7 +801,7 @@ async function resolveTabs(sheets, sheetId) {
 }
 
 // ── 웹 대시보드용 구조화 데이터 ────────────────────────────────
-function buildJson(agg, raw, adByDate, ins, vid, skuByDate, afByDate, orgShopByDate, orgShopByPid) {
+function buildJson(agg, raw, adByDate, ins, vid, skuByDate, afByDate, orgShopByDate, orgShopByPid, mk) {
   const g = agg.g;
   const keys = Object.keys(raw.byDate).sort();
   const idx = keys.indexOf(agg.date.key);
@@ -1026,6 +1047,7 @@ function buildJson(agg, raw, adByDate, ins, vid, skuByDate, afByDate, orgShopByD
   } : null;
 
   return {
+    market: (mk && mk.key) || "us", currency: (mk && mk.currency) || "USD", symbol: (mk && mk.symbol) || "$",
     date: agg.date.label,
     prevDay: agg.prevDay ? agg.prevDay.md : null,
     prevWeek: agg.prevWeek ? agg.prevWeek.md : null,
@@ -1103,8 +1125,10 @@ module.exports = async (req, res) => {
       return;
     }
 
-    const sheetId = process.env.SHEET_ID;
-    if (!sheetId) throw new Error("SHEET_ID 환경변수가 필요합니다.");
+    // 시장 선택 (?market=us|uk) — 시트·통화가 달라짐. 미지정/슬래시/크론은 US
+    const MK = pickMarket(req.query);
+    const sheetId = process.env[MK.env];
+    if (!sheetId) throw new Error(`${MK.label} 시트 ID 환경변수(${MK.env})가 필요합니다.`);
     const topN = Math.max(1, parseInt(process.env.TOP_N, 10) || DEFAULT_TOP_N);
 
     // 날짜 파라미터 (쿼리 ?date= 또는 슬래시 커맨드 text)
@@ -1228,7 +1252,7 @@ module.exports = async (req, res) => {
       const ins = withInsights ? await generateInsights(agg, vid) : null;
       res.setHeader("Cache-Control", fresh ? "no-store" : (withInsights ? "s-maxage=3600, stale-while-revalidate=86400" : "s-maxage=600, stale-while-revalidate=86400"));
       res.setHeader("Access-Control-Allow-Origin", "*");
-      res.status(200).json(buildJson(agg, raw, adByDate, ins, vid, skuByDate, afByDate, orgShopByDate, orgShopByPid));
+      res.status(200).json(buildJson(agg, raw, adByDate, ins, vid, skuByDate, afByDate, orgShopByDate, orgShopByPid, MK));
       return;
     }
 
