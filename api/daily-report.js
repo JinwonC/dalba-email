@@ -800,6 +800,124 @@ async function resolveTabs(sheets, sheetId) {
   };
 }
 
+// ── 소재(영상) 타임라인 ────────────────────────────────────────
+//   매출은 AF(매출발생영상) 단일 기준 — 오가닉(스탠다드 커미션)/샵애즈(광고 커미션)로 배타 구분.
+//   광고 데이터는 비용·노출·CTR·CVR·시청률만 조인 (광고 GMV는 정의 혼선 때문에 미사용).
+//   신규/기존은 "첫 등장일"(AF 또는 광고에서 처음 잡힌 날) 기준 — Timeposted 없어도 동작.
+function afCreativeDaily(vidByDate) {
+  const cre = {};
+  for (const dk of Object.keys(vidByDate)) {
+    for (const r of vidByDate[dk]) {
+      const cid = String(r[VM.cid] || "").trim(); if (!cid) continue;
+      const pay = num(r[VM.pay]);
+      const c = cre[cid] || (cre[cid] = { cid, creator: String(r[VM.creator] || "").trim(), type: String(r[VM.ctype] || "").trim(), first: dk, daily: {} });
+      if (dk < c.first) c.first = dk;
+      if (!c.creator && r[VM.creator]) c.creator = String(r[VM.creator]).trim();
+      const e = c.daily[dk] || (c.daily[dk] = { org: 0, shop: 0, cnt: 0 });
+      e.cnt++;
+      if (String(r[VM.shop] || "").includes("%")) e.shop += pay;
+      else e.org += pay;
+    }
+  }
+  return cre;
+}
+async function fetchAdCreatives(sheets) {
+  const sid = process.env.ADS_SHEET_ID;
+  if (!sid) return null;
+  try {
+    const meta = await sheets.spreadsheets.get({ spreadsheetId: sid, fields: "sheets.properties.title" });
+    const titles = (meta.data.sheets || []).map(s => s.properties.title);
+    let tab = titles.find(t => t.replace(/\s/g, "") === "광고소재성과");
+    if (!tab) {
+      const hb = await sheets.spreadsheets.values.batchGet({ spreadsheetId: sid, ranges: titles.map(t => `'${t}'!A1:Z2`) });
+      const i = (hb.data.valueRanges || []).findIndex(v => {
+        const h = ((v.values || []).flat()).map(x => String(x).replace(/\s/g, ""));
+        return h.some(x => x.includes("소재ID")) && h.some(x => x.includes("지출"));
+      });
+      if (i >= 0) tab = titles[i];
+    }
+    if (!tab) return null;
+    const rr = await sheets.spreadsheets.values.get({ spreadsheetId: sid, range: `'${tab}'!A:Z` });
+    const rows = rr.data.values || [];
+    if (rows.length < 2) return null;
+    const h = (rows[0] || []).map(x => String(x || "").toLowerCase().replace(/\s+/g, ""));
+    const F = (...kw) => { for (let i = 0; i < h.length; i++) if (h[i] && kw.some(k => h[i].includes(k))) return i; return -1; };
+    const C = { date: F("날짜", "date"), cid: F("소재id", "videoid"), status: F("게재상태", "status"), spend: F("지출", "cost"),
+      imp: F("상품노출수", "productadimpressions"), clk: F("상품클릭수", "productadclicks"),
+      ctr: F("광고클릭률"), cvr: F("광고전환율", "adconversionrate"), v2s: F("2초"), v6s: F("6초") };
+    if (C.date < 0 || C.cid < 0 || C.spend < 0) return null;
+    const out = {};
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i]; if (!r) continue;
+      const d = parseDate(r[C.date]); if (!d) continue;
+      const cid = String(r[C.cid] || "").trim(); if (!/^\d{6,}$/.test(cid)) continue;
+      const sp = num(r[C.spend]);
+      const c = out[cid] || (out[cid] = { first: d.key, daily: {}, status: "-", statusTs: -1, wS: 0, w: { ctr: 0, cvr: 0, v2s: 0, v6s: 0 }, imp: 0, clk: 0 });
+      if (d.key < c.first) c.first = d.key;
+      const e = c.daily[d.key] || (c.daily[d.key] = { spend: 0 });
+      e.spend += sp;
+      c.imp += num(r[C.imp]); c.clk += num(r[C.clk]);
+      if (sp > 0) { c.wS += sp; for (const k of ["ctr", "cvr", "v2s", "v6s"]) if (C[k] >= 0) c.w[k] += num(r[C[k]]) * sp; }
+      if (C.status >= 0 && r[C.status] && d.ts >= c.statusTs) { c.status = String(r[C.status]).trim(); c.statusTs = d.ts; }
+    }
+    return out;
+  } catch (e) { return null; }
+}
+function buildCreativeTimeline(afCre, adCre, win, targetKey, topN) {
+  const list = [];
+  const ids = new Set([...Object.keys(afCre), ...Object.keys(adCre || {})]);
+  const tTs = parseDate(targetKey).ts;
+  for (const cid of ids) {
+    const a = afCre[cid], ad = (adCre || {})[cid];
+    let org = 0, shop = 0, cnt = 0, spend = 0;
+    const daily = win.map(k => {
+      const x = (a && a.daily[k]) || { org: 0, shop: 0, cnt: 0 };
+      const y = (ad && ad.daily[k]) || { spend: 0 };
+      org += x.org; shop += x.shop; cnt += x.cnt; spend += y.spend;
+      return [k.slice(5), Math.round(x.org), Math.round(x.shop), Math.round(y.spend * 100) / 100];
+    });
+    const rev = org + shop;
+    if (rev <= 0 && spend <= 0) continue;
+    const first = [a && a.first, ad && ad.first].filter(Boolean).sort()[0];
+    const age = first ? Math.round((tTs - parseDate(first).ts) / 86400000) : null;
+    const bucket = age == null ? "미상" : (age <= 7 ? "신규" : (age <= 30 ? "성장" : "롱테일"));
+    const wr = k => (ad && ad.wS) ? +(ad.w[k] / ad.wS).toFixed(2) : null;
+    list.push({
+      cid, creator: (a && a.creator) || null, type: (a && a.type) || null,
+      link: "https://www.tiktok.com/@" + ((a && a.creator) || "tiktok") + "/video/" + cid,
+      first, age, bucket, status: (ad && ad.status) || null,
+      org: Math.round(org), shop: Math.round(shop), rev: Math.round(rev), orders: cnt,
+      spend: Math.round(spend * 100) / 100,
+      roi: spend ? +(rev / spend).toFixed(2) : null,
+      organicShare: rev ? Math.round(org / rev * 100) : null,
+      detail: ad ? { imp: Math.round(ad.imp), clk: Math.round(ad.clk), ctr: wr("ctr"), cvr: wr("cvr"), v2s: wr("v2s"), v6s: wr("v6s") } : null,
+      d: daily
+    });
+  }
+  list.sort((x, y) => y.rev - x.rev);
+  const top = list.slice(0, topN || 60);
+  const series = win.map(k => {
+    const o = { date: k.slice(5), n: 0, g: 0, l: 0 };
+    const kTs = parseDate(k).ts;
+    for (const cid of ids) {
+      const a = afCre[cid]; if (!a || !a.daily[k]) continue;
+      const ad = (adCre || {})[cid];
+      const first = [a.first, ad && ad.first].filter(Boolean).sort()[0];
+      const age = Math.round((kTs - parseDate(first).ts) / 86400000);
+      const v = a.daily[k].org + a.daily[k].shop;
+      if (age <= 7) o.n += v; else if (age <= 30) o.g += v; else o.l += v;
+    }
+    o.n = Math.round(o.n); o.g = Math.round(o.g); o.l = Math.round(o.l);
+    return o;
+  });
+  return {
+    hasAds: !!adCre,
+    summary: { today: series[series.length - 1] || { n: 0, g: 0, l: 0 }, total: list.length, shown: top.length,
+      counts: list.reduce((a, x) => { a[x.bucket] = (a[x.bucket] || 0) + 1; return a; }, {}) },
+    series, list: top
+  };
+}
+
 // ── 웹 대시보드용 구조화 데이터 ────────────────────────────────
 function buildJson(agg, raw, adByDate, ins, vid, skuByDate, afByDate, orgShopByDate, orgShopByPid, mk) {
   const g = agg.g;
@@ -1250,9 +1368,20 @@ module.exports = async (req, res) => {
     if (req.query && req.query.format === "json") {
       const withInsights = req.query.insights === "1";
       const ins = withInsights ? await generateInsights(agg, vid) : null;
+      const out = buildJson(agg, raw, adByDate, ins, vid, skuByDate, afByDate, orgShopByDate, orgShopByPid, MK);
+      // 소재 타임라인 (?creatives=1) — 광고 시트를 추가로 읽으므로 요청 시에만
+      if (req.query.creatives === "1") {
+        const ck = "adcre:" + (process.env.ADS_SHEET_ID || "");
+        let adCre = (!fresh && MEM[ck] && now - MEM[ck].ts < 300000) ? MEM[ck].val : null;
+        if (!adCre) { adCre = await fetchAdCreatives(sheets); MEM[ck] = { ts: now, val: adCre }; }
+        const kk = Object.keys(raw.byDate).sort();
+        const ii = kk.indexOf(agg.date.key);
+        const win = kk.slice(Math.max(0, ii - 29), ii + 1);
+        out.creatives = buildCreativeTimeline(afCreativeDaily(vidByDate), adCre, win, agg.date.key, 60);
+      }
       res.setHeader("Cache-Control", fresh ? "no-store" : (withInsights ? "s-maxage=3600, stale-while-revalidate=86400" : "s-maxage=600, stale-while-revalidate=86400"));
       res.setHeader("Access-Control-Allow-Origin", "*");
-      res.status(200).json(buildJson(agg, raw, adByDate, ins, vid, skuByDate, afByDate, orgShopByDate, orgShopByPid, MK));
+      res.status(200).json(out);
       return;
     }
 
@@ -1296,4 +1425,4 @@ module.exports = async (req, res) => {
 };
 
 // 테스트용 내부 노출
-module.exports._internals = { num, parseDate, parseRaw, parseAds, parseCommissions, parseAffiliate, parseLive, aggregate, parseVideos, aggregateVideos, buildMain, videoChunks, generateInsights, buildJson, parseSkuOrders, skusForProduct, videoOrgShopByDate, videoOrgShopByDatePid, mapRawColumns, mapVideoColumns, mapAfColumns, mapAdColumns, findHeaderRow };
+module.exports._internals = { num, parseDate, parseRaw, parseAds, parseCommissions, parseAffiliate, parseLive, aggregate, parseVideos, aggregateVideos, buildMain, videoChunks, generateInsights, buildJson, parseSkuOrders, skusForProduct, videoOrgShopByDate, videoOrgShopByDatePid, afCreativeDaily, buildCreativeTimeline, mapRawColumns, mapVideoColumns, mapAfColumns, mapAdColumns, findHeaderRow };

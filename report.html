@@ -99,6 +99,14 @@
   .hm .rl{text-align:left;color:var(--ink);padding-right:8px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .hm .cell{width:26px;height:22px;border-radius:3px;color:#fff;font-size:9.5px;line-height:22px}
   .flag{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:5px;background:rgba(27,175,122,.16);color:var(--s2);margin-left:6px}
+  /* 소재 타임라인 */
+  .bg2{display:inline-block;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:20px;white-space:nowrap}
+  .b-new{background:rgba(42,120,214,.13);color:var(--s1)}
+  .b-grow{background:rgba(237,161,0,.16);color:var(--s3)}
+  .b-long{background:rgba(27,175,122,.14);color:var(--s2)}
+  .b-unk{background:var(--grid);color:var(--muted)}
+  tr.crow2{cursor:pointer} tr.crow2:hover td{background:var(--grid)}
+  tr.cdrow td{background:var(--surface);padding:12px 14px;white-space:normal}
   .pins{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--s1);border-radius:9px;padding:11px 13px;margin:12px 0 4px;font-size:12.5px;line-height:1.7}
   .pins b{font-weight:750}
   /* 기간 토글 */
@@ -153,6 +161,11 @@ async function load(){
       if(x&&x.insights){DATA.insights=x.insights;renderInsights(x.insights,false);}
       else renderInsights(null,true);
     }).catch(()=>renderInsights(null,true));
+    // 3차: 소재 타임라인 (광고 시트를 추가로 읽어 느리므로 별도 로드)
+    fetch(base+"&creatives=1").then(x=>x.json()).then(x=>{
+      if(x&&x.creatives){DATA.creatives=x.creatives;renderCreatives(x.creatives);}
+      else renderCreatives(null,true);
+    }).catch(()=>renderCreatives(null,true));
   }catch(e){
     $("#app").innerHTML='<div class="err">불러오기 실패: '+(e.message||e)+'<br>배포/환경변수를 확인하세요.</div>';
     $("#sub").textContent="";
@@ -164,6 +177,115 @@ function insCard(ins,failed){
   return failed?"":`<div class="card"><h3>💡 AI 인사이트</h3><div class="cap">⏳ 백그라운드에서 생성 중… (화면은 먼저 사용하세요)</div></div>`;
 }
 function renderInsights(ins,failed){const el=$("#insSlot");if(el)el.innerHTML=insCard(ins,failed);}
+
+// ── 🎬 소재 타임라인 ──────────────────────────────────────────
+const BK3={"신규":["🆕 신규","b-new"],"성장":["🔥 성장","b-grow"],"롱테일":["💤 롱테일","b-long"],"미상":["· 미상","b-unk"]};
+let CSORT={k:"rev",dir:-1}, CFILT="";
+function renderCreatives(c,failed){
+  const el=$("#creSlot"); if(!el)return;
+  if(!c){ el.innerHTML=failed?"":`<div class="card"><h3>🎬 소재 타임라인</h3><div class="cap">⏳ 불러오는 중… (광고 데이터 조인)</div></div>`; return; }
+  const t=c.summary.today, tot=(t.n+t.g+t.l)||1;
+  const kpis=`<div class="kpis">
+    ${kpi("당일 콘텐츠 매출",usd(tot),`소재 ${nf(c.summary.total)}개 · 상위 ${c.summary.shown}개 표시`)}
+    ${kpi("🆕 신규 (≤7일)",usd(t.n),`${(t.n/tot*100).toFixed(0)}% · ${c.summary.counts["신규"]||0}개`)}
+    ${kpi("🔥 성장 (8~30일)",usd(t.g),`${(t.g/tot*100).toFixed(0)}% · ${c.summary.counts["성장"]||0}개`)}
+    ${kpi("💤 롱테일 (31일+)",usd(t.l),`${(t.l/tot*100).toFixed(0)}% · ${c.summary.counts["롱테일"]||0}개  축적 자산`)}
+  </div>`;
+  const warn=c.hasAds?"":`<div class="cap" style="color:var(--s3)">⚠️ 광고 데이터를 읽지 못해 광고비·시청률은 비어 있습니다 (ADS_SHEET_ID 확인)</div>`;
+  const chips=`<div class="chips" style="margin-bottom:10px">
+    ${["","신규","성장","롱테일"].map(b=>`<span class="chip" onclick="cFilt('${b}')" style="${CFILT===b?"border-color:var(--s1);font-weight:700":""}">${b?BK3[b][0]:"전체"} <b>${b?(c.summary.counts[b]||0):c.summary.total}</b></span>`).join("")}
+  </div>`;
+  el.innerHTML=sect("🎬","소재 타임라인","매출=AF(오가닉+샵애즈) · 광고비·시청률=광고 데이터")+kpis+
+    `<div class="card"><h3>📈 소재 나이별 매출 추이</h3>
+      <div class="cap">신규 콘텐츠에 의존하는지, 축적된 자산이 버는지 — 롱테일 비중이 크면 히트작이 오래 파는 구조</div>
+      <div class="chartbox"><canvas id="cCreMix"></canvas></div></div>
+     <div class="card"><h3>🎥 소재별 성과</h3>
+      <div class="cap">행 클릭 → 일별 오가닉·샵애즈 매출 + 광고비 추이. 자립도 = 오가닉 비중(광고 없이 파는 정도)</div>
+      ${warn}${chips}<div style="overflow:auto;max-height:640px" id="creWrap"></div></div>`;
+  drawCreMix(c); drawCreTable();
+}
+function cFilt(b){CFILT=b;renderCreatives(DATA.creatives);}
+function cSort(k){ if(CSORT.k===k)CSORT.dir=-CSORT.dir; else {CSORT.k=k;CSORT.dir=-1;} drawCreTable(); }
+function drawCreMix(c){
+  const {S1,S2,S3,ink,muted,grid}=PAL;
+  const g={grid:{color:grid},ticks:{color:muted},border:{color:grid}};
+  NC($("#cCreMix"),{type:"bar",data:{labels:c.series.map(s=>s.date),datasets:[
+    {label:"🆕 신규(≤7일)",data:c.series.map(s=>s.n),backgroundColor:S1},
+    {label:"🔥 성장(8~30일)",data:c.series.map(s=>s.g),backgroundColor:S2},
+    {label:"💤 롱테일(31일+)",data:c.series.map(s=>s.l),backgroundColor:S3}]},
+    options:{maintainAspectRatio:false,plugins:{legend:{labels:{color:ink,boxWidth:12,usePointStyle:true,pointStyle:"rectRounded"}},
+      tooltip:{callbacks:{label:x=>x.dataset.label+": "+usd(x.raw)}}},
+      scales:{x:{...g,stacked:true},y:{...g,stacked:true,ticks:{color:muted,callback:usdk}}}}});
+}
+function drawCreTable(){
+  const c=DATA&&DATA.creatives; if(!c)return;
+  let list=c.list.filter(x=>!CFILT||x.bucket===CFILT);
+  const gv=(o,k)=>o[k];
+  list=list.slice().sort((a,b)=>{const x=gv(a,CSORT.k),y=gv(b,CSORT.k);
+    if(x==null&&y==null)return 0; if(x==null)return 1; if(y==null)return -1; return CSORT.dir*(x-y);});
+  const th=(k,l)=>`<th onclick="cSort('${k}')" style="cursor:pointer;user-select:none${CSORT.k===k?";color:var(--s1);font-weight:700":""}">${l}${CSORT.k===k?(CSORT.dir===-1?" ▼":" ▲"):""}</th>`;
+  $("#creWrap").innerHTML=`<table>
+    <tr><th class="l">나이</th><th class="l">소재 / 크리에이터</th>
+    ${th("rev","매출")}${th("org","오가닉")}${th("shop","샵애즈")}${th("organicShare","자립도")}
+    ${th("spend","광고비")}${th("roi","진짜ROI")}${th("orders","건수")}
+    <th class="l">일별 추이</th></tr>
+    ${list.map((x,i)=>{
+      const b=BK3[x.bucket]||[x.bucket,""];
+      return `<tr class="crow2" data-i="${i}">
+        <td class="l"><span class="bg2 ${b[1]}">${b[0]}</span><div style="font-size:10px;color:var(--muted)">${x.age!=null?x.age+"일차":""}</div></td>
+        <td class="l" style="max-width:190px"><a href="${x.link}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="font-size:11.5px">${esc(x.cid)} ↗</a>
+          <div style="font-size:11px;color:var(--muted)">@${esc(x.creator||"?")}${x.status?" · "+esc(x.status):""}</div></td>
+        <td><b>${usd(x.rev)}</b></td><td style="color:var(--s2)">${usd(x.org)}</td><td style="color:var(--s1)">${usd(x.shop)}</td>
+        <td>${x.organicShare!=null?x.organicShare+"%":"–"}</td>
+        <td>${x.spend?usd(x.spend):"–"}</td><td>${x.roi!=null?x.roi+"x":"–"}</td><td>${nf(x.orders)}</td>
+        <td>${creSpark(x.d)}</td></tr>`;}).join("")}
+    </table><div class="pill" style="padding:9px 4px">${list.length}개 표시 · 헤더 클릭 정렬 · 행 클릭 상세</div>`;
+  $("#creWrap").__list=list;
+}
+// 오가닉(초록)+샵애즈(파랑) 스택 미니바 + 광고비(주황) 라인
+function creSpark(d){
+  if(!d||!d.length)return"";
+  const w=118,h=26,mx=Math.max(1,...d.map(x=>x[1]+x[2])),ms=Math.max(0.01,...d.map(x=>x[3]));
+  const bw=w/d.length;
+  const bars=d.map((x,i)=>{const tt=x[1]+x[2];if(!tt)return"";
+    const ho=(x[1]/mx)*(h-3),hs=(x[2]/mx)*(h-3);
+    return `<rect x="${(i*bw).toFixed(1)}" y="${(h-ho-hs).toFixed(1)}" width="${(bw*0.8).toFixed(1)}" height="${hs.toFixed(1)}" fill="#2a78d6"/>`+
+           `<rect x="${(i*bw).toFixed(1)}" y="${(h-ho).toFixed(1)}" width="${(bw*0.8).toFixed(1)}" height="${ho.toFixed(1)}" fill="#1baf7a"/>`;}).join("");
+  const pts=d.map((x,i)=>`${(i*bw+bw*0.4).toFixed(1)},${(h-2-(x[3]/ms)*(h-5)).toFixed(1)}`).join(" ");
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><title>초록=오가닉 파랑=샵애즈 주황선=광고비</title>${bars}<polyline points="${pts}" fill="none" stroke="#eda100" stroke-width="1.2" opacity="0.9"/></svg>`;
+}
+// 행 클릭 → 상세 타임라인 차트
+document.addEventListener("click",e=>{
+  const row=e.target.closest("tr.crow2"); if(!row)return;
+  const nx=row.nextElementSibling;
+  if(nx&&nx.classList.contains("cdrow")){ nx.style.display=nx.style.display==="none"?"table-row":"none"; return; }
+  const x=($("#creWrap").__list||[])[+row.getAttribute("data-i")]; if(!x)return;
+  const id="ctl"+x.cid;
+  const tr=document.createElement("tr"); tr.className="cdrow";
+  const dt=x.detail;
+  tr.innerHTML=`<td colspan="10">
+    <div class="statrow">
+      <div class="stat"><div class="sl">첫 등장</div><div class="sv" style="font-size:13px">${x.first||"–"}</div></div>
+      <div class="stat"><div class="sl">기간 매출</div><div class="sv" style="font-size:13px">${usd(x.rev)}</div></div>
+      <div class="stat"><div class="sl">광고비</div><div class="sv" style="font-size:13px">${x.spend?usd(x.spend):"–"}</div></div>
+      <div class="stat"><div class="sl">진짜 ROI</div><div class="sv" style="font-size:13px">${x.roi!=null?x.roi+"x":"–"}</div></div>
+      <div class="stat"><div class="sl">자립도</div><div class="sv" style="font-size:13px">${x.organicShare!=null?x.organicShare+"%":"–"}</div></div>
+      ${dt?`<div class="stat"><div class="sl">CTR / CVR</div><div class="sv" style="font-size:13px">${dt.ctr??"–"}% / ${dt.cvr??"–"}%</div></div>
+      <div class="stat"><div class="sl">2초 / 6초</div><div class="sv" style="font-size:13px">${dt.v2s??"–"}% / ${dt.v6s??"–"}%</div></div>`:""}
+    </div>
+    <div class="chartbox sm"><canvas id="${id}"></canvas></div></td>`;
+  row.after(tr);
+  const {S1,S2,S3,ink,muted,grid}=PAL;
+  const g={grid:{color:grid},ticks:{color:muted},border:{color:grid}};
+  NC($("#"+id),{data:{labels:x.d.map(v=>v[0]),datasets:[
+    {type:"bar",label:"오가닉",data:x.d.map(v=>v[1]),backgroundColor:S2,stack:"r"},
+    {type:"bar",label:"샵애즈",data:x.d.map(v=>v[2]),backgroundColor:S1,stack:"r"},
+    {type:"bar",label:"광고비",data:x.d.map(v=>v[3]),backgroundColor:S3}]},
+    options:{maintainAspectRatio:false,plugins:{legend:{labels:{color:ink,boxWidth:12,usePointStyle:true,pointStyle:"rectRounded"}},
+      tooltip:{callbacks:{label:c2=>c2.dataset.label+": "+usd(c2.raw)}}},
+      scales:{x:g,y:{...g,ticks:{color:muted,callback:usdk}}}}});
+  tr.scrollIntoView({block:"nearest",behavior:"smooth"});
+});
 
 function kpi(l,v,d){return `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div>${d?`<div class="d">${d}</div>`:""}</div>`}
 // 순차형 파랑 램프 (순위=진하게) — 구성비 도넛용
@@ -518,7 +640,8 @@ function render(d){
   }
 
   DATA=d;
-  $("#app").innerHTML = sec1 + sec2 + secAdv + sec3 + sec4 + sec5;
+  $("#app").innerHTML = sec1 + sec2 + secAdv + sec3 + `<div id="creSlot"></div>` + sec4 + sec5;
+  renderCreatives(DATA.creatives||null);   // 이미 도착했으면 즉시, 아니면 로딩 표시
   // 제품 딥다이브 펼칠 때 해당 제품 차트 지연 렌더
   document.querySelectorAll("details.pd").forEach(el=>{
     el.addEventListener("toggle",()=>{ if(el.open) drawProductCharts(+el.getAttribute("data-rank")); });
