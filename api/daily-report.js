@@ -190,7 +190,7 @@ function parseRaw(rows) {
     if (id) {
       const p = prod[d.key][id] || (prod[d.key][id] = {
         name: clean(r[M.name]), gmv: 0, sku: 0, orders: 0, items: 0, cust: 0,
-        sl: 0, sv: 0, aff: 0, avid: 0, alive: 0, pc: 0, imp: 0, clk: 0, atc: 0, newVid: 0, newLive: 0, refund: 0
+        sl: 0, sv: 0, aff: 0, avid: 0, alive: 0, pc: 0, imp: 0, clk: 0, atc: 0, uclk: 0, newVid: 0, newLive: 0, refund: 0
       });
       p.gmv += num(r[M.gmv]); p.sku += num(r[M.sku]);
       p.orders += num(r[M.orders]); p.items += num(r[M.items]); p.cust += num(r[M.cust]);
@@ -198,7 +198,7 @@ function parseRaw(rows) {
       p.aff += num(r[M.affiliate]); p.pc += num(r[M.productCard]);
       p.avid += num(r[M.affVidG]); p.alive += num(r[M.affLiveG]);
       p.refund += num(r[M.refund]);
-      p.imp += num(r[M.imp]); p.clk += num(r[M.clk]); p.atc += num(r[M.atc]);
+      p.imp += num(r[M.imp]); p.clk += num(r[M.clk]); p.atc += num(r[M.atc]); p.uclk += num(r[M.uclk]);
       p.newVid += num(r[M.newVid]); p.newLive += num(r[M.newLive]);
       // 채널별 퍼널(노출/클릭/주문) — 딥다이브 채널 트래픽 질 표
       if (M.impSL != null) {
@@ -965,7 +965,7 @@ function buildJson(agg, raw, adByDate, ins, vid, skuByDate, afByDate, orgShopByD
       date: raw.byDate[k].date.md, gmv: Math.round(gmv),
       orders: pp ? Math.round(pp.sku) : 0, cost: Math.round(spend),
       roi: spend ? +(gmv / spend).toFixed(2) : null,
-      imp: pp ? Math.round(pp.imp) : 0, clk: pp ? Math.round(pp.clk) : 0, atc: pp ? Math.round(pp.atc) : 0,
+      imp: pp ? Math.round(pp.imp) : 0, clk: pp ? Math.round(pp.clk) : 0, atc: pp ? Math.round(pp.atc) : 0, uclk: pp ? Math.round(pp.uclk) : 0,
       newVid: pp ? Math.round(pp.newVid) : 0, samples: afp ? Math.round(afp.samples) : 0,
       org: os ? Math.round(os.org) : 0, shop: os ? Math.round(os.shop) : 0
     };
@@ -1008,7 +1008,7 @@ function buildJson(agg, raw, adByDate, ins, vid, skuByDate, afByDate, orgShopByD
       dod: x.dod, wow: x.wow,
       channels: chan,
       funnel: {
-        imp: Math.round(x.imp || 0), clk: Math.round(x.clk || 0), atc: Math.round(x.atc || 0), sku: x.sku,
+        imp: Math.round(x.imp || 0), clk: Math.round(x.clk || 0), atc: Math.round(x.atc || 0), uclk: Math.round(x.uclk || 0), sku: x.sku,
         ctr: x.imp ? +(x.clk / x.imp * 100).toFixed(2) : 0,
         atcRate: x.clk ? +(x.atc / x.clk * 100).toFixed(2) : 0,
         orderConv: x.clk ? +(x.sku / x.clk * 100).toFixed(2) : 0
