@@ -51,10 +51,11 @@
   function has(s) { return String(s == null ? "" : s).trim() !== ""; }
 
   function money(currency, amount) {
-    const cur = (currency || "KRW").toUpperCase();
+    const cur = (currency || "USD").toUpperCase();
     const n = Number(String(amount).replace(/[^0-9.-]/g, ""));
     if (!isFinite(n) || !n) return "";
-    // 참고 메일과 동일한 표기: "KRW 650,000"
+    // 통화 기호가 아니라 코드로 적는다: "USD 500"
+    // (₩ 는 가로 이중선이 숫자에 취소선처럼 겹쳐 보이고, $ 는 어느 나라 달러인지 모호하다)
     return cur + " " + n.toLocaleString("en-US", { maximumFractionDigits: 2 });
   }
 

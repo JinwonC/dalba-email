@@ -189,7 +189,7 @@
           인식하는 열: <b>email</b>(필수) · name · handle · amount · commission · whyYou<br />
           amount/commission 을 넣은 행은 그 값이 <b>아래 공통 조건보다 우선</b>합니다.
         </div>
-        <textarea id="bulkText" rows="8" placeholder="email	name	handle	amount	whyYou&#10;jason@example.com	Jason Choi	@jasonchoi	650000	Your glass-skin video hit 800K&#10;mia@example.com	Mia	@miabeauty		Loved your SPF review"></textarea>
+        <textarea id="bulkText" rows="8" placeholder="email	name	handle	amount	whyYou&#10;jason@example.com	Jason Choi	@jasonchoi	500	Your glass-skin video hit 800K&#10;mia@example.com	Mia	@miabeauty		Loved your SPF review"></textarea>
         <div class="bulkinfo" id="bulkInfo"></div>
         <div class="scroll" id="bulkTable" style="display:none"></div>
       </div>
@@ -220,10 +220,10 @@
         <div class="grid3">
           <label class="f"><span>통화</span>
             <select id="currency">
-              <option value="KRW">KRW ₩</option><option value="USD">USD $</option>
+              <option value="USD">USD $</option><option value="KRW">KRW ₩</option>
               <option value="GBP">GBP £</option><option value="EUR">EUR €</option><option value="JPY">JPY ¥</option>
             </select></label>
-          <label class="f"><span>금액</span><input id="amount" type="text" inputmode="numeric" placeholder="650000" /></label>
+          <label class="f"><span>금액</span><input id="amount" type="text" inputmode="numeric" placeholder="500" /></label>
           <label class="f"><span>커미션 %</span><input id="commission" type="text" inputmode="decimal" placeholder="20" /></label>
         </div>
         <div class="grid2">
