@@ -214,30 +214,35 @@
       infoBox(inner, { align: "left", pad: "20px 24px" });
   }
 
-  // ─── 다음 단계 1·2·3 ───────────────────────────────────────────
-  function stepsBlock(d) {
-    const steps = (Array.isArray(d.steps) && d.steps.length ? d.steps : [
-      "Reply to this email (or tap the button below) to let us know you're in.",
-      "We'll send the full brief, the product, and your affiliate link.",
-      "You create, we boost it — and you get paid."
-    ]).filter(has);
-    if (!steps.length) return "";
+  // ─── NEXT STEPS — 크리에이터가 답장에 무엇을 담아야 하는지 ──────
+  const DEFAULT_STEPS_INTRO = "If you're interested, please share:";
+  const DEFAULT_STEPS = [
+    "A quick reply letting us know you're in — we'll send over the full collaboration details.",
+    "Your WhatsApp number, or whichever contact method you prefer, for quick coordination."
+  ];
 
-    let inner = '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">';
+  function stepsBlock(d) {
+    const steps = (Array.isArray(d.steps) ? d.steps : DEFAULT_STEPS).filter(has);
+    if (!steps.length) return "";
+    const intro = has(d.stepsIntro) ? d.stepsIntro : DEFAULT_STEPS_INTRO;
+
+    let inner = '<div style="font:400 14.5px/1.65 ' + FONT + ";color:" + C.text + ';padding-bottom:16px;">' +
+      nl2br(intro) + "</div>" +
+      '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">';
+
     steps.forEach(function (s, i) {
       inner += "<tr>" +
-        '<td width="34" valign="top" style="padding:' + (i ? "14px" : "0") + ' 12px 0 0;">' +
+        '<td width="36" valign="top" style="padding:' + (i ? "14px" : "0") + ' 12px 0 0;">' +
         '<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>' +
-        '<td width="26" height="26" align="center" valign="middle" style="width:26px;height:26px;background:' + C.dark +
+        '<td width="26" height="26" align="center" valign="middle" style="width:26px;height:26px;background:' + C.gold +
         ";border-radius:13px;font:700 12px/26px " + FONT + ';color:#fff;">' + (i + 1) + "</td>" +
         "</tr></table></td>" +
-        '<td valign="top" style="padding:' + (i ? "14px" : "0") + ' 0 0;font:400 14.5px/1.6 ' + FONT + ";color:" + C.text + ';">' +
+        '<td valign="top" style="padding:' + (i ? "14px" : "0") + ' 0 0;font:600 14.5px/1.6 ' + FONT + ";color:" + C.text + ';">' +
         nl2br(s) + "</td></tr>";
     });
     inner += "</table>";
 
-    return sectionLabel("📋", "What happens next") +
-      '<tr><td style="padding:0;">' + inner + "</td></tr>";
+    return sectionLabel("📋", "Next steps") + infoBox(inner, { align: "left", pad: "22px 24px" });
   }
 
   // ─── CTA 버튼 ──────────────────────────────────────────────────
@@ -259,7 +264,6 @@
     const creator = has(d.creatorName) ? d.creatorName : (has(d.handle) ? "@" + String(d.handle).replace(/^@/, "") : "there");
     const brand = has(d.brand) ? d.brand : "d'Alba";
     const title = has(d.campaignTitle) ? d.campaignTitle : "Paid Collab Invitation";
-    const survey = safeUrl(d.surveyUrl);
 
     let body = "";
 
@@ -291,17 +295,6 @@
     body += detailRows(d);
     body += productBlock(d);
     body += videoBlock(d);
-
-    // 설문
-    if (survey) {
-      body += sectionLabel("📌", "Quick creator survey") + infoBox(
-        '<div style="font:400 14.5px/1.65 ' + FONT + ";color:" + C.text + ';padding-bottom:10px;">' +
-        esc(has(d.surveyNote) ? d.surveyNote : "Tell us a bit about you and your audience — takes 3 minutes. 😊") + "</div>" +
-        '<a href="' + survey + '" style="font:700 14px/1.5 ' + FONT + ";color:" + C.gold + ';text-decoration:none;word-break:break-all;">' +
-        survey + "</a>",
-        { align: "left", pad: "20px 24px" }
-      );
-    }
 
     // 다음 단계 · CTA
     body += stepsBlock(d);
@@ -402,7 +395,12 @@
       L.push(""); L.push("VIDEOS THAT ARE ALREADY POPPING OFF");
       vids.forEach(function (v) { L.push("- " + (v.label ? v.label + " — " : "") + v.url.replace(/&amp;/g, "&")); });
     }
-    if (safeUrl(d.surveyUrl)) { L.push(""); L.push("Quick creator survey: " + String(d.surveyUrl).trim()); }
+    const tSteps = (Array.isArray(d.steps) ? d.steps : DEFAULT_STEPS).filter(has);
+    if (tSteps.length) {
+      L.push(""); L.push("NEXT STEPS");
+      L.push(has(d.stepsIntro) ? d.stepsIntro : DEFAULT_STEPS_INTRO);
+      tSteps.forEach(function (s, i) { L.push((i + 1) + ". " + s); });
+    }
     if (safeUrl(d.applyUrl)) { L.push(""); L.push((has(d.applyLabel) ? d.applyLabel : "Count me in") + ": " + String(d.applyUrl).trim()); }
     if (has(d.notes)) { L.push(""); L.push(d.notes); }
     L.push(""); L.push("Looking forward to hearing from you!");
@@ -418,7 +416,7 @@
   const FILLABLE = [
     "subject", "campaignTitle", "brandIntro", "pitch", "whyYou",
     "deliverables", "deadline", "location", "productDesc", "notes",
-    "surveyNote", "paymentNote", "commissionNote", "applyLabel", "preheader", "videosNote"
+    "paymentNote", "commissionNote", "applyLabel", "preheader", "videosNote", "stepsIntro"
   ];
 
   function varsOf(d) {
@@ -440,6 +438,8 @@
     const vars = varsOf(src);
     const out = Object.assign({}, src);
     FILLABLE.forEach(function (k) { if (has(out[k])) out[k] = fill(out[k], vars); });
+    // steps 는 문자열 배열이라 따로 처리한다
+    if (Array.isArray(out.steps)) out.steps = out.steps.map(function (s) { return fill(s, vars); });
     return out;
   }
 
@@ -475,6 +475,8 @@
     validate: validate,
     money: money,
     DEFAULT_SUBJECT: DEFAULT_SUBJECT,
+    DEFAULT_STEPS_INTRO: DEFAULT_STEPS_INTRO,
+    DEFAULT_STEPS: DEFAULT_STEPS,
     COLORS: C
   };
 });

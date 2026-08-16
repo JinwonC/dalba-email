@@ -264,14 +264,25 @@
           <input id="videosNote" type="text" placeholder="Here's how this product is already performing with creators:" /></label>
       </div>
 
+      <!-- NEXT STEPS -->
+      <div class="panel">
+        <h2>Next steps — 답장에 뭘 담아 달라고 할지</h2>
+        <div class="hint">번호 칸을 비우면 그 줄은 메일에서 빠집니다. 필요하면 단가·배송지 같은 항목을 추가하세요.</div>
+        <label class="f"><span>안내 문장</span>
+          <input id="stepsIntro" type="text" placeholder="If you're interested, please share:" /></label>
+        <label class="f"><span>1</span><input id="s1" type="text" /></label>
+        <label class="f"><span>2</span><input id="s2" type="text" /></label>
+        <label class="f"><span>3 <i>— 선택</i></span><input id="s3" type="text" placeholder="Your flat fee rate" /></label>
+        <label class="f"><span>4 <i>— 선택</i></span><input id="s4" type="text" placeholder="Your shipping address" /></label>
+      </div>
+
       <!-- 액션 -->
       <div class="panel">
-        <h2>다음 단계</h2>
+        <h2>버튼 · 맺음말</h2>
         <div class="grid2">
-          <label class="f"><span>CTA 버튼 링크</span><input id="applyUrl" type="text" placeholder="https://forms.gle/..." /></label>
+          <label class="f"><span>CTA 버튼 링크 <i>— 비우면 버튼이 빠짐</i></span><input id="applyUrl" type="text" placeholder="https://forms.gle/..." /></label>
           <label class="f"><span>CTA 버튼 문구</span><input id="applyLabel" type="text" placeholder="Count me in →" /></label>
         </div>
-        <label class="f"><span>설문 링크 <i>— 선택</i></span><input id="surveyUrl" type="text" placeholder="https://forms.gle/..." /></label>
         <label class="f"><span>맺음말 <i>— 선택</i></span>
           <textarea id="notes" rows="2" placeholder=""></textarea></label>
       </div>
@@ -315,7 +326,7 @@ let DEAL = "paid";
 const FIELDS = ["creatorName","handle","to","whyYou","brand","campaignTitle","brandIntro","pitch","subject",
   "currency","amount","commission","paymentNote","commissionNote","deliverables","deadline","location",
   "product","productUrl","productImage","productDesc","v1u","v1l","v2u","v2l","v3u","v3l","videosNote",
-  "applyUrl","applyLabel","surveyUrl","notes","bulkText"];
+  "stepsIntro","s1","s2","s3","s4","applyUrl","applyLabel","notes","bulkText"];
 /* 수신자마다 달라지는 값은 초안에서 제외 — 다음 사람에게 잘못 나가는 사고 방지 */
 const PER_RECIPIENT = ["creatorName","handle","to","whyYou"];
 
@@ -485,7 +496,9 @@ function campaign(){
     product: val("product"), productUrl: val("productUrl"), productImage: val("productImage"),
     productDesc: val("productDesc"),
     videos: videos(), videosNote: val("videosNote"),
-    applyUrl: val("applyUrl"), applyLabel: val("applyLabel"), surveyUrl: val("surveyUrl"), notes: val("notes"),
+    stepsIntro: val("stepsIntro"),
+    steps: ["s1","s2","s3","s4"].map(val).filter(Boolean),
+    applyUrl: val("applyUrl"), applyLabel: val("applyLabel"), notes: val("notes"),
     senderName: a.name || "", senderEmail: a.email || "", senderTitle: a.title || ""
   };
 }
@@ -546,6 +559,11 @@ function loadDraft(){
   FIELDS.forEach(f => { if($(f) && o[f] != null) $(f).value = o[f]; });
   if(!val("subject")) $("subject").value = T.DEFAULT_SUBJECT;
   if(!val("brand")) $("brand").value = "d'Alba";
+  // Next steps 는 처음 열 때만 기본 문구를 채운다 (지운 상태는 그대로 존중)
+  if(o.stepsIntro == null && o.s1 == null){
+    $("stepsIntro").value = T.DEFAULT_STEPS_INTRO;
+    (T.DEFAULT_STEPS || []).forEach((s,i) => { if($("s"+(i+1))) $("s"+(i+1)).value = s; });
+  }
   setDeal(localStorage.getItem("outreach_deal") || "paid");
 }
 
