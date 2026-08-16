@@ -11,9 +11,6 @@
     },
     "api/ads-report.js": {
       "maxDuration": 60
-    },
-    "api/outreach-send.js": {
-      "maxDuration": 60
     }
   }
 }

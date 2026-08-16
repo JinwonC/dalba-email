@@ -77,7 +77,7 @@
       <div class="sub">dalbatiktokshopofficial@gmail.com · 받은편지함 — Gmail 실시간 연동</div>
     </div>
     <div class="right">
-      <a class="reload" href="/outreach.html" style="text-decoration:none;color:inherit;margin-right:4px;font-weight:600">📨 아웃리치 발송</a>
+      <span id="outreachNav"></span>
       <a class="reload" href="/team.html" style="text-decoration:none;color:inherit;margin-right:4px;font-weight:600">📊 아웃리치 팀 대시보드</a>
       <button class="reload" onclick="load()">새로고침</button>
       <button class="logout" onclick="logout()">로그아웃</button>
@@ -91,6 +91,10 @@
 </div>
 
 <script>
+/* 아웃리치 발송 툴은 별도 레포·별도 Vercel 프로젝트(dalba-outreach)로 분리됨.
+   아래에 그 사이트 주소를 넣으면 헤더에 바로가기 버튼이 생긴다. 비워 두면 버튼이 안 보인다. */
+const OUTREACH_SITE = "";
+
 let DATA = { rows: [], stats: {} };
 let FILTER = "ours";
 const TABS = [
@@ -178,6 +182,12 @@ function renderTable(){
     '</tr>';
   }).join("");
   document.getElementById("content").innerHTML='<table><thead>'+head+'</thead><tbody>'+body+'</tbody></table>';
+}
+
+if(OUTREACH_SITE){
+  document.getElementById("outreachNav").innerHTML =
+    '<a class="reload" href="'+OUTREACH_SITE.replace(/\/+$/,"")+'" target="_blank" rel="noopener"' +
+    ' style="text-decoration:none;color:inherit;margin-right:4px;font-weight:600">📨 아웃리치 발송 ↗</a>';
 }
 
 // 시작: 저장된 비번 있으면 바로 시도, 없으면 게이트 표시

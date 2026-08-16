@@ -109,7 +109,7 @@
       <div class="sub">@dalbausa.com 6명 · 참조(CC) 메일 실시간 집계 · 담당자=발신, 크리에이터=수신</div>
     </div>
     <div class="right">
-      <a class="reload" href="/outreach.html" style="text-decoration:none;color:inherit;margin-right:4px;font-weight:600">📨 아웃리치 발송</a>
+      <span id="outreachNav"></span>
       <a class="reload" href="/index.html" style="text-decoration:none;color:inherit;margin-right:4px">✉️ 회신 트래커</a>
       <button class="reload" onclick="load()">새로고침</button>
       <button class="logout" onclick="logout()">로그아웃</button>
@@ -130,6 +130,10 @@
 </div>
 
 <script>
+/* 아웃리치 발송 툴은 별도 레포·별도 Vercel 프로젝트(dalba-outreach)로 분리됨.
+   아래에 그 사이트 주소를 넣으면 헤더에 바로가기 버튼이 생긴다. 비워 두면 버튼이 안 보인다. */
+const OUTREACH_SITE = "";
+
 let DATA = null;
 const PRESETS = [
   { key:"today", label:"오늘", days:0 },
@@ -251,6 +255,12 @@ function render(){
 
 // 시작
 renderPresets();
+if(OUTREACH_SITE){
+  document.getElementById("outreachNav").innerHTML =
+    '<a class="reload" href="'+OUTREACH_SITE.replace(/\/+$/,"")+'" target="_blank" rel="noopener"' +
+    ' style="text-decoration:none;color:inherit;margin-right:4px;font-weight:600">📨 아웃리치 발송 ↗</a>';
+}
+
 setPreset("7");   // 기본 최근 7일 → load()
 if(!pw()) showGate();
 </script>
