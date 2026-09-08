@@ -4,19 +4,17 @@
   --paper:#F6F5F2; --card:#FFFFFF; --ink:#1D2126; --sub:#5A616B; --faint:#8A919C;
   --line:#E5E3DE; --brand:#9A7B2D; --brand-soft:#F3EEE0;
   --blue:#2A6FD6; --green:#137a52; --red:#C0392B;
-  --cost:#FEF6E0; --cost-b:#EAD79B; --pos:#e8f5ee; --neg:#fbecea;
+  --cost:#FEF6E0; --cost-b:#EAD79B;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --paper:#15171B; --card:#1E2127; --ink:#ECEDEF; --sub:#A6ADB6; --faint:#767D88;
   --line:#31353D; --brand:#C9A85C; --brand-soft:#2A2718;
   --blue:#5B9BF0; --green:#42c98d; --red:#EA6a63; --cost:#2b2718; --cost-b:#54471f;
-  --pos:#16281f; --neg:#2c1c1a;
 }}
 :root[data-theme="dark"]{
   --paper:#15171B; --card:#1E2127; --ink:#ECEDEF; --sub:#A6ADB6; --faint:#767D88;
   --line:#31353D; --brand:#C9A85C; --brand-soft:#2A2718;
   --blue:#5B9BF0; --green:#42c98d; --red:#EA6a63; --cost:#2b2718; --cost-b:#54471f;
-  --pos:#16281f; --neg:#2c1c1a;
 }
 *{box-sizing:border-box}
 body{background:var(--paper);color:var(--ink);font-family:"Apple SD Gothic Neo","Malgun Gothic","Pretendard",system-ui,sans-serif;margin:0;line-height:1.5;font-variant-numeric:tabular-nums}
@@ -28,16 +26,19 @@ h1{font-size:23px;margin:0 0 3px;letter-spacing:-.02em}
 .lbl{font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--faint);text-transform:uppercase;margin:0 0 10px}
 select,input{font:inherit;color:inherit;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:9px 11px;width:100%;font-variant-numeric:tabular-nums}
 select:focus,input:focus{outline:2px solid var(--blue);outline-offset:-1px;border-color:var(--blue)}
-.row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:7px 0;border-bottom:1px dashed var(--line)}
+.row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px dashed var(--line)}
 .row:last-child{border-bottom:0}
 .row .k{color:var(--sub);font-size:13.5px}
+.row .k small{color:var(--faint);font-size:11px}
 .row .v{font-weight:600;font-size:14px;white-space:nowrap}
-.row input{width:110px;text-align:right;padding:5px 8px;font-weight:600}
+.row input{width:96px;text-align:right;padding:6px 8px;font-weight:600}
+.uwrap{display:flex;align-items:center;gap:5px}
+.uwrap span{color:var(--faint);font-size:12px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 @media(max-width:640px){.grid2{grid-template-columns:1fr}}
 .inputcard{background:var(--cost);border-color:var(--cost-b)}
 .inputcard input{background:var(--card);border-color:var(--cost-b)}
-.big{font-size:30px;font-weight:800;letter-spacing:-.02em;margin:2px 0}
+.big{font-size:31px;font-weight:800;letter-spacing:-.02em;margin:2px 0}
 .big.pos{color:var(--green)} .big.neg{color:var(--red)}
 .kpis{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
 @media(max-width:640px){.kpis{grid-template-columns:1fr 1fr}}
@@ -57,7 +58,7 @@ th{color:var(--faint);font-size:11px;font-weight:700;letter-spacing:.03em}
 </style>
 <div class="wrap">
   <h1>틱톡샵 SKU 마진 계산기</h1>
-  <p class="sub"><b>6~9월 정산 데이터</b> 기준 · 실판매가=<b>중앙값(전형 실거래가·환불 제외)</b> · <b>노란칸(원가·ROI)</b>만 입력하면 순마진 산출</p>
+  <p class="sub"><b>6~9월 정산</b> 기준 · 수수료=<b>판매가 비례(%)</b> · 배송=<b>건당 고정($)</b> · <b>판매가·원가·ROI</b>만 바꾸면 마진 산출</p>
 
   <div class="card">
     <p class="lbl">제품 선택 (SKU)</p>
@@ -67,23 +68,20 @@ th{color:var(--faint);font-size:11px;font-weight:700;letter-spacing:.03em}
 
   <div class="grid2">
     <div class="card">
-      <p class="lbl">① 정산 흐름 (개당 · 실판매가 바꾸면 수수료 자동 스케일)</p>
-      <div class="row"><span class="k">실판매가 (중앙값)</span><input id="net" type="number" step="0.01"></div>
-      <div class="row"><span class="k">리퍼럴 수수료</span><input id="ref" type="number" step="0.01"></div>
-      <div class="row"><span class="k">어필리에이트 커미션</span><input id="aff" type="number" step="0.01"></div>
-      <div class="row"><span class="k">샵애즈 커미션</span><input id="shopads" type="number" step="0.01"></div>
-      <div class="row"><span class="k">코펀드 프로모션</span><input id="cofund" type="number" step="0.01"></div>
-      <div class="row"><span class="k">거래 수수료</span><input id="txn" type="number" step="0.01"></div>
-      <div class="row"><span class="k">기타(세금·배송 등 잔차)</span><input id="etc" type="number" step="0.01"></div>
+      <p class="lbl">① 정산 흐름 (개당)</p>
+      <div class="row"><span class="k">실판매가 <small>(중앙값·수정 가능)</small></span><input id="net" type="number" step="0.5"></div>
+      <div class="row"><span class="k">변동 수수료 <small>리퍼럴·커미션·세금</small></span><div class="uwrap"><input id="varRate" type="number" step="0.1"><span>%</span></div></div>
+      <div class="row"><span class="k">→ 수수료 금액</span><span class="v" id="varAmt">–</span></div>
+      <div class="row"><span class="k">배송/풀필먼트 <small>건당 고정</small></span><div class="uwrap"><span>$</span><input id="ship" type="number" step="0.1"></div></div>
       <div class="row"><span class="k settle">= 틱톡 정산 수령액</span><span class="v settle" id="settle">–</span></div>
     </div>
 
     <div class="card inputcard">
       <p class="lbl">② 원가 · 광고 입력</p>
-      <div class="row"><span class="k">상품 원가 (COGS, $/개)</span><input id="cogs" type="number" step="0.01" placeholder="입력"></div>
-      <div class="row"><span class="k">광고 ROI (매출÷광고비)</span><input id="roi" type="number" step="0.1" placeholder="예: 3.5"></div>
-      <div class="row"><span class="k">→ 광고비 (실판매가÷ROI)</span><span class="v" id="adcost">–</span></div>
-      <p class="hint">※ 원가는 SKU별로 자동 저장. ROI = 실판매가 기준 광고비 역산. 광고 미집행이면 ROI 비우면 됨.</p>
+      <div class="row"><span class="k">상품 원가 <small>COGS/개</small></span><div class="uwrap"><span>$</span><input id="cogs" type="number" step="0.5" placeholder="입력"></div></div>
+      <div class="row"><span class="k">광고 ROI <small>매출÷광고비</small></span><input id="roi" type="number" step="0.1" placeholder="예: 3.5"></div>
+      <div class="row"><span class="k">→ 광고비 <small>판매가÷ROI</small></span><span class="v" id="adcost">–</span></div>
+      <p class="hint">※ 원가는 SKU별 자동 저장. 광고 미집행이면 ROI 비우면 됨.</p>
     </div>
   </div>
 
@@ -93,30 +91,29 @@ th{color:var(--faint);font-size:11px;font-weight:700;letter-spacing:.03em}
     <div style="color:var(--sub);font-size:12px;margin-bottom:14px">순마진 (개당) = 정산 수령액 − 원가 − 광고비</div>
     <div class="kpis">
       <div class="kpi"><div class="t">마진율 (실판매가 대비)</div><div class="n" id="mrNet">–</div></div>
-      <div class="kpi"><div class="t">마진율 (정가 대비)</div><div class="n" id="mrGross">–</div></div>
+      <div class="kpi"><div class="t">정산율 (판매가 대비)</div><div class="n" id="srate">–</div></div>
       <div class="kpi"><div class="t">손익분기 ROI</div><div class="n" id="beRoi">–</div></div>
     </div>
     <div class="tot" id="totmargin"></div>
   </div>
 
   <div class="card">
-    <p class="lbl">④ ROI별 마진 민감도</p>
-    <table id="sens"><thead><tr><th>ROI</th><th>광고비/개</th><th>순마진/개</th><th>마진율(실판매)</th></tr></thead><tbody></tbody></table>
-    <p class="hint">ROI를 얼마로 태워야 목표 마진이 나오는지 감 잡는 용도.</p>
+    <p class="lbl">④ 판매가별 마진 (원가·ROI 고정, 배송 고정)</p>
+    <table id="psens"><thead><tr><th>판매가</th><th>정산</th><th>순마진/개</th><th>마진율</th></tr></thead><tbody></tbody></table>
+    <p class="hint">가격을 올리면 배송은 그대로·수수료만 비례 증가 → 마진이 어떻게 변하는지.</p>
   </div>
 
   <p class="muted">
-    데이터 기준: 6/11~9/8 틱톡샵 정산(Settlement) 원장, 주문(Order) 건 · <b>환불/반품 행 제외</b> · 실판매가는 개당 <b>중앙값</b>(전형적 실거래가). 정가·수수료는 실판매가에 비례해 자동 계산되며, 표시된 수수료율은 6~9월 평균 비율.<br>
-    ⚠️ 스냅샷 고정본. GMV Max 광고비는 정산 원장이 아닌 ROI 입력으로 반영(중복 아님). 플랫폼 부담 쿠폰은 마진 무관하여 제외.
+    데이터: 6/11~9/8 정산(Settlement) 원장, 주문 건·환불 제외 · 실판매가=개당 중앙값 · 변동수수료율/고정배송비=6~9월 실측 평균에서 역산(정산 수령액에 정확히 맞도록). GMV Max 광고비는 ROI 입력으로 반영(중복 아님).<br>
+    ⚠️ 스냅샷 고정본. 배송비는 무게 기준 건당 고정으로 가정(가격 바뀌어도 불변).
   </p>
 </div>
 <script>
-const SKUDATA=[{"sku":"1732057545672659676","name":"White Truffle Intensive Volufiline Grinding Crea","units":661,"net":30.58,"gross":54,"settleR":0.613,"refR":-0.0406,"affR":-0.1035,"shopadsR":-0.0336,"cofundR":0,"txnR":0,"refundRate":0.018},{"sku":"1732030457673847516","name":"White Truffle First Spray Serum - Authentic Face","units":558,"net":17.98,"gross":24,"settleR":0.5292,"refR":-0.0319,"affR":-0.0693,"shopadsR":-0.0231,"cofundR":0,"txnR":0,"refundRate":0.026},{"sku":"1732356256055988956","name":"Age Less, Lift More Set | 3-Step Volufiline Lift","units":458,"net":69.99,"gross":150,"settleR":0.6667,"refR":-0.06,"affR":-0.1075,"shopadsR":-0.0198,"cofundR":0,"txnR":0,"refundRate":0.015},{"sku":"1732057522167714524","name":"White Truffle Waterfull Tone Up Sunscreen Serum ","units":399,"net":16.15,"gross":26,"settleR":0.5224,"refR":-0.0434,"affR":-0.0774,"shopadsR":-0.0257,"cofundR":0,"txnR":0,"refundRate":0.032},{"sku":"1729504435139286748","name":"White Truffle First Spray Serum - Authentic Face","units":378,"net":15.49,"gross":20,"settleR":0.5435,"refR":-0.0314,"affR":-0.0772,"shopadsR":-0.0315,"cofundR":0,"txnR":0,"refundRate":0.041},{"sku":"1732399851451224796","name":"White Truffle Glow & Lift Routine Set l Hydratin","units":256,"net":43.24,"gross":122,"settleR":0.5417,"refR":-0.0396,"affR":-0.0857,"shopadsR":-0.0148,"cofundR":0,"txnR":0,"refundRate":0.012},{"sku":"1732418461772911324","name":"[TikTok]  White Truffle First Spray Serum Holida","units":234,"net":66.99,"gross":140,"settleR":0.6682,"refR":-0.0392,"affR":-0.054,"shopadsR":-0.0258,"cofundR":0,"txnR":0,"refundRate":0.025},{"sku":"1732397323371451100","name":"Double Quick Liposome Serum Mask Pad, Vita Tonin","units":215,"net":18.99,"gross":35,"settleR":0.4876,"refR":-0.0398,"affR":-0.0954,"shopadsR":-0.026,"cofundR":0,"txnR":0,"refundRate":0.018},{"sku":"1732418626113671900","name":"Overnight Radiance Vita Set | Fades Dark Spots &","units":179,"net":0,"gross":139.33,"settleR":0.534,"refR":-0.0427,"affR":-0.0683,"shopadsR":-0.007,"cofundR":0,"txnR":0,"refundRate":0.027},{"sku":"1729504344937764572","name":"White Truffle Waterfull Tone Up Sunscreen Serum ","units":125,"net":39.24,"gross":78,"settleR":0.6653,"refR":-0.0454,"affR":-0.0808,"shopadsR":-0.0165,"cofundR":0,"txnR":0,"refundRate":0.081},{"sku":"1732130105277780700","name":"White Truffle Double Serum All-in-one Multi Balm","units":94,"net":17.08,"gross":22,"settleR":0.4568,"refR":-0.06,"affR":-0.0606,"shopadsR":-0.0096,"cofundR":0,"txnR":0,"refundRate":0.041},{"sku":"1732399851451290332","name":"White Truffle Glow & Lift Routine Set l Hydratin","units":92,"net":47.38,"gross":117,"settleR":0.6016,"refR":-0.0388,"affR":-0.1296,"shopadsR":-0.0249,"cofundR":0,"txnR":0,"refundRate":0.011},{"sku":"1732097266660905692","name":"[Set] Glow SPF Duo | White Truffle First Spray S","units":56,"net":30.76,"gross":50,"settleR":0.6684,"refR":-0.0584,"affR":-0.0428,"shopadsR":-0.0169,"cofundR":0,"txnR":0,"refundRate":0.034},{"sku":"1732418626113606364","name":"Overnight Radiance Vita Set | Fades Dark Spots &","units":55,"net":55.99,"gross":111.33,"settleR":0.6633,"refR":-0.0459,"affR":-0.0877,"shopadsR":-0.0216,"cofundR":0,"txnR":0,"refundRate":0.035},{"sku":"1729504435139155676","name":"White Truffle First Spray Serum - Authentic Face","units":54,"net":29.13,"gross":44,"settleR":0.6494,"refR":-0.0316,"affR":-0.0608,"shopadsR":-0.0224,"cofundR":0,"txnR":0,"refundRate":0.036},{"sku":"1732057553820160732","name":"Vita Toning Serum Toner – Daily Face Serum Toner","units":46,"net":18.99,"gross":26,"settleR":0.6423,"refR":-0.0588,"affR":-0.0614,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0.08},{"sku":"1729504435139221212","name":"White Truffle First Spray Serum - Authentic Face","units":41,"net":43.58,"gross":72,"settleR":0.6836,"refR":-0.0351,"affR":-0.058,"shopadsR":-0.0163,"cofundR":0,"txnR":0,"refundRate":0.047},{"sku":"1732418476764336860","name":"Air Fit Fresh Sun Stick, OTC BROAD SPECTRUM SPF ","units":38,"net":6.47,"gross":25,"settleR":0.3955,"refR":-0.0547,"affR":-0.1066,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0.026},{"sku":"1732428682747941596","name":"Waterfull UV Essence Sunscreen - Lightweight SPF","units":36,"net":14.98,"gross":28,"settleR":0.3918,"refR":-0.06,"affR":-0.0768,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0.027},{"sku":"1732389843406983900","name":"Full Skincare Routine Set |Return Oil Cream Clea","units":36,"net":94.87,"gross":200,"settleR":0.7256,"refR":-0.0464,"affR":-0.0388,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0.027},{"sku":"1732418626113540828","name":"Overnight Radiance Vita Set | Fades Dark Spots &","units":34,"net":47.62,"gross":88,"settleR":0.6756,"refR":-0.0385,"affR":-0.0785,"shopadsR":-0.0169,"cofundR":0,"txnR":0,"refundRate":0.15},{"sku":"1732068301229888220","name":"White Truffle Waterfull Mild Sun Cream - SPF 50+","units":28,"net":13.49,"gross":26,"settleR":0.6642,"refR":-0.0543,"affR":-0.0107,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0},{"sku":"1732302932696666844","name":"Vita Toning Anti-Aging Spray Serum 8% 70ml","units":27,"net":14.85,"gross":23.33,"settleR":0.6046,"refR":-0.0589,"affR":-0.0461,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0},{"sku":"1732057564283900636","name":"Vita toning Capsule Cream – Daily Face Moisturiz","units":26,"net":22.99,"gross":32,"settleR":0.7252,"refR":-0.06,"affR":-0.0249,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0.103},{"sku":"1732120125948924636","name":"Signature Vita Capsule Hydrogel Mask 8-Shape 1BO","units":24,"net":15.98,"gross":28,"settleR":0.6221,"refR":-0.0555,"affR":-0.0365,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0},{"sku":"1732383905456362204","name":"Ultimate Cleansing Duo - Vita Collagen Pore Tigh","units":20,"net":34.7,"gross":58,"settleR":0.5818,"refR":-0.0529,"affR":-0.1134,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0},{"sku":"1732421403411190492","name":"Age Less, Lift More Set | 3-Step Volufiline Lift","units":20,"net":54.99,"gross":96,"settleR":0.6953,"refR":-0.0603,"affR":-0.0821,"shopadsR":-0.0161,"cofundR":0,"txnR":0,"refundRate":0},{"sku":"1732302932281365212","name":"Vita Toning Galvanic Wrinkle Eye Cream","units":18,"net":19.79,"gross":30,"settleR":0.7565,"refR":-0.0555,"affR":-0.0256,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0.053},{"sku":"1732093797982966492","name":"[Set] Daily 3 Step Radiant Glow Full Skincare Se","units":17,"net":49.99,"gross":88,"settleR":0.6956,"refR":-0.0561,"affR":-0.0465,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0},{"sku":"1732302974514139868","name":"Vita toning Capsule Cleansing Oil","units":16,"net":17.98,"gross":30,"settleR":0.7418,"refR":-0.0515,"affR":0,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0},{"sku":"1732302897664266972","name":"Intensive Vegan Volufiline Spray Ampoule, Milky ","units":16,"net":20.78,"gross":54,"settleR":0.6557,"refR":-0.0558,"affR":-0.0695,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0.111},{"sku":"1732203551642260188","name":"Professional Reparing Hair Oil Serum (2.54 fl oz","units":16,"net":18.89,"gross":30,"settleR":0.5155,"refR":-0.0599,"affR":-0.039,"shopadsR":-0.0341,"cofundR":0,"txnR":0,"refundRate":0.059},{"sku":"1732057482654946012","name":"White Truffle Double Serum & Cream 2-in-1 - 100H","units":15,"net":24.14,"gross":36,"settleR":0.6438,"refR":-0.06,"affR":-0.0699,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0},{"sku":"1732302930278650588","name":"Signature Vita Collagen Pore Tightening Deep Cle","units":15,"net":19.99,"gross":30,"settleR":0.7143,"refR":-0.0577,"affR":-0.0416,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0.062},{"sku":"1732500648082313948","name":"[TikTok]  White Truffle Waterfull Tone Up Sunscr","units":15,"net":61.98,"gross":122,"settleR":0.7727,"refR":-0.0492,"affR":-0.007,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0.118},{"sku":"1729504214218675932","name":"White Truffle Moisturizing Serum Lotion – Daily ","units":15,"net":21.27,"gross":28,"settleR":0.558,"refR":-0.0601,"affR":-0.034,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0},{"sku":"1732159002519638748","name":"[Set] White Truffle First Spray Serum 3.38 fl oz","units":14,"net":29.94,"gross":43.99,"settleR":0.5738,"refR":-0.06,"affR":-0.1076,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0.067},{"sku":"1732302986797814492","name":"White truffle Return Oil Cream Cleanser, Vegan S","units":13,"net":19.94,"gross":28,"settleR":0.6243,"refR":-0.0601,"affR":-0.0903,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0},{"sku":"1732268035607925468","name":"White Truffle Intensive Volufiline Ampoule (1.01","units":13,"net":24.98,"gross":42,"settleR":0.7071,"refR":-0.0608,"affR":-0.0435,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0.133},{"sku":"1732395719039619804","name":"Hair Essential Duo -  Professional Reparing Hair","units":12,"net":30.36,"gross":50,"settleR":0.5109,"refR":-0.0516,"affR":-0.0831,"shopadsR":-0.0442,"cofundR":0,"txnR":0,"refundRate":0},{"sku":"1732383914227569372","name":"Age-Defying Duo - White Truffle Double Serum All","units":12,"net":34.81,"gross":52,"settleR":0.7589,"refR":-0.0522,"affR":-0.0376,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0},{"sku":"1732428682748007132","name":"Waterfull UV Essence Sunscreen - Lightweight SPF","units":11,"net":36.3,"gross":84,"settleR":0.6914,"refR":-0.0546,"affR":-0.0568,"shopadsR":-0.0095,"cofundR":0,"txnR":0,"refundRate":0},{"sku":"1732557715613913820","name":"[Live Exclusive] Morning Radiance Vita Set — 5-S","units":10,"net":69.99,"gross":139.9,"settleR":0.5616,"refR":-0.06,"affR":-0.2001,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0},{"sku":"1732609931076014812","name":"[Official d'Alba]  Affordable Vita Brightening F","units":10,"net":78.49,"gross":149,"settleR":0.7385,"refR":-0.03,"affR":0,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0},{"sku":"1732395719039554268","name":"Hair Essential Duo -  Professional Reparing Hair","units":10,"net":35.62,"gross":55,"settleR":0.6697,"refR":-0.0539,"affR":-0.0753,"shopadsR":-0.0106,"cofundR":0,"txnR":0,"refundRate":0},{"sku":"1732355593909736156","name":"White Truffle Spray Serum, 3 Solutions, Vegan Sk","units":10,"net":46.97,"gross":72,"settleR":0.6729,"refR":-0.06,"affR":-0.05,"shopadsR":-0.0211,"cofundR":0,"txnR":0,"refundRate":0},{"sku":"1732332105980941020","name":"White Truffle Double Serum All-in-one Multi Balm","units":9,"net":30.38,"gross":44,"settleR":0.6544,"refR":-0.06,"affR":-0.0498,"shopadsR":-0.0385,"cofundR":0,"txnR":0,"refundRate":0},{"sku":"1732057467855213276","name":"White Truffle Vital Spray Serum - Calming Skinca","units":7,"net":18.55,"gross":24,"settleR":0.6284,"refR":-0.06,"affR":-0.037,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0},{"sku":"1732373365665796828","name":"kbeautymom Yumi's Glowup Set -White Truffle Firs","units":7,"net":0,"gross":108,"settleR":0.8045,"refR":-0.0407,"affR":0,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0.125},{"sku":"1732057573639623388","name":"Vita toning Capsule Serum – Daily Vitamin Serum ","units":7,"net":19.37,"gross":24,"settleR":0.6618,"refR":-0.0507,"affR":-0.0464,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0},{"sku":"1729504233859290844","name":"White Truffle Double Layer Revitalizing Serum - ","units":7,"net":26.59,"gross":40,"settleR":0.656,"refR":-0.0601,"affR":-0.0986,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0},{"sku":"1732316316140999388","name":"Signature Allthera Double Shot- V-Line Face Lift","units":6,"net":222.61,"gross":336,"settleR":0.7929,"refR":-0.0532,"affR":-0.0887,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0.25},{"sku":"1732558107766788828","name":"[Live Exclusive] Night Repair Truffle Set — 5 St","units":5,"net":67.49,"gross":139.5,"settleR":0.5391,"refR":-0.06,"affR":-0.2055,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0},{"sku":"1732355630780289756","name":"White Truffle Spray Serum, 3 Solutions, Vegan Sk","units":5,"net":30.76,"gross":48,"settleR":0.6124,"refR":-0.06,"affR":-0.123,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0},{"sku":"1732302974546449116","name":"Italian White Truffle Professional Repairing Hai","units":4,"net":20.99,"gross":25,"settleR":0.6606,"refR":-0.0525,"affR":-0.075,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0},{"sku":"1732057501817803484","name":"White Truffle Double Layer Revitalizing Serum - ","units":4,"net":26.98,"gross":40,"settleR":0.7475,"refR":-0.06,"affR":-0.0327,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0.2},{"sku":"1732421403411059420","name":"Age Less, Lift More Set | 3-Step Volufiline Lift","units":4,"net":56.85,"gross":108,"settleR":0.6852,"refR":-0.06,"affR":-0.1133,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0},{"sku":"1732329436905640668","name":"[Set] Daily 3 Step Radiant Glow Full Skincare Se","units":4,"net":47.77,"gross":82,"settleR":0.692,"refR":-0.06,"affR":-0.0509,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0},{"sku":"1732355630780355292","name":"White Truffle Spray Serum, 3 Solutions, Vegan Sk","units":3,"net":34.18,"gross":48,"settleR":0.777,"refR":-0.0508,"affR":0,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0},{"sku":"1732438633043563228","name":"Sun Care Duo - OTC Vegan Fresh Sun Stick + OTC V","units":3,"net":25.99,"gross":53,"settleR":0.554,"refR":-0.0601,"affR":-0.1051,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0},{"sku":"1732057490759389916","name":"White Truffle Double Moisture Cream - Dual Formu","units":3,"net":26.99,"gross":34,"settleR":0.8119,"refR":-0.0601,"affR":0,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0},{"sku":"1732057580606690012","name":"Vita toning Capsule Serum – Daily Vitamin Serum ","units":3,"net":24.35,"gross":30,"settleR":0.6658,"refR":-0.0621,"affR":-0.096,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0},{"sku":"1732438630395450076","name":"Sun Care Duo - OTC Vegan Fresh Sun Stick + OTC V","units":3,"net":25.99,"gross":51,"settleR":0.7601,"refR":-0.0491,"affR":0,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0.4},{"sku":"1732057495525823196","name":"White Truffle Double Layer Revitalizing Serum - ","units":3,"net":21.98,"gross":35,"settleR":0.5868,"refR":-0.06,"affR":-0.0991,"shopadsR":0,"cofundR":0,"txnR":0,"refundRate":0},{"sku":"1732421403411124956","name":"Age Less, Lift More Set | 3-Step Volufiline Lift","units":3,"net":59.99,"gross":96,"settleR":0.6673,"refR":-0.0621,"affR":-0.0986,"shopadsR":-0.0343,"cofundR":0,"txnR":0,"refundRate":0}];</script>
+const SKUDATA=[{"sku":"1732057545672659676","name":"White Truffle Intensive Volufiline Grinding Crea","units":661,"net":30.58,"gross":54,"varRate":0.2129,"ship":4.5,"refundRate":0.018},{"sku":"1732030457673847516","name":"White Truffle First Spray Serum - Authentic Face","units":558,"net":17.98,"gross":24,"varRate":0.1593,"ship":4.23,"refundRate":0.026},{"sku":"1732356256055988956","name":"Age Less, Lift More Set | 3-Step Volufiline Lift","units":458,"net":69.99,"gross":150,"varRate":0.2223,"ship":7.39,"refundRate":0.015},{"sku":"1732057522167714524","name":"White Truffle Waterfull Tone Up Sunscreen Serum ","units":399,"net":16.15,"gross":26,"varRate":0.1818,"ship":3.81,"refundRate":0.032},{"sku":"1729504435139286748","name":"White Truffle First Spray Serum - Authentic Face","units":378,"net":15.49,"gross":20,"varRate":0.1752,"ship":3.96,"refundRate":0.041},{"sku":"1732399851451224796","name":"White Truffle Glow & Lift Routine Set l Hydratin","units":256,"net":43.24,"gross":122,"varRate":0.1751,"ship":7.08,"refundRate":0.012},{"sku":"1732418461772911324","name":"[TikTok]  White Truffle First Spray Serum Holida","units":234,"net":66.99,"gross":140,"varRate":0.1542,"ship":10.14,"refundRate":0.025},{"sku":"1732397323371451100","name":"Double Quick Liposome Serum Mask Pad, Vita Tonin","units":215,"net":18.99,"gross":35,"varRate":0.1962,"ship":5.09,"refundRate":0.018},{"sku":"1732418626113671900","name":"Overnight Radiance Vita Set | Fades Dark Spots &","units":179,"net":0,"gross":139.33,"varRate":0.153,"ship":10.04,"refundRate":0.027},{"sku":"1729504344937764572","name":"White Truffle Waterfull Tone Up Sunscreen Serum ","units":125,"net":39.24,"gross":78,"varRate":0.1778,"ship":5.72,"refundRate":0.081},{"sku":"1732130105277780700","name":"White Truffle Double Serum All-in-one Multi Balm","units":94,"net":17.08,"gross":22,"varRate":0.1651,"ship":3.96,"refundRate":0.041},{"sku":"1732399851451290332","name":"White Truffle Glow & Lift Routine Set l Hydratin","units":92,"net":47.38,"gross":117,"varRate":0.2282,"ship":7.45,"refundRate":0.011},{"sku":"1732097266660905692","name":"[Set] Glow SPF Duo | White Truffle First Spray S","units":56,"net":30.76,"gross":50,"varRate":0.1532,"ship":5.22,"refundRate":0.034},{"sku":"1732418626113606364","name":"Overnight Radiance Vita Set | Fades Dark Spots &","units":55,"net":55.99,"gross":111.33,"varRate":0.1903,"ship":7.97,"refundRate":0.035},{"sku":"1729504435139155676","name":"White Truffle First Spray Serum - Authentic Face","units":54,"net":29.13,"gross":44,"varRate":0.1498,"ship":5.44,"refundRate":0.036},{"sku":"1732057553820160732","name":"Vita Toning Serum Toner – Daily Face Serum Toner","units":46,"net":18.99,"gross":26,"varRate":0.1553,"ship":3.63,"refundRate":0.08},{"sku":"1729504435139221212","name":"White Truffle First Spray Serum - Authentic Face","units":41,"net":43.58,"gross":72,"varRate":0.1444,"ship":6.72,"refundRate":0.047},{"sku":"1732418476764336860","name":"Air Fit Fresh Sun Stick, OTC BROAD SPECTRUM SPF ","units":38,"net":6.47,"gross":25,"varRate":0.1963,"ship":3.24,"refundRate":0.026},{"sku":"1732428682747941596","name":"Waterfull UV Essence Sunscreen - Lightweight SPF","units":36,"net":14.98,"gross":28,"varRate":0.1716,"ship":4.13,"refundRate":0.027},{"sku":"1732389843406983900","name":"Full Skincare Routine Set |Return Oil Cream Clea","units":36,"net":94.87,"gross":200,"varRate":0.1203,"ship":11.1,"refundRate":0.027},{"sku":"1732418626113540828","name":"Overnight Radiance Vita Set | Fades Dark Spots &","units":34,"net":47.62,"gross":88,"varRate":0.1688,"ship":6.74,"refundRate":0.15},{"sku":"1732068301229888220","name":"White Truffle Waterfull Mild Sun Cream - SPF 50+","units":28,"net":13.49,"gross":26,"varRate":0.0999,"ship":3.11,"refundRate":0},{"sku":"1732302932696666844","name":"Vita Toning Anti-Aging Spray Serum 8% 70ml","units":27,"net":14.85,"gross":23.33,"varRate":0.14,"ship":3.54,"refundRate":0},{"sku":"1732057564283900636","name":"Vita toning Capsule Cream – Daily Face Moisturiz","units":26,"net":22.99,"gross":32,"varRate":0.1199,"ship":3.26,"refundRate":0.103},{"sku":"1732120125948924636","name":"Signature Vita Capsule Hydrogel Mask 8-Shape 1BO","units":24,"net":15.98,"gross":28,"varRate":0.127,"ship":4.08,"refundRate":0},{"sku":"1732383905456362204","name":"Ultimate Cleansing Duo - Vita Collagen Pore Tigh","units":20,"net":34.7,"gross":58,"varRate":0.2013,"ship":5.16,"refundRate":0},{"sku":"1732421403411190492","name":"Age Less, Lift More Set | 3-Step Volufiline Lift","units":20,"net":54.99,"gross":96,"varRate":0.1936,"ship":6.19,"refundRate":0},{"sku":"1732302932281365212","name":"Vita Toning Galvanic Wrinkle Eye Cream","units":18,"net":19.79,"gross":30,"varRate":0.116,"ship":2.52,"refundRate":0.053},{"sku":"1732093797982966492","name":"[Set] Daily 3 Step Radiant Glow Full Skincare Se","units":17,"net":49.99,"gross":88,"varRate":0.1377,"ship":8.12,"refundRate":0},{"sku":"1732302974514139868","name":"Vita toning Capsule Cleansing Oil","units":16,"net":17.98,"gross":30,"varRate":0.0866,"ship":2.85,"refundRate":0},{"sku":"1732302897664266972","name":"Intensive Vegan Volufiline Spray Ampoule, Milky ","units":16,"net":20.78,"gross":54,"varRate":0.1616,"ship":3.12,"refundRate":0.111},{"sku":"1732203551642260188","name":"Professional Reparing Hair Oil Serum (2.54 fl oz","units":16,"net":18.89,"gross":30,"varRate":0.168,"ship":4.63,"refundRate":0.059},{"sku":"1732057482654946012","name":"White Truffle Double Serum & Cream 2-in-1 - 100H","units":15,"net":24.14,"gross":36,"varRate":0.1649,"ship":3.03,"refundRate":0},{"sku":"1732302930278650588","name":"Signature Vita Collagen Pore Tightening Deep Cle","units":15,"net":19.99,"gross":30,"varRate":0.1343,"ship":3.28,"refundRate":0.062},{"sku":"1732500648082313948","name":"[TikTok]  White Truffle Waterfull Tone Up Sunscr","units":15,"net":61.98,"gross":122,"varRate":0.0911,"ship":4.79,"refundRate":0.118},{"sku":"1729504214218675932","name":"White Truffle Moisturizing Serum Lotion – Daily ","units":15,"net":21.27,"gross":28,"varRate":0.1291,"ship":4.19,"refundRate":0},{"sku":"1732159002519638748","name":"[Set] White Truffle First Spray Serum 3.38 fl oz","units":14,"net":29.94,"gross":43.99,"varRate":0.2026,"ship":4.04,"refundRate":0.067},{"sku":"1732302986797814492","name":"White truffle Return Oil Cream Cleanser, Vegan S","units":13,"net":19.94,"gross":28,"varRate":0.1855,"ship":3.74,"refundRate":0},{"sku":"1732268035607925468","name":"White Truffle Intensive Volufiline Ampoule (1.01","units":13,"net":24.98,"gross":42,"varRate":0.1397,"ship":3.46,"refundRate":0.133},{"sku":"1732395719039619804","name":"Hair Essential Duo -  Professional Reparing Hair","units":12,"net":30.36,"gross":50,"varRate":0.2139,"ship":5.23,"refundRate":0},{"sku":"1732383914227569372","name":"Age-Defying Duo - White Truffle Double Serum All","units":12,"net":34.81,"gross":52,"varRate":0.1248,"ship":2.69,"refundRate":0},{"sku":"1732428682748007132","name":"Waterfull UV Essence Sunscreen - Lightweight SPF","units":11,"net":36.3,"gross":84,"varRate":0.156,"ship":5.64,"refundRate":0},{"sku":"1732557715613913820","name":"[Live Exclusive] Morning Radiance Vita Set — 5-S","units":10,"net":69.99,"gross":139.9,"varRate":0.2951,"ship":10.87,"refundRate":0},{"sku":"1732609931076014812","name":"[Official d'Alba]  Affordable Vita Brightening F","units":10,"net":78.49,"gross":149,"varRate":0.065,"ship":12.48,"refundRate":0},{"sku":"1732395719039554268","name":"Hair Essential Duo -  Professional Reparing Hair","units":10,"net":35.62,"gross":55,"varRate":0.1748,"ship":5.53,"refundRate":0},{"sku":"1732355593909736156","name":"White Truffle Spray Serum, 3 Solutions, Vegan Sk","units":10,"net":46.97,"gross":72,"varRate":0.166,"ship":7.01,"refundRate":0},{"sku":"1732332105980941020","name":"White Truffle Double Serum All-in-one Multi Balm","units":9,"net":30.38,"gross":44,"varRate":0.1833,"ship":5.06,"refundRate":0},{"sku":"1732057467855213276","name":"White Truffle Vital Spray Serum - Calming Skinca","units":7,"net":18.55,"gross":24,"varRate":0.1319,"ship":4.39,"refundRate":0},{"sku":"1732373365665796828","name":"kbeautymom Yumi's Glowup Set -White Truffle Firs","units":7,"net":0,"gross":108,"varRate":0.0757,"ship":3.29,"refundRate":0.125},{"sku":"1732057573639623388","name":"Vita toning Capsule Serum – Daily Vitamin Serum ","units":7,"net":19.37,"gross":24,"varRate":0.132,"ship":3.7,"refundRate":0},{"sku":"1729504233859290844","name":"White Truffle Double Layer Revitalizing Serum - ","units":7,"net":26.59,"gross":40,"varRate":0.1936,"ship":3.96,"refundRate":0},{"sku":"1732316316140999388","name":"Signature Allthera Double Shot- V-Line Face Lift","units":6,"net":222.61,"gross":336,"varRate":0.1769,"ship":4.75,"refundRate":0.25},{"sku":"1732558107766788828","name":"[Live Exclusive] Night Repair Truffle Set — 5 St","units":5,"net":67.49,"gross":139.5,"varRate":0.3005,"ship":10.79,"refundRate":0},{"sku":"1732355630780289756","name":"White Truffle Spray Serum, 3 Solutions, Vegan Sk","units":5,"net":30.76,"gross":48,"varRate":0.218,"ship":5.22,"refundRate":0},{"sku":"1732302974546449116","name":"Italian White Truffle Professional Repairing Hai","units":4,"net":20.99,"gross":25,"varRate":0.1625,"ship":3.71,"refundRate":0},{"sku":"1732057501817803484","name":"White Truffle Double Layer Revitalizing Serum - ","units":4,"net":26.98,"gross":40,"varRate":0.1276,"ship":3.67,"refundRate":0.2},{"sku":"1732421403411059420","name":"Age Less, Lift More Set | 3-Step Volufiline Lift","units":4,"net":56.85,"gross":108,"varRate":0.2082,"ship":5.95,"refundRate":0},{"sku":"1732329436905640668","name":"[Set] Daily 3 Step Radiant Glow Full Skincare Se","units":4,"net":47.77,"gross":82,"varRate":0.1458,"ship":5.86,"refundRate":0},{"sku":"1732355630780355292","name":"White Truffle Spray Serum, 3 Solutions, Vegan Sk","units":3,"net":34.18,"gross":48,"varRate":0.0858,"ship":4.61,"refundRate":0},{"sku":"1732438633043563228","name":"Sun Care Duo - OTC Vegan Fresh Sun Stick + OTC V","units":3,"net":25.99,"gross":53,"varRate":0.2003,"ship":4.49,"refundRate":0},{"sku":"1732057490759389916","name":"White Truffle Double Moisture Cream - Dual Formu","units":3,"net":26.99,"gross":34,"varRate":0.0951,"ship":2.47,"refundRate":0},{"sku":"1732057580606690012","name":"Vita toning Capsule Serum – Daily Vitamin Serum ","units":3,"net":24.35,"gross":30,"varRate":0.1944,"ship":3.37,"refundRate":0},{"sku":"1732438630395450076","name":"Sun Care Duo - OTC Vegan Fresh Sun Stick + OTC V","units":3,"net":25.99,"gross":51,"varRate":0.0842,"ship":4.16,"refundRate":0.4},{"sku":"1732057495525823196","name":"White Truffle Double Layer Revitalizing Serum - ","units":3,"net":21.98,"gross":35,"varRate":0.1941,"ship":4.74,"refundRate":0},{"sku":"1732421403411124956","name":"Age Less, Lift More Set | 3-Step Volufiline Lift","units":3,"net":59.99,"gross":96,"varRate":0.2311,"ship":5.92,"refundRate":0}];</script>
 <script>
 const $=id=>document.getElementById(id);
 const fmt=(n,d=2)=>(n<0?"-$":"$")+Math.abs(n).toFixed(d);
 const pct=n=>(n*100).toFixed(1)+"%";
-const FEES=["net","ref","aff","shopads","cofund","txn","etc"];
 let CUR=null;
 function loadCogs(sku){try{return localStorage.getItem("cogs:"+sku)||""}catch(e){return""}}
 function saveCogs(sku,v){try{v===""?localStorage.removeItem("cogs:"+sku):localStorage.setItem("cogs:"+sku,v)}catch(e){}}
@@ -124,66 +121,55 @@ function saveCogs(sku,v){try{v===""?localStorage.removeItem("cogs:"+sku):localSt
 SKUDATA.forEach((s,i)=>{const o=document.createElement("option");o.value=i;o.textContent=s.name+"  ·  "+s.units+"개  ("+s.sku.slice(-6)+")";$("sku").appendChild(o);});
 try{$("roi").value=localStorage.getItem("roi:def")||"3.5"}catch(e){$("roi").value="3.5"}
 
-function rescale(){ // 실판매가 기준으로 수수료·정산 재계산
-  const s=CUR; const net=+$("net").value||0;
-  $("ref").value=(net*s.refR).toFixed(2);
-  $("aff").value=(net*s.affR).toFixed(2);
-  $("shopads").value=(net*s.shopadsR).toFixed(2);
-  $("cofund").value=(net*s.cofundR).toFixed(2);
-  $("txn").value=(net*s.txnR).toFixed(2);
-  const settle=net*s.settleR;
-  const named=net+(+$("ref").value)+(+$("aff").value)+(+$("shopads").value)+(+$("cofund").value)+(+$("txn").value);
-  $("etc").value=(settle-named).toFixed(2);
-}
+function settleAt(price){return price*(1-(+$("varRate").value||0)/100)-(+$("ship").value||0);}
 function pick(i){
   const s=SKUDATA[i];CUR=s;
-  $("net").value=s.net;
-  rescale();
+  $("net").value=s.net; $("varRate").value=(s.varRate*100).toFixed(1); $("ship").value=s.ship;
   $("cogs").value=loadCogs(s.sku);
-  $("skuinfo").textContent="정가(중앙값) $"+s.gross.toFixed(2)+" · 실판매가 $"+s.net.toFixed(2)+" · 정산 "+(s.settleR*100).toFixed(0)+"% · 판매 "+s.units+"개 · 환불율 "+(s.refundRate*100).toFixed(1)+"%";
+  $("skuinfo").textContent="정가(표시) $"+s.gross.toFixed(2)+" · 실판매가 $"+s.net.toFixed(2)+" · 변동수수료 "+(s.varRate*100).toFixed(1)+"% · 배송 $"+s.ship.toFixed(2)+" · 판매 "+s.units+"개 · 환불율 "+(s.refundRate*100).toFixed(1)+"%";
   calc();
 }
 function calc(){
   if(!CUR)return;
   const net=+$("net").value||0;
-  const settle=FEES.reduce((a,k)=>a+(+$(k).value||0),0);
+  const varAmt=net*(+$("varRate").value||0)/100;
+  $("varAmt").textContent=fmt(-varAmt);
+  const settle=settleAt(net);
   $("settle").textContent=fmt(settle);
-  const cogs=parseFloat($("cogs").value);
-  const roi=parseFloat($("roi").value);
+  $("srate").textContent=net>0?pct(settle/net):"–";
+  const cogs=parseFloat($("cogs").value), roi=parseFloat($("roi").value);
   const hasCogs=!isNaN(cogs), hasRoi=!isNaN(roi)&&roi>0;
   const adcost=hasRoi?net/roi:0;
   $("adcost").textContent=hasRoi?fmt(-adcost):"– (미집행)";
-  // gross scales with net too (정가 대비 마진율용)
-  const gross=CUR.net>0?CUR.gross*(net/CUR.net):CUR.gross;
-  if(!hasCogs){$("netmargin").textContent="원가 입력 필요";$("netmargin").className="big";$("mrNet").textContent="–";$("mrGross").textContent="–";$("beRoi").textContent="–";$("totmargin").textContent="";sens();return;}
+  if(!hasCogs){$("netmargin").textContent="원가 입력 필요";$("netmargin").className="big";$("mrNet").textContent="–";$("beRoi").textContent="–";$("totmargin").textContent="";psens();return;}
   const nm=settle-cogs-adcost;
   $("netmargin").textContent=fmt(nm)+" /개";
   $("netmargin").className="big "+(nm>=0?"pos":"neg");
   $("mrNet").textContent=net>0?pct(nm/net):"–";
-  $("mrGross").textContent=gross>0?pct(nm/gross):"–";
   const room=settle-cogs;
-  if(room<=0){$("beRoi").innerHTML='<span class="warn">불가</span>';}
-  else{const be=net/room;$("beRoi").textContent=be<1?"<1.0":be.toFixed(2);}
+  $("beRoi").innerHTML = room<=0 ? '<span class="warn">불가</span>' : (net/room<1?"<1.0":(net/room).toFixed(2));
   $("totmargin").textContent="6~9월 판매 "+CUR.units+"개 기준 총 순마진 ≈ "+fmt(nm*CUR.units,0)+" (동일 조건 가정)";
-  sens();
+  psens();
 }
-function sens(){
-  const tb=$("sens").querySelector("tbody");tb.innerHTML="";
+function psens(){
+  const tb=$("psens").querySelector("tbody");tb.innerHTML="";
   if(!CUR)return;
-  const net=+$("net").value||0;
-  const settle=FEES.reduce((a,k)=>a+(+$(k).value||0),0);
-  const cogs=parseFloat($("cogs").value);const hasCogs=!isNaN(cogs);
-  [2,2.5,3,3.5,4,5,6].forEach(roi=>{
-    const ad=net/roi; const nm=hasCogs?settle-cogs-ad:null;
+  const base=CUR.net; const cogs=parseFloat($("cogs").value), roi=parseFloat($("roi").value);
+  const hasCogs=!isNaN(cogs), hasRoi=!isNaN(roi)&&roi>0;
+  [0.8,0.9,1,1.1,1.25,1.5].forEach(m=>{
+    const p=Math.round(base*m*100)/100;
+    const settle=p*(1-(+$("varRate").value||0)/100)-(+$("ship").value||0);
+    const ad=hasRoi?p/roi:0;
+    const nm=hasCogs?settle-cogs-ad:null;
     const tr=document.createElement("tr");
-    tr.innerHTML="<td>"+roi.toFixed(1)+"</td><td>"+fmt(-ad)+"</td><td style='color:"+(nm==null?'var(--faint)':nm>=0?'var(--green)':'var(--red)')+";font-weight:700'>"+(nm==null?"–":fmt(nm))+"</td><td>"+(nm==null||net<=0?"–":pct(nm/net))+"</td>";
+    const mark=m===1?" style='font-weight:800'":"";
+    tr.innerHTML="<td"+mark+">$"+p.toFixed(2)+(m===1?" (현재)":"")+"</td><td>"+fmt(settle)+"</td><td style='color:"+(nm==null?'var(--faint)':nm>=0?'var(--green)':'var(--red)')+";font-weight:700'>"+(nm==null?"–":fmt(nm))+"</td><td>"+(nm==null||p<=0?"–":pct(nm/p))+"</td>";
     tb.appendChild(tr);
   });
 }
 $("sku").addEventListener("change",e=>pick(+e.target.value));
-$("net").addEventListener("input",()=>{rescale();calc();});
-["ref","aff","shopads","cofund","txn","etc"].forEach(k=>$(k).addEventListener("input",calc));
-$("roi").addEventListener("input",()=>{try{localStorage.setItem("roi:def",$("roi").value)}catch(e){}; calc();});
+["net","varRate","ship"].forEach(k=>$(k).addEventListener("input",calc));
+$("roi").addEventListener("input",()=>{try{localStorage.setItem("roi:def",$("roi").value)}catch(e){};calc();});
 $("cogs").addEventListener("input",()=>{if(CUR)saveCogs(CUR.sku,$("cogs").value);calc();});
 pick(0);
 </script>
