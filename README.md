@@ -53,6 +53,20 @@ vercel        # 프로젝트 폴더에서
   `chat.postMessage` (채널 ID `C0BB70T8VUG`) 호출하는 작은 잡 추가.
 - 메시지 예: `📩 이메일 회신 트래커 — {URL}`
 
+## 📨 크리에이터 아웃리치 발송 → **별도 레포로 이전됨**
+
+메일 발송 툴은 **`dalba-outreach` 레포 + 별도 Vercel 프로젝트**로 분리했다.
+쓰는 사람(아웃리치 담당 10명+)도, 배포 주기도, 환경변수도 이 레포와 달라서
+한 프로젝트에 묶어 둘 이유가 없었다.
+
+- 코드: `dalba-outreach` (index.html · email-template.js · api/outreach-send.js)
+- 발송: 네이버웍스 SMTP (`smtp.worksmobile.com`) — 담당자가 각자 앱 비밀번호를 브라우저에 등록
+- 설정·사용법은 그 레포의 README 참고
+
+이 레포의 대시보드 헤더에 아웃리치 사이트 바로가기를 띄우려면
+`index.html` · `team.html` 상단의 **`OUTREACH_SITE`** 상수에 주소를 넣으면 된다.
+비워 두면 버튼이 나타나지 않는다(죽은 링크가 남지 않도록).
+
 ## 데일리 매출 보고서 → Slack (api/daily-report.js)
 
 구글시트 **"매출지표"** 의 두 탭을 읽어 매일 Slack **#데일리-분석** 채널에 매출 리포트를 게시한다.
