@@ -110,7 +110,7 @@ module.exports = async (req, res) => {
 
     let answer = "", model;
     if (provider === "gemini") {
-      model = String(q.geminiModel || process.env.GEMINI_MODEL || "gemini-2.0-flash");
+      model = String(q.geminiModel || process.env.GEMINI_MODEL || "gemini-3.6-flash");
       const gurl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${gemKey}`;
       const r = await fetch(gurl, {
         method: "POST",
