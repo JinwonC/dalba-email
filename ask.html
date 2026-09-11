@@ -1,0 +1,110 @@
+<title>제품 분석 AI · 틱톡샵</title>
+<style>
+:root{
+  --paper:#F6F5F2;--card:#FFFFFF;--ink:#1D2126;--sub:#5A616B;--faint:#8A919C;
+  --line:#E5E3DE;--brand:#9A7B2D;--brand-soft:#F3EEE0;--blue:#2A6FD6;--blue-soft:#EAF2FD;
+  --green:#137a52;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#15171B;--card:#1E2127;--ink:#ECEDEF;--sub:#A6ADB6;--faint:#767D88;
+  --line:#31353D;--brand:#C9A85C;--brand-soft:#2A2718;--blue:#5B9BF0;--blue-soft:#182636;--green:#42c98d;
+}}
+:root[data-theme="dark"]{
+  --paper:#15171B;--card:#1E2127;--ink:#ECEDEF;--sub:#A6ADB6;--faint:#767D88;
+  --line:#31353D;--brand:#C9A85C;--brand-soft:#2A2718;--blue:#5B9BF0;--blue-soft:#182636;--green:#42c98d;
+}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font-family:"Apple SD Gothic Neo","Malgun Gothic","Pretendard",system-ui,sans-serif;margin:0;line-height:1.6}
+.wrap{max-width:800px;margin:0 auto;padding:28px 18px 60px}
+h1{font-size:22px;margin:0 0 3px;letter-spacing:-.02em}
+.sub{color:var(--sub);font-size:13px;margin:0 0 22px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:16px}
+.lbl{font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--faint);text-transform:uppercase;margin:0 0 9px}
+select,input,textarea{font:inherit;color:inherit;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:10px 12px;width:100%}
+textarea{min-height:66px;resize:vertical}
+select:focus,input:focus,textarea:focus{outline:2px solid var(--blue);outline-offset:-1px;border-color:var(--blue)}
+.rowf{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.rowf>*{flex:1;min-width:140px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.chip{font-size:12px;background:var(--blue-soft);color:var(--blue);border:1px solid var(--line);border-radius:20px;padding:6px 12px;cursor:pointer}
+.chip:hover{border-color:var(--blue)}
+button.go{background:var(--brand);color:#fff;border:none;border-radius:10px;padding:12px 20px;font-weight:700;font-size:15px;cursor:pointer;width:100%;margin-top:12px}
+button.go:disabled{opacity:.5;cursor:default}
+.opt{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--sub);margin-top:10px}
+.opt input{width:auto}
+#ans{white-space:pre-wrap;font-size:14.5px;line-height:1.72}
+#ans a{color:var(--blue)}
+.meta{font-size:11.5px;color:var(--faint);margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+.spin{display:inline-block;width:15px;height:15px;border:2px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.err{color:#C0392B}
+.hint{color:var(--faint);font-size:11px;margin-top:6px}
+</style>
+<div class="wrap">
+  <h1>제품 분석 AI 🔎</h1>
+  <p class="sub">제품(PID)을 고르고 질문하면 — <b>매출·소재·광고·전환·객단가</b>를 데이터로 분석해 답해줍니다. (6~9월, 어제까지 데이터)</p>
+
+  <div class="card">
+    <p class="lbl">제품 선택</p>
+    <select id="pid"></select>
+    <div class="rowf" style="margin-top:12px">
+      <div>
+        <p class="lbl">질문</p>
+        <textarea id="q" placeholder="예: 톤업선크림 9월 10일 매출이 왜 올랐어? 소재·광고·전환 다 봐줘"></textarea>
+      </div>
+    </div>
+    <div class="chips" id="chips"></div>
+    <div class="opt"><input type="checkbox" id="deep"><label for="deep">심층 분석 (Sonnet · 느리지만 더 깊게)</label>
+      <span style="flex:1"></span>
+      <span class="hint">기준일: <input id="date" placeholder="비움=최신" style="width:120px;display:inline-block;padding:4px 8px"></span>
+    </div>
+    <button class="go" id="go">분석하기</button>
+  </div>
+
+  <div class="card" id="out" hidden>
+    <p class="lbl" id="outlbl">분석 결과</p>
+    <div id="ans"></div>
+    <div class="meta" id="meta"></div>
+  </div>
+</div>
+<script>
+const FOCUS=[
+  ["1732030444618027740","퍼스트 본품"],
+  ["1732090269393588956","퍼스트 기프트세트"],
+  ["1732057509504979676","톤업선크림"],
+  ["1732057536500110044","보르피린 그라인딩크림"],
+  ["1732268708636299996","오버나이트 비타세트 (비타라인)"],
+  ["1729492487438964444","글로우&리프트 세트 (더블라인)"],
+  ["1732356256385635036","Age Less 세트"],
+];
+const $=id=>document.getElementById(id);
+FOCUS.forEach(([pid,nm])=>{const o=document.createElement("option");o.value=pid;o.textContent=nm;$("pid").appendChild(o);});
+const EX=["최근 매출 추이랑 원인 분석해줘","이번 주 매출이 왜 이렇게 변했어?","전환율이 오른 거야 방문이 는 거야?","매출을 끌어올린 소재는 뭐야?","광고비 대비 효율(ROI) 어때?"];
+EX.forEach(t=>{const c=document.createElement("span");c.className="chip";c.textContent=t;c.onclick=()=>{$("q").value=t;};$("chips").appendChild(c);});
+
+function render(md){
+  // 아주 가벼운 마크다운: **굵게**, 링크, 줄바꿈
+  let h=md.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  h=h.replace(/\*\*(.+?)\*\*/g,"<b>$1</b>");
+  h=h.replace(/(https?:\/\/[^\s)]+)/g,'<a href="$1" target="_blank">$1</a>');
+  return h;
+}
+async function ask(){
+  const pid=$("pid").value, question=$("q").value.trim();
+  if(!question){$("q").focus();return;}
+  const body={pid,question,date:$("date").value.trim()};
+  if($("deep").checked) body.model="claude-sonnet-4-5";
+  $("go").disabled=true;$("out").hidden=false;$("outlbl").textContent="분석 중…";
+  $("ans").innerHTML='<span class="spin"></span> 데이터 읽고 분석하는 중… (10~20초)';
+  $("meta").textContent="";
+  try{
+    const r=await fetch("/api/ask",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+    const d=await r.json();
+    if(d.error){$("ans").innerHTML='<span class="err">오류: '+d.error+'</span>';$("outlbl").textContent="오류";}
+    else{$("ans").innerHTML=render(d.answer||"(응답 없음)");$("outlbl").textContent=d.제품+" 분석";$("meta").textContent="기준일 "+d.기준일+" · 모델 "+d.model;}
+  }catch(e){$("ans").innerHTML='<span class="err">요청 실패: '+e.message+'</span>';}
+  $("go").disabled=false;
+}
+$("go").addEventListener("click",ask);
+$("q").addEventListener("keydown",e=>{if((e.metaKey||e.ctrlKey)&&e.key==="Enter")ask();});
+</script>
