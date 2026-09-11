@@ -57,7 +57,7 @@ module.exports = async (req, res) => {
     const _adUrl = `${proto}://${host}/api/ads-report` + (_pw ? `?pw=${encodeURIComponent(_pw)}` : "");
     const adProm = (async () => {
       const ctrl = new AbortController();
-      const to = setTimeout(() => ctrl.abort(), 12000); // 광고시트 지연 시 스킵
+      const to = setTimeout(() => ctrl.abort(), 30000); // 광고시트 콜드 로드 여유 (매출데이터와 병렬이라 안전)
       try { return await (await fetch(_adUrl, { signal: ctrl.signal })).json(); }
       catch (e) { return { error: "광고 로드 지연/실패: " + e.message }; }
       finally { clearTimeout(to); }
@@ -70,8 +70,16 @@ module.exports = async (req, res) => {
     catch (e) { res.status(502).json({ error: "매출 데이터 로드 실패: " + e.message }); return; }
     if (!dr || dr.error) { res.status(502).json({ error: "매출 데이터 오류: " + (dr && dr.error) }); return; }
 
-    const p = (dr.products || []).find((x) => x.id === pid);
+    let p = (dr.products || []).find((x) => x.id === pid);
     if (!p) { res.status(404).json({ error: "해당 제품(PID) 데이터를 찾지 못했습니다" }); return; }
+    // 매출영상(소재)이 비면 낡은 캐시일 수 있으니 1회 fresh 재조회
+    if (!p.revVideos || p.revVideos.length === 0) {
+      try {
+        const dr2 = await (await fetch(url + "&fresh=1")).json();
+        const p2 = dr2 && (dr2.products || []).find((x) => x.id === pid);
+        if (p2 && p2.revVideos && p2.revVideos.length) { p = p2; dr = dr2; }
+      } catch (e) { /* 무시하고 진행 */ }
+    }
 
     // 2) 파생 지표 미리 계산 (Claude는 계산 말고 해석만)
     const daily = (p.series || []).slice(-40).map((s) => ({
