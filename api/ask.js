@@ -51,7 +51,8 @@ module.exports = async (req, res) => {
     // 1) 매출 데이터 self-fetch
     const host = req.headers["x-forwarded-host"] || req.headers.host;
     const proto = (req.headers["x-forwarded-proto"] || "https").split(",")[0];
-    const url = `${proto}://${host}/api/daily-report?format=json` + (date ? `&date=${encodeURIComponent(date)}` : "");
+    // fresh=1로 CDN 캐시 우회 — 최신 매출/소재(revVideos) 반영 (캐시된 빈 응답 방지)
+    const url = `${proto}://${host}/api/daily-report?format=json&fresh=1` + (date ? `&date=${encodeURIComponent(date)}` : "");
     let dr;
     try { dr = await (await fetch(url)).json(); }
     catch (e) { res.status(502).json({ error: "매출 데이터 로드 실패: " + e.message }); return; }
