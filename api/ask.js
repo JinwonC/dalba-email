@@ -51,8 +51,9 @@ module.exports = async (req, res) => {
     // 1) 매출 데이터 self-fetch
     const host = req.headers["x-forwarded-host"] || req.headers.host;
     const proto = (req.headers["x-forwarded-proto"] || "https").split(",")[0];
-    // fresh=1로 CDN 캐시 우회 — 최신 매출/소재(revVideos) 반영 (캐시된 빈 응답 방지)
-    const url = `${proto}://${host}/api/daily-report?format=json&fresh=1` + (date ? `&date=${encodeURIComponent(date)}` : "");
+    // 10분마다 갱신되는 캐시키 — 최신 반영하되 매번 시트 재읽기(타임아웃) 방지
+    const cb = Math.floor(Date.now() / 600000);
+    const url = `${proto}://${host}/api/daily-report?format=json&cb=${cb}` + (date ? `&date=${encodeURIComponent(date)}` : "");
     let dr;
     try { dr = await (await fetch(url)).json(); }
     catch (e) { res.status(502).json({ error: "매출 데이터 로드 실패: " + e.message }); return; }
@@ -92,7 +93,11 @@ module.exports = async (req, res) => {
     try {
       const pw = process.env.DASHBOARD_PASSWORD || "";
       const adUrl = `${proto}://${host}/api/ads-report` + (pw ? `?pw=${encodeURIComponent(pw)}` : "");
-      const ad = await (await fetch(adUrl)).json();
+      const ctrl = new AbortController();
+      const to = setTimeout(() => ctrl.abort(), 22000); // 광고시트 지연 시 스킵(전체 타임아웃 방지)
+      let ad;
+      try { ad = await (await fetch(adUrl, { signal: ctrl.signal })).json(); }
+      finally { clearTimeout(to); }
       const adList = ad && (ad.creatives || ad.list);
       if (ad && ad.error) { adErr = ad.error; }
       else if (Array.isArray(adList)) {
