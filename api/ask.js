@@ -40,8 +40,13 @@ module.exports = async (req, res) => {
     const date = String(q.date || "").trim();
     if (!pid || !question) { res.status(400).json({ error: "pid·question 필요" }); return; }
 
-    const key = process.env.ANTHROPIC_API_KEY;
-    if (!key) { res.status(500).json({ error: "ANTHROPIC_API_KEY 미설정" }); return; }
+    const gemKey = process.env.GEMINI_API_KEY;
+    const antKey = process.env.ANTHROPIC_API_KEY;
+    // 우선순위: 요청에서 provider 지정 > Gemini 키 있으면 Gemini > Anthropic
+    const provider = q.provider || (gemKey ? "gemini" : (antKey ? "anthropic" : null));
+    if (!provider) { res.status(500).json({ error: "API 키 미설정 (GEMINI_API_KEY 또는 ANTHROPIC_API_KEY)" }); return; }
+    if (provider === "gemini" && !gemKey) { res.status(500).json({ error: "GEMINI_API_KEY 미설정" }); return; }
+    if (provider === "anthropic" && !antKey) { res.status(500).json({ error: "ANTHROPIC_API_KEY 미설정" }); return; }
 
     // 1) 매출 데이터 self-fetch
     const host = req.headers["x-forwarded-host"] || req.headers.host;
@@ -102,19 +107,33 @@ module.exports = async (req, res) => {
       "5) 특정 날짜를 물으면 그 날과 비교 구간을 일별 데이터에서 직접 찾아 비교한다.";
 
     const prompt = sys + "\n\n[질문]\n" + question + "\n\n[데이터]\n" + JSON.stringify(ctx);
-    const model = String(q.model || process.env.ASK_MODEL || "claude-haiku-4-5-20251001");
 
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({ model, max_tokens: 1600, messages: [{ role: "user", content: prompt }] }),
-    });
-    const data = await r.json();
-    if (!r.ok) { res.status(502).json({ error: "Claude API 오류(" + model + "): " + JSON.stringify(data.error || data).slice(0, 300) }); return; }
-    const answer = (data.content || []).map((b) => b.text || "").join("").trim();
+    let answer = "", model;
+    if (provider === "gemini") {
+      model = String(q.geminiModel || process.env.GEMINI_MODEL || "gemini-2.0-flash");
+      const gurl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${gemKey}`;
+      const r = await fetch(gurl, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 1800, temperature: 0.3 } }),
+      });
+      const data = await r.json();
+      if (!r.ok) { res.status(502).json({ error: "Gemini API 오류(" + model + "): " + JSON.stringify(data.error || data).slice(0, 300) }); return; }
+      answer = ((data.candidates || [])[0]?.content?.parts || []).map((b) => b.text || "").join("").trim();
+    } else {
+      model = String(q.model || process.env.ASK_MODEL || "claude-haiku-4-5-20251001");
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "x-api-key": antKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+        body: JSON.stringify({ model, max_tokens: 1600, messages: [{ role: "user", content: prompt }] }),
+      });
+      const data = await r.json();
+      if (!r.ok) { res.status(502).json({ error: "Claude API 오류(" + model + "): " + JSON.stringify(data.error || data).slice(0, 300) }); return; }
+      answer = (data.content || []).map((b) => b.text || "").join("").trim();
+    }
 
     res.setHeader("cache-control", "no-store");
-    res.status(200).json({ answer, model, 기준일: dr.date, 제품: p.name });
+    res.status(200).json({ answer, provider, model, 기준일: dr.date, 제품: p.name });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
