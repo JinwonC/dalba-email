@@ -115,11 +115,15 @@ module.exports = async (req, res) => {
       const r = await fetch(gurl, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 1800, temperature: 0.3 } }),
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { maxOutputTokens: 2048, temperature: 0.3, thinkingConfig: { thinkingBudget: 0 } },
+        }),
       });
       const data = await r.json();
       if (!r.ok) { res.status(502).json({ error: "Gemini API 오류(" + model + "): " + JSON.stringify(data.error || data).slice(0, 300) }); return; }
-      answer = ((data.candidates || [])[0]?.content?.parts || []).map((b) => b.text || "").join("").trim();
+      // thinking(사고) 파트 제외, 실제 답변 텍스트만
+      answer = ((data.candidates || [])[0]?.content?.parts || []).filter((b) => !b.thought).map((b) => b.text || "").join("").trim();
     } else {
       model = String(q.model || process.env.ASK_MODEL || "claude-haiku-4-5-20251001");
       const r = await fetch("https://api.anthropic.com/v1/messages", {
