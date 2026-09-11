@@ -74,17 +74,44 @@ module.exports = async (req, res) => {
       영상발행: s.newVid || 0,
       샘플: s.samples || 0,
     }));
+    // 소재별 광고 지출·판정 (광고 시트 광고소재성과) — cid로 매출영상과 조인
+    let adByCid = null, adErr = null;
+    try {
+      const pw = process.env.DASHBOARD_PASSWORD || "";
+      const adUrl = `${proto}://${host}/api/ads-report` + (pw ? `?pw=${encodeURIComponent(pw)}` : "");
+      const ad = await (await fetch(adUrl)).json();
+      if (ad && ad.error) { adErr = ad.error; }
+      else if (ad && Array.isArray(ad.list)) {
+        adByCid = {};
+        for (const c of ad.list) {
+          if (c.isPC || !c.id) continue;
+          const a = adByCid[c.id] || (adByCid[c.id] = { 누적광고비: 0, 최근7일광고비: 0, 광고ROI: null, 판정: null });
+          a.누적광고비 += (c.cum && c.cum.spend) || 0;
+          a.최근7일광고비 += c.last7 || 0;
+          if (c.cum && c.cum.roi != null) a.광고ROI = c.cum.roi;
+          if (c.badge) a.판정 = c.badge;
+        }
+      }
+    } catch (e) { adErr = e.message; }
+
     const vids = (p.revVideos || [])
       .filter((v) => v.cid)
       .sort((a, b) => (b.pay || 0) - (a.pay || 0))
       .slice(0, 12)
-      .map((v) => ({
-        크리에이터: v.creator,
-        매출: Math.round(v.pay || 0),
-        오가닉: v.org || 0,
-        샵애즈: v.shop || 0,
-        링크: v.link || `https://www.tiktok.com/@${v.creator}/video/${v.cid}`,
-      }));
+      .map((v) => {
+        const ad = adByCid && adByCid[v.cid];
+        return {
+          크리에이터: v.creator,
+          매출: Math.round(v.pay || 0),
+          오가닉: v.org || 0,
+          샵애즈: v.shop || 0,
+          광고지출_누적: ad ? Math.round(ad.누적광고비) : 0,
+          광고지출_최근7일: ad ? Math.round(ad.최근7일광고비) : 0,
+          광고ROI: ad ? ad.광고ROI : null,
+          광고판정: ad ? (ad.판정 || "-") : "광고미집행(오가닉)",
+          링크: v.link || `https://www.tiktok.com/@${v.creator}/video/${v.cid}`,
+        };
+      });
     const channels = (p.channels || []).map((c) => ({ 채널: c.name, 매출: Math.round(c.v || 0) }));
 
     const ctx = {
@@ -94,17 +121,25 @@ module.exports = async (req, res) => {
       일별_지표_최근40일: daily,
       매출_상위_소재_기준일: vids,
       채널별_매출_기준일: channels,
-      주의: "매출발생영상(소재)은 광고 지출이 아니라 매출 귀속. 광고비/ROI는 일별_지표의 광고비·ROI 참고. 소재별 광고지출 데이터는 여기 없음.",
+      주의:
+        "매출_상위_소재의 '매출'은 AF 매출귀속(오가닉+샵애즈)이고, '광고지출_누적/최근7일·광고ROI·광고판정'은 GMV Max 광고 시트에서 cid로 조인한 값." +
+        (adErr ? " (⚠️ 광고 소재 데이터 로드 실패: " + adErr + " → 소재별 광고지출은 '광고미집행'으로 표시될 수 있음)" : "") +
+        " 광고판정 배지: 🟢부스팅=증액 후보 / 🔴컷=중단 대상 / 🟡피로 / 관찰 / ⊘게이트탈락(지출<$10). '광고미집행(오가닉)'=광고 없이 매출난 소재.",
     };
 
     const sys =
-      "너는 d'Alba 미국 틱톡샵 데이터 분석가다. 아래 JSON 데이터만 근거로 사용자 질문에 답한다.\n" +
-      "규칙:\n" +
-      "1) 제공된 숫자만 인용한다. 데이터에 없는 값(조회수·팔로워·소재별 광고비 등)은 추측하지 말고 '데이터에 없음'이라 밝힌다.\n" +
-      "2) 매출 증감은 반드시 '방문 × 전환율 × 객단가'로 분해해 어느 요인이 주원인인지 밝힌다.\n" +
-      "3) 함께 확인: 광고비 변화와 ROI, 특정 소재(크리에이터)의 매출 기여·편중, 신규 영상 발행량, 오가닉 vs 샵애즈.\n" +
-      "4) 한국어. 첫 줄에 핵심 결론, 그 뒤 근거를 실제 숫자·크리에이터명으로 구체적으로. 간결하게(과한 서론 금지).\n" +
-      "5) 특정 날짜를 물으면 그 날과 비교 구간을 일별 데이터에서 직접 찾아 비교한다.";
+      "너는 d'Alba 미국 틱톡샵 데이터 분석가다. 아래 JSON 데이터만 근거로 답한다.\n\n" +
+      "[매출 영향 요소 체크리스트] — 매출 증감 질문이면 아래를 순서대로 점검하고, 관련 있는 항목만 근거로 제시한다:\n" +
+      "① 결과지표 분해: 매출 = 방문 × 전환율 × 객단가. 셋 중 무엇이 주로 움직였는지 반드시 밝힌다.\n" +
+      "② 전환 세부: 담기율(ATCR)·전환율 흐름(있으면).\n" +
+      "③ 광고: 일별 광고비 변화·ROI. 그리고 '매출_상위_소재'의 광고지출·광고판정을 보고 — 광고를 태운 소재 vs 광고 없이 오가닉으로 큰 소재(광고미집행)를 구분하고, 부스팅/컷 판정을 짚는다.\n" +
+      "④ 콘텐츠: 신규 영상 발행량, 매출 상위 소재의 편중(1~2개 소재 의존 여부), 크리에이터명.\n" +
+      "⑤ 유입 출처: 오가닉 vs 샵애즈. (값이 0이면 최신일 집계 지연 가능성으로 명시)\n" +
+      "⑥ 채널: 동영상/라이브/프로덕트카드/셀러영상 중 어디서 늘고 줄었나.\n\n" +
+      "[규칙]\n" +
+      "- 제공된 숫자만 인용. 없는 값(조회수·팔로워·라이브 진행시간 등)은 추측 말고 '데이터에 없음'이라 밝힌다.\n" +
+      "- 한국어. 첫 줄에 핵심 결론(주원인 1~2개), 그 뒤 근거를 실제 숫자·크리에이터명·광고판정으로 구체적으로. 간결하게(과한 서론 금지).\n" +
+      "- 특정 날짜를 물으면 그 날과 직전/비교 구간을 일별 데이터에서 직접 찾아 비교한다.";
 
     const prompt = sys + "\n\n[질문]\n" + question + "\n\n[데이터]\n" + JSON.stringify(ctx);
 
