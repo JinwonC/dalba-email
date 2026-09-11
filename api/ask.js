@@ -80,10 +80,11 @@ module.exports = async (req, res) => {
       const pw = process.env.DASHBOARD_PASSWORD || "";
       const adUrl = `${proto}://${host}/api/ads-report` + (pw ? `?pw=${encodeURIComponent(pw)}` : "");
       const ad = await (await fetch(adUrl)).json();
+      const adList = ad && (ad.creatives || ad.list);
       if (ad && ad.error) { adErr = ad.error; }
-      else if (ad && Array.isArray(ad.list)) {
+      else if (Array.isArray(adList)) {
         adByCid = {};
-        for (const c of ad.list) {
+        for (const c of adList) {
           if (c.isPC || !c.id) continue;
           const a = adByCid[c.id] || (adByCid[c.id] = { 누적광고비: 0, 최근7일광고비: 0, 광고ROI: null, 판정: null });
           a.누적광고비 += (c.cum && c.cum.spend) || 0;
