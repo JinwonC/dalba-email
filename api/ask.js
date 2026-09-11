@@ -74,8 +74,20 @@ module.exports = async (req, res) => {
       영상발행: s.newVid || 0,
       샘플: s.samples || 0,
     }));
-    // 소재별 광고 지출·판정 (광고 시트 광고소재성과) — cid로 매출영상과 조인
-    let adByCid = null, adErr = null;
+    // 캠페인명 → 제품(PID) 매칭 (광고 시트엔 PID가 없어 캠페인명으로 필터)
+    const CAMP = {
+      "1732030444618027740": (c) => /first\(100\)/i.test(c) && !/번들|bundle|set|세트|퍼스트\+/i.test(c),
+      "1732090269393588956": (c) => /번들|bundle|3번들|퍼스트\s*\+|first\(100\).*(번들|set)/i.test(c),
+      "1732057509504979676": (c) => /톤업|tone.?up/i.test(c),
+      "1732057536500110044": (c) => /그라인딩|보르피린|volufiline|grinding/i.test(c),
+      "1732268708636299996": (c) => /비타|오버나이트|vita|overnight/i.test(c),
+      "1729492487438964444": (c) => /더블|글로우|더블라인|glow|double/i.test(c),
+      "1732356256385635036": (c) => /age\s*less|ageless|에이지리스|리프트\s*모어/i.test(c),
+    };
+    const match = CAMP[pid];
+
+    // 소재별 광고 지출·판정 (광고 시트 광고소재성과)
+    let adByCid = null, adErr = null, prodCreatives = [];
     try {
       const pw = process.env.DASHBOARD_PASSWORD || "";
       const adUrl = `${proto}://${host}/api/ads-report` + (pw ? `?pw=${encodeURIComponent(pw)}` : "");
@@ -90,9 +102,25 @@ module.exports = async (req, res) => {
           const a = adByCid[c.id] || (adByCid[c.id] = { 누적광고비: 0, 최근7일광고비: 0, 광고ROI: null, 판정: null, _max: -1 });
           a.누적광고비 += spend;
           a.최근7일광고비 += c.last7 || 0;
-          // 판정·ROI는 지출이 가장 큰 캠페인 조합 기준 (동일 소재가 여러 캠페인에 있을 때)
           if (spend > a._max) { a._max = spend; a.판정 = c.badge || a.판정; if (c.cum && c.cum.roi != null) a.광고ROI = c.cum.roi; }
+          // 이 제품 캠페인에 속하는 소재 → 최근7일 광고귀속 GMV/지출
+          if (match && match(c.camp || "")) {
+            const g7 = Array.isArray(c.sparkG) ? c.sparkG.slice(-7).reduce((s, x) => s + (x || 0), 0) : 0;
+            prodCreatives.push({
+              크리에이터: c.creator || "(미상)",
+              광고귀속GMV_최근7일: Math.round(g7),
+              광고비_최근7일: Math.round(c.last7 || 0),
+              누적광고비: Math.round(spend),
+              광고ROI: c.cum && c.cum.roi != null ? c.cum.roi : null,
+              판정: c.badge || "-",
+              캠페인: c.camp,
+              링크: c.link || (c.id ? `https://www.tiktok.com/@${c.creator || "tiktok"}/video/${c.id}` : null),
+            });
+          }
         }
+        prodCreatives = prodCreatives
+          .sort((a, b) => (b.광고귀속GMV_최근7일 - a.광고귀속GMV_최근7일) || (b.광고비_최근7일 - a.광고비_최근7일))
+          .slice(0, 12);
       }
     } catch (e) { adErr = e.message; }
 
@@ -122,11 +150,13 @@ module.exports = async (req, res) => {
       데이터_기준일: dr.date,
       일별_지표_최근40일: daily,
       매출_상위_소재_기준일: vids,
+      광고소재_최근7일: prodCreatives,
       채널별_매출_기준일: channels,
       주의:
-        "매출_상위_소재의 '매출'은 AF 매출귀속(오가닉+샵애즈)이고, '광고지출_누적/최근7일·광고ROI·광고판정'은 GMV Max 광고 시트에서 cid로 조인한 값." +
-        (adErr ? " (⚠️ 광고 소재 데이터 로드 실패: " + adErr + " → 소재별 광고지출은 '광고미집행'으로 표시될 수 있음)" : "") +
-        " 광고판정 배지: 🟢부스팅=증액 후보 / 🔴컷=중단 대상 / 🟡피로 / 관찰 / ⊘게이트탈락(지출<$10). '광고미집행(오가닉)'=광고 없이 매출난 소재.",
+        "'매출_상위_소재_기준일'의 '매출'은 AF 매출귀속(오가닉+샵애즈)이며 최신 1~2일은 AF 탭 지연으로 비어있을 수 있음. " +
+        "그 경우 '광고소재_최근7일'(광고 시트 기준, 광고귀속GMV=AF Video+프로덕트카드)을 소재 매출/지출 근거로 사용하되 '광고귀속 GMV라 AF 매출귀속과 기준이 다름'을 명시. " +
+        "광고판정 배지: 🟢부스팅=증액 후보 / 🔴컷=중단 / 🟡피로 / 관찰 / ⊘게이트탈락(지출<$10). '광고미집행(오가닉)'=광고 없이 매출난 소재." +
+        (adErr ? " (⚠️ 광고 소재 데이터 로드 실패: " + adErr + ")" : ""),
     };
 
     const sys =
@@ -135,7 +165,7 @@ module.exports = async (req, res) => {
       "① 결과지표 분해: 매출 = 방문 × 전환율 × 객단가. 셋 중 무엇이 주로 움직였는지 반드시 밝힌다.\n" +
       "② 전환 세부: 담기율(ATCR)·전환율 흐름(있으면).\n" +
       "③ 광고: 일별 광고비 변화·ROI. 그리고 '매출_상위_소재'의 광고지출·광고판정을 보고 — 광고를 태운 소재 vs 광고 없이 오가닉으로 큰 소재(광고미집행)를 구분하고, 부스팅/컷 판정을 짚는다.\n" +
-      "④ 콘텐츠: 신규 영상 발행량, 매출 상위 소재의 편중(1~2개 소재 의존 여부), 크리에이터명.\n" +
+      "④ 콘텐츠: 신규 영상 발행량, 매출 상위 소재의 편중(1~2개 소재 의존 여부), 크리에이터명. 최신일이라 '매출_상위_소재_기준일'이 비면 '광고소재_최근7일'로 대체 분석.\n" +
       "⑤ 유입 출처: 오가닉 vs 샵애즈. (값이 0이면 최신일 집계 지연 가능성으로 명시)\n" +
       "⑥ 채널: 동영상/라이브/프로덕트카드/셀러영상 중 어디서 늘고 줄었나.\n\n" +
       "[규칙]\n" +
