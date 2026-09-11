@@ -173,7 +173,19 @@ module.exports = async (req, res) => {
     }
 
     res.setHeader("cache-control", "no-store");
-    res.status(200).json({ answer, provider, model, 기준일: dr.date, 제품: p.name });
+    const resp = { answer, provider, model, 기준일: dr.date, 제품: p.name };
+    if (q.debug) {
+      resp._debug = {
+        adErr,
+        adCidCount: adByCid ? Object.keys(adByCid).length : null,
+        sampleAdCids: adByCid ? Object.keys(adByCid).slice(0, 3) : null,
+        vidSampleCids: (p.revVideos || []).filter((v) => v.cid).slice(0, 3).map((v) => v.cid),
+        matched: vids.filter((v) => v.광고지출_누적 > 0 || (v.광고판정 && v.광고판정 !== "광고미집행(오가닉)")).length,
+        dashboardPwSet: !!process.env.DASHBOARD_PASSWORD,
+        adsSheetSet: !!process.env.ADS_SHEET_ID,
+      };
+    }
+    res.status(200).json(resp);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
