@@ -54,9 +54,8 @@ button.go:disabled{opacity:.5;cursor:default}
       </div>
     </div>
     <div class="chips" id="chips"></div>
-    <div class="opt"><input type="checkbox" id="deep"><label for="deep">심층 분석 (Sonnet · 느리지만 더 깊게)</label>
-      <span style="flex:1"></span>
-      <span class="hint">기준일: <input id="date" placeholder="비움=최신" style="width:120px;display:inline-block;padding:4px 8px"></span>
+    <div class="opt">
+      <span class="hint">특정일 기준으로 물어보려면 → 기준일: <input id="date" placeholder="비움=최신" style="width:120px;display:inline-block;padding:4px 8px"></span>
     </div>
     <button class="go" id="go">분석하기</button>
   </div>
@@ -93,7 +92,6 @@ async function ask(){
   const pid=$("pid").value, question=$("q").value.trim();
   if(!question){$("q").focus();return;}
   const body={pid,question,date:$("date").value.trim()};
-  if($("deep").checked) body.model="claude-sonnet-4-5";
   $("go").disabled=true;$("out").hidden=false;$("outlbl").textContent="분석 중…";
   $("ans").innerHTML='<span class="spin"></span> 데이터 읽고 분석하는 중… (10~20초)';
   $("meta").textContent="";
