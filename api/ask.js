@@ -32,6 +32,25 @@ function readJson(req) {
   });
 }
 
+// 같은 배포의 API 핸들러를 HTTP 없이 in-process로 실행해 JSON을 받는다
+// (self-fetch의 캐시·타임아웃·abort 이슈 제거)
+const dailyHandler = require("./daily-report");
+const adsHandler = require("./ads-report");
+function callApi(handler, query) {
+  return new Promise((resolve) => {
+    const req = { method: "GET", query, headers: {} };
+    const res = {
+      statusCode: 200,
+      setHeader() {},
+      status(c) { this.statusCode = c; return this; },
+      json(o) { resolve(o); },
+      send(o) { resolve(o); },
+      end() { resolve(null); },
+    };
+    Promise.resolve().then(() => handler(req, res)).catch((e) => resolve({ error: String((e && e.message) || e) }));
+  });
+}
+
 module.exports = async (req, res) => {
   try {
     const q = req.method === "POST" ? await readJson(req) : (req.query || {});
@@ -48,38 +67,16 @@ module.exports = async (req, res) => {
     if (provider === "gemini" && !gemKey) { res.status(500).json({ error: "GEMINI_API_KEY 미설정" }); return; }
     if (provider === "anthropic" && !antKey) { res.status(500).json({ error: "ANTHROPIC_API_KEY 미설정" }); return; }
 
-    // 1) 매출 데이터 self-fetch
-    const host = req.headers["x-forwarded-host"] || req.headers.host;
-    const proto = (req.headers["x-forwarded-proto"] || "https").split(",")[0];
-    // 10분마다 갱신되는 캐시키 — 최신 반영하되 매번 시트 재읽기(타임아웃) 방지
-    // 광고 소재(광고시트) 페치를 매출 데이터보다 먼저 시작 → 병렬 (직렬 대기 제거로 타임아웃 방지)
-    const _pw = process.env.DASHBOARD_PASSWORD || "";
-    const _adUrl = `${proto}://${host}/api/ads-report` + (_pw ? `?pw=${encodeURIComponent(_pw)}` : "");
-    const adProm = (async () => {
-      const ctrl = new AbortController();
-      const to = setTimeout(() => ctrl.abort(), 30000); // 광고시트 콜드 로드 여유 (매출데이터와 병렬이라 안전)
-      try { return await (await fetch(_adUrl, { signal: ctrl.signal })).json(); }
-      catch (e) { return { error: "광고 로드 지연/실패: " + e.message }; }
-      finally { clearTimeout(to); }
-    })();
-
-    const cb = Math.floor(Date.now() / 600000);
-    const url = `${proto}://${host}/api/daily-report?format=json&cb=${cb}` + (date ? `&date=${encodeURIComponent(date)}` : "");
-    let dr;
-    try { dr = await (await fetch(url)).json(); }
-    catch (e) { res.status(502).json({ error: "매출 데이터 로드 실패: " + e.message }); return; }
+    // 1) 매출 데이터 + 광고 소재 데이터를 in-process 병렬 실행 (HTTP self-fetch 없이)
+    const dailyQuery = { format: "json" };
+    if (date) dailyQuery.date = date;
+    const adsQuery = { pw: process.env.DASHBOARD_PASSWORD || "" };
+    const adProm = callApi(adsHandler, adsQuery); // 병렬 시작
+    let dr = await callApi(dailyHandler, dailyQuery);
     if (!dr || dr.error) { res.status(502).json({ error: "매출 데이터 오류: " + (dr && dr.error) }); return; }
 
-    let p = (dr.products || []).find((x) => x.id === pid);
+    const p = (dr.products || []).find((x) => x.id === pid);
     if (!p) { res.status(404).json({ error: "해당 제품(PID) 데이터를 찾지 못했습니다" }); return; }
-    // 매출영상(소재)이 비면 낡은 캐시일 수 있으니 1회 fresh 재조회
-    if (!p.revVideos || p.revVideos.length === 0) {
-      try {
-        const dr2 = await (await fetch(url + "&fresh=1")).json();
-        const p2 = dr2 && (dr2.products || []).find((x) => x.id === pid);
-        if (p2 && p2.revVideos && p2.revVideos.length) { p = p2; dr = dr2; }
-      } catch (e) { /* 무시하고 진행 */ }
-    }
 
     // 2) 파생 지표 미리 계산 (Claude는 계산 말고 해석만)
     const daily = (p.series || []).slice(-40).map((s) => ({
