@@ -101,7 +101,7 @@ async function ask(){
     const r=await fetch("/api/ask",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
     const d=await r.json();
     if(d.error){$("ans").innerHTML='<span class="err">오류: '+d.error+'</span>';$("outlbl").textContent="오류";}
-    else{$("ans").innerHTML=render(d.answer||"(응답 없음)");$("outlbl").textContent=d.제품+" 분석";$("meta").textContent="기준일 "+d.기준일+" · 모델 "+d.model;}
+    else{$("ans").innerHTML=render(d.answer||"(응답 없음)");$("outlbl").textContent=d.제품+" 분석";$("meta").textContent="기준일 "+d.기준일+" · "+(d.provider||"")+" · "+d.model;}
   }catch(e){$("ans").innerHTML='<span class="err">요청 실패: '+e.message+'</span>';}
   $("go").disabled=false;
 }
