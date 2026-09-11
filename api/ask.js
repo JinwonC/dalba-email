@@ -86,11 +86,12 @@ module.exports = async (req, res) => {
         adByCid = {};
         for (const c of adList) {
           if (c.isPC || !c.id) continue;
-          const a = adByCid[c.id] || (adByCid[c.id] = { 누적광고비: 0, 최근7일광고비: 0, 광고ROI: null, 판정: null });
-          a.누적광고비 += (c.cum && c.cum.spend) || 0;
+          const spend = (c.cum && c.cum.spend) || 0;
+          const a = adByCid[c.id] || (adByCid[c.id] = { 누적광고비: 0, 최근7일광고비: 0, 광고ROI: null, 판정: null, _max: -1 });
+          a.누적광고비 += spend;
           a.최근7일광고비 += c.last7 || 0;
-          if (c.cum && c.cum.roi != null) a.광고ROI = c.cum.roi;
-          if (c.badge) a.판정 = c.badge;
+          // 판정·ROI는 지출이 가장 큰 캠페인 조합 기준 (동일 소재가 여러 캠페인에 있을 때)
+          if (spend > a._max) { a._max = spend; a.판정 = c.badge || a.판정; if (c.cum && c.cum.roi != null) a.광고ROI = c.cum.roi; }
         }
       }
     } catch (e) { adErr = e.message; }
