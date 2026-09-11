@@ -52,6 +52,17 @@ module.exports = async (req, res) => {
     const host = req.headers["x-forwarded-host"] || req.headers.host;
     const proto = (req.headers["x-forwarded-proto"] || "https").split(",")[0];
     // 10분마다 갱신되는 캐시키 — 최신 반영하되 매번 시트 재읽기(타임아웃) 방지
+    // 광고 소재(광고시트) 페치를 매출 데이터보다 먼저 시작 → 병렬 (직렬 대기 제거로 타임아웃 방지)
+    const _pw = process.env.DASHBOARD_PASSWORD || "";
+    const _adUrl = `${proto}://${host}/api/ads-report` + (_pw ? `?pw=${encodeURIComponent(_pw)}` : "");
+    const adProm = (async () => {
+      const ctrl = new AbortController();
+      const to = setTimeout(() => ctrl.abort(), 12000); // 광고시트 지연 시 스킵
+      try { return await (await fetch(_adUrl, { signal: ctrl.signal })).json(); }
+      catch (e) { return { error: "광고 로드 지연/실패: " + e.message }; }
+      finally { clearTimeout(to); }
+    })();
+
     const cb = Math.floor(Date.now() / 600000);
     const url = `${proto}://${host}/api/daily-report?format=json&cb=${cb}` + (date ? `&date=${encodeURIComponent(date)}` : "");
     let dr;
@@ -91,13 +102,7 @@ module.exports = async (req, res) => {
     // 소재별 광고 지출·판정 (광고 시트 광고소재성과)
     let adByCid = null, adErr = null, prodCreatives = [];
     try {
-      const pw = process.env.DASHBOARD_PASSWORD || "";
-      const adUrl = `${proto}://${host}/api/ads-report` + (pw ? `?pw=${encodeURIComponent(pw)}` : "");
-      const ctrl = new AbortController();
-      const to = setTimeout(() => ctrl.abort(), 22000); // 광고시트 지연 시 스킵(전체 타임아웃 방지)
-      let ad;
-      try { ad = await (await fetch(adUrl, { signal: ctrl.signal })).json(); }
-      finally { clearTimeout(to); }
+      const ad = await adProm; // 위에서 병렬로 시작한 광고 페치
       const adList = ad && (ad.creatives || ad.list);
       if (ad && ad.error) { adErr = ad.error; }
       else if (Array.isArray(adList)) {
