@@ -137,14 +137,32 @@ module.exports = async (req, res) => {
             const gmv7 = sumArr(g, n - 7, n), gmvPrev7 = sumArr(g, n - 14, n - 7);
             const sp7 = c.last7 || 0, spPrev7 = c.prev7 || 0;
             const d = c.detail || {}, cum = c.cum || {}, rv = revByCid[c.id];
+            // 광고 on/off 상태 + 휴지기 + 전성기(최고 7일 롤링 ROI) 도출
+            let lastSpendIdx = -1;
+            for (let i = n - 1; i >= 0; i--) { if ((s[i] || 0) > 0.5) { lastSpendIdx = i; break; } }
+            const 중단후경과일 = lastSpendIdx >= 0 ? (n - 1 - lastSpendIdx) : null;
+            let peakRoi = null, peakGmv = 0;
+            for (let i = 0; i + 7 <= n; i++) {
+              const ws = sumArr(s, i, i + 7), wg = sumArr(g, i, i + 7);
+              if (ws >= 20) { const r = wg / ws; if (peakRoi == null || r > peakRoi) { peakRoi = +r.toFixed(2); peakGmv = Math.round(wg); } }
+            }
+            const 잔존매출 = Math.round(gmv7 + (rv ? (rv.org || 0) + (rv.shop || 0) : 0));
+            let 광고상태;
+            if (sp7 >= 5) 광고상태 = "집행중";
+            else if (spend >= 50 && 잔존매출 > 0) 광고상태 = "휴면(광고중단·잔존매출有)";
+            else if (spend >= 50) 광고상태 = "휴면(광고중단)";
+            else 광고상태 = "지출미미";
             prodCreatives.push({
               크리에이터: c.creator || "(미상)",
               캠페인: c.camp,
               링크: c.link || mkLink(c.id, c.creator),
               판정: c.badge || "-",
               신뢰도: c.confidence || null,
+              광고상태,
+              광고중단_경과일: 광고상태.startsWith("휴면") ? 중단후경과일 : null,
               누적: { 광고비: Math.round(spend), GMV: Math.round(cum.gmv || 0), ROI: cum.roi != null ? cum.roi : null, 주문: cum.orders || 0, 전환율퍼센트: cum.cvr != null ? cum.cvr : null },
-              최근7일: { 광고비: Math.round(sp7), GMV: Math.round(gmv7), ROI: sp7 ? +(gmv7 / sp7).toFixed(2) : null },
+              전성기_최고7일: { ROI: peakRoi, GMV: peakGmv },
+              최근7일: { 광고비: Math.round(sp7), GMV: Math.round(gmv7), ROI: sp7 ? +(gmv7 / sp7).toFixed(2) : null, 잔존매출_광고AF합: 잔존매출 },
               직전7일: { 광고비: Math.round(spPrev7), GMV: Math.round(gmvPrev7), ROI: spPrev7 ? +(gmvPrev7 / spPrev7).toFixed(2) : null },
               추세: { 광고비증감퍼센트: pctChg(sp7, spPrev7), GMV증감퍼센트: pctChg(gmv7, gmvPrev7) },
               소재품질: { 훅2초율: d.v2s, 훅6초율: d.v6s, 완주50율: d.v50, 완주100율: d.v100, CTR: d.ctr, 전환율퍼센트: d.cvr },
@@ -197,7 +215,9 @@ module.exports = async (req, res) => {
       주의:
         "소재품질 지표(훅2초율/6초율/완주50·100율/CTR/전환율)는 광고 노출 기준 비율이며 소재가 '왜 되는지/안 되는지'의 핵심 근거다. " +
         "'광고소재_상세'의 GMV는 광고귀속(AF Video+프로덕트카드), '오가닉_상위_소재'의 매출은 AF 매출귀속(오가닉+샵애즈)로 기준이 다름을 명시. " +
-        "판정: BOOST=증액 후보 / KILL=중단 / 피로=신규교체 / 관찰중 / 게이트탈락(지출<$10). 신뢰도: 판정불가(<$50)·예비(<$100)·확정. " +
+        "판정(누적 라이프타임 기준): BOOST=증액 후보 / KILL=중단 / 피로=신규교체 / 관찰중 / 게이트탈락(지출<$10). 신뢰도: 판정불가(<$50)·예비(<$100)·확정. " +
+        "'광고상태'는 현재 on/off(집행중/휴면/지출미미)이며 판정과 별개다. '광고중단_경과일'=마지막 지출 이후 경과일. " +
+        "'전성기_최고7일'=최근30일 내 최고 7일 롤링 ROI/GMV(과거 얼마나 잘 팔렸나). '최근7일.잔존매출_광고AF합'=광고 꺼도 나오는 매출(재점화 판단 핵심). " +
         "최신 1~2일은 AF 탭 지연으로 오가닉/샵애즈가 비어있을 수 있음." +
         (adErr ? " (⚠️ 광고 소재 데이터 로드 실패: " + adErr + " — 이 경우 소재 분석은 생략하고 나머지로 답하되 실패 사실은 언급하지 말 것)" : ""),
     };
@@ -210,8 +230,14 @@ module.exports = async (req, res) => {
       "   · 크리에이터명 + 광고/오가닉 여부 + 링크\n" +
       "   · 누적 광고비/GMV/ROI, 그리고 최근7일 vs 직전7일 추세(‘추세’의 증감퍼센트를 인용해 늘고 있나 꺾이나 판단)\n" +
       "   · '소재품질'(훅2초·6초율, 완주50·100율, CTR, 전환율)로 왜 되는/안 되는지 해석 — 예: 훅은 좋은데 완주가 낮음→초반만 보고 이탈, CTR 낮음→썸네일/후킹 약함\n" +
-      "   · 판정과 그 근거 → 구체 액션(증액/유지/피로교체/컷/오가닉→광고확산). 신뢰도가 '예비/판정불가'면 '더 지켜보기'로.\n" +
+      "   · '광고상태'를 반드시 본다: 집행중 / 휴면(광고중단) / 지출미미. 판정 배지는 '누적(라이프타임)' 기준이라 지금 광고가 꺼져 있는지와 별개임 — 현재 상태와 판정을 섞지 말 것.\n" +
+      "   · 판정+상태 종합해 구체 액션(증액/유지/피로교체/컷/오가닉→광고확산/재점화 테스트). 신뢰도가 '예비/판정불가'면 '더 지켜보기'.\n" +
       "3) 숨은 기회·리스크: '오가닉_상위_소재'에서 광고 안 태웠는데 매출 큰 소재(→광고 증액 후보), 지출 큰데 ROI<1.5·완주 낮은 소재(→컷·교체).\n\n" +
+      "[휴면 소재 재점화 판단 — 매우 중요]\n" +
+      "판정이 '피로/KILL'이어도 그것만으로 '재집행 엄금'이라 단정하지 마라. 다음이면 오히려 '소량 재점화 테스트' 후보로 제시한다:\n" +
+      "  · 광고상태가 '휴면(광고중단·잔존매출有)' — 즉 최근7일 광고비가 사실상 0인데 '잔존매출_광고AF합'가 계속 나오는 경우.\n" +
+      "  근거: (1) 피로는 지출 과열로 붙는 판정이라 휴지기(‘광고중단_경과일’) 뒤 회복하는 경우가 많고, (2) 광고 끈 상태의 잔존/오가닉 수요는 콘텐츠가 여전히 먹힌다는 신호, (3) 현재 지출이 0이라 소액($10~30/일) 테스트 리스크가 낮다. '전성기_최고7일 ROI'가 좋았던 소재일수록 우선 재점화.\n" +
+      "  제안 형식: '지금 꺼둔 상태 + 잔존매출 $X + 전성기 ROI Y → 컷 유지보다 소액 재점화 테스트 권장(며칠 관찰)'. 반대로 잔존매출도 없고 품질(완주/CVR)도 나쁘면 '컷 유지'.\n\n" +
       "[매출 증감 질문이면 추가로]\n" +
       "매출 = 방문 × 전환율 × 객단가 로 분해해 무엇이 주로 움직였는지 밝히고, 그 변화를 만든 소재·광고비·오가닉을 위 소재 분석과 연결한다.\n\n" +
       "[규칙]\n" +
@@ -261,6 +287,7 @@ module.exports = async (req, res) => {
         oganicVidCount: oganicVids.length,
         sampleCreator: prodCreatives[0] ? prodCreatives[0].크리에이터 : null,
         sampleQuality: prodCreatives[0] ? prodCreatives[0].소재품질 : null,
+        dormant: prodCreatives.filter((c) => String(c.광고상태 || "").startsWith("휴면")).map((c) => ({ 크리에이터: c.크리에이터, 상태: c.광고상태, 잔존: c.최근7일.잔존매출_광고AF합, 전성기ROI: c.전성기_최고7일.ROI, 판정: c.판정 })).slice(0, 5),
         dashboardPwSet: !!process.env.DASHBOARD_PASSWORD,
         adsSheetSet: !!process.env.ADS_SHEET_ID,
       };
