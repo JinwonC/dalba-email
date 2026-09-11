@@ -117,7 +117,8 @@ module.exports = async (req, res) => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: 2048, temperature: 0.3, thinkingConfig: { thinkingBudget: 0 } },
+          // maxOutputTokens는 사고(thinking) 토큰까지 포함하므로 넉넉히 (답변 잘림 방지)
+          generationConfig: { maxOutputTokens: 8192, temperature: 0.3 },
         }),
       });
       const data = await r.json();
