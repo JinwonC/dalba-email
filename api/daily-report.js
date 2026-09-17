@@ -1346,6 +1346,47 @@ module.exports = async (req, res) => {
     }
     const { rawRows, vidRows, adRows, afRows, liveRows, skuRows } = sd;
 
+    // 크리에이터별 AF 주문 조회 (?afCreator=handle[&afMonth=YYYY-MM][&afType=LIVE|Video])
+    //   주문별 AF 매출 RAW 탭을 크리에이터로 필터 → 세션(날짜)별·제품별 매출 집계
+    if (req.query && req.query.afCreator) {
+      const M = mapVideoColumns(vidRows);
+      const want = String(req.query.afCreator).replace(/^@/, "").trim().toLowerCase();
+      const mon = String(req.query.afMonth || "").trim(); // YYYY-MM
+      const typeF = String(req.query.afType || "").trim().toLowerCase();
+      const byDate = {}, byProduct = {}, byDateProduct = {}, typeMix = {};
+      let total = 0, units = 0, orders = 0;
+      for (const r of vidRows) {
+        const cu = String(r[M.creator] || "").replace(/^@/, "").trim().toLowerCase();
+        if (cu !== want) continue;
+        const d = parseDate(r[M.date]); if (!d) continue;
+        if (mon && d.key.slice(0, 7) !== mon) continue;
+        const type = String(r[M.ctype] || "").trim();
+        if (typeF && type.toLowerCase() !== typeF) continue;
+        const pay = num(r[M.pay]), qty = num(r[M.qty]);
+        const pid = String(r[M.pid] || "").trim();
+        const pk = pid || clean(r[M.pname]);
+        total += pay; units += qty; orders++;
+        typeMix[type || "기타"] = (typeMix[type || "기타"] || 0) + pay;
+        (byDate[d.key] = byDate[d.key] || { pay: 0, qty: 0, orders: 0 });
+        byDate[d.key].pay += pay; byDate[d.key].qty += qty; byDate[d.key].orders++;
+        (byProduct[pk] = byProduct[pk] || { pid, name: clean(r[M.pname]), pay: 0, qty: 0 });
+        byProduct[pk].pay += pay; byProduct[pk].qty += qty;
+        const dk = d.key + "|" + pk;
+        (byDateProduct[dk] = byDateProduct[dk] || { date: d.key, pid, name: clean(r[M.pname]), pay: 0, qty: 0 });
+        byDateProduct[dk].pay += pay; byDateProduct[dk].qty += qty;
+      }
+      res.setHeader("Cache-Control", "no-store");
+      res.status(200).json({
+        creator: want, month: mon || null, type: typeF || null,
+        totalPay: Math.round(total), totalUnits: units, orderCount: orders,
+        typeMix: Object.fromEntries(Object.entries(typeMix).map(([k, v]) => [k, Math.round(v)])),
+        byDate: Object.entries(byDate).sort().map(([date, v]) => ({ date, pay: Math.round(v.pay), qty: v.qty, orders: v.orders })),
+        byProduct: Object.values(byProduct).sort((a, b) => b.pay - a.pay).map(p => ({ pid: p.pid, name: p.name, pay: Math.round(p.pay), qty: p.qty })),
+        byDateProduct: Object.values(byDateProduct).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : b.pay - a.pay)).map(x => ({ date: x.date, pid: x.pid, name: x.name, pay: Math.round(x.pay), qty: x.qty })),
+      });
+      return;
+    }
+
     const raw = parseRaw(rawRows);
     const keys = Object.keys(raw.byDate).sort();
     if (!keys.length) throw new Error("매출raw 데이터가 없습니다.");
