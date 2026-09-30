@@ -12,7 +12,7 @@
 //      {"id":"admin","pw":"5678","name":"운영팀","handle":"","admin":true}]
 //     admin:true 계정은 모든 라이브를 보고·수정할 수 있습니다.
 
-const { put, list } = require("@vercel/blob");
+const { put, get } = require("@vercel/blob");
 
 const INDEX_KEY = "live-board/lives.json";
 const MAX_SHOT_BYTES = 4 * 1024 * 1024;
@@ -23,6 +23,16 @@ function blobToken() {
   if (process.env.BLOB_READ_WRITE_TOKEN) return process.env.BLOB_READ_WRITE_TOKEN;
   const k = Object.keys(process.env).find(n => /BLOB_READ_WRITE_TOKEN$/i.test(n));
   return k ? process.env[k] : "";
+}
+// 새 Vercel Blob은 BLOB_STORE_ID + VERCEL_OIDC_TOKEN 으로 SDK가 자동 인증한다.
+function blobReady() {
+  return !!(blobToken() || process.env.BLOB_STORE_ID);
+}
+function blobOpts(extra) {
+  const o = Object.assign({}, extra || {});
+  const t = blobToken();
+  if (t) o.token = t;          // 있으면 명시, 없으면 SDK가 OIDC로 해결
+  return o;
 }
 function blobEnvNames() {
   return Object.keys(process.env).filter(n => /BLOB/i.test(n));
@@ -81,18 +91,23 @@ function authenticate(req) {
 }
 
 async function readAll() {
-  const { blobs } = await list({ prefix: INDEX_KEY, limit: 1, token: blobToken() });
-  if (!blobs.length) return [];
-  const r = await fetch(blobs[0].url + "?_=" + Date.now(), { cache: "no-store" });
-  if (!r.ok) return [];
-  const j = await r.json().catch(() => []);
-  return Array.isArray(j) ? j : [];
+  try {
+    const r = await get(INDEX_KEY, blobOpts({ access: "private", useCache: false }));
+    if (!r || r.statusCode !== 200 || !r.stream) return [];
+    const txt = await new Response(r.stream).text();
+    const j = JSON.parse(txt || "[]");
+    return Array.isArray(j) ? j : [];
+  } catch (e) {
+    const n = String((e && (e.name + " " + e.message)) || "");
+    if (/not.?found|404/i.test(n)) return [];   // 최초 실행: 아직 파일 없음
+    throw e;
+  }
 }
 async function writeAll(rows) {
-  await put(INDEX_KEY, JSON.stringify(rows), {
-    access: "public", contentType: "application/json",
-    addRandomSuffix: false, allowOverwrite: true, token: blobToken()
-  });
+  await put(INDEX_KEY, JSON.stringify(rows), blobOpts({
+    access: "private", contentType: "application/json",
+    addRandomSuffix: false, allowOverwrite: true
+  }));
 }
 function clean(s, max) {
   return String(s == null ? "" : s).replace(/[\u0000-\u001f]/g, " ").trim().slice(0, max || 200);
@@ -123,7 +138,7 @@ module.exports = async (req, res) => {
       return;
     }
 
-    if (!blobToken()) {
+    if (!blobReady()) {
       const found = blobEnvNames();
       res.status(500).json({
         error: "Blob 토큰을 찾지 못했습니다. Vercel Storage에서 Blob 스토어를 이 프로젝트에 연결하고 재배포하세요."
@@ -177,9 +192,9 @@ module.exports = async (req, res) => {
         if (!m) { res.status(400).json({ error: "스크린샷 형식이 올바르지 않습니다." }); return; }
         const buf = Buffer.from(m[2], "base64");
         if (buf.length > MAX_SHOT_BYTES) { res.status(413).json({ error: "스크린샷 용량이 너무 큽니다." }); return; }
-        const blob = await put("live-board/shots/" + id + ".jpg", buf, {
-          access: "public", contentType: m[1], addRandomSuffix: true, token: blobToken()
-        });
+        const blob = await put("live-board/shots/" + id + ".jpg", buf, blobOpts({
+          access: "public", contentType: m[1], addRandomSuffix: true
+        }));
         shotUrl = blob.url;
       }
 
