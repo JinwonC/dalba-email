@@ -292,7 +292,7 @@
       +'<span class="chip '+c[0]+'" style="margin-top:5px">'+c[1]+'</span></div></div>';
     var bits=[]; if(l.note) bits.push(esc(l.note)); if(l.reportNote) bits.push(esc(l.reportNote));
     if(bits.length) h+='<div class="meta"><span>'+bits.join('</span><span>')+'</span></div>';
-    if(l.shotUrl) h+='<a class="shot" href="'+esc(l.shotUrl)+'" target="_blank" rel="noopener"><img src="'+esc(l.shotUrl)+'" alt="라이브 종료 스크린샷"></a>';
+    if(l.shotSrc) h+='<a class="shot" href="'+esc(l.shotSrc)+'" target="_blank" rel="noopener"><img src="'+esc(l.shotSrc)+'" alt="라이브 종료 스크린샷"></a>';
     if(withReport && !l.endTime && (mine(l)||(ME&&ME.admin)))
       h+='<div style="margin-top:11px"><button class="btn sm" data-rep="'+esc(l.id)+'">종료 보고하기</button></div>';
     return h+'</div>';

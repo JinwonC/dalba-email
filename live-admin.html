@@ -292,7 +292,7 @@
        +'<td><span class="chip '+c[0]+'">'+c[1]+'</span></td>'
        +'<td style="min-width:150px;color:var(--muted);font-size:12.5px">'
          +esc([l.note,l.reportNote].filter(Boolean).join(" · "))+'</td>'
-       +'<td>'+(l.shotUrl?'<a href="'+esc(l.shotUrl)+'" target="_blank" rel="noopener"><img class="thumb" src="'+esc(l.shotUrl)+'" alt="스크린샷"></a>':'<span class="noshot">–</span>')+'</td></tr>';
+       +'<td>'+(l.shotSrc?'<a href="'+esc(l.shotSrc)+'" target="_blank" rel="noopener"><img class="thumb" src="'+esc(l.shotSrc)+'" alt="스크린샷"></a>':'<span class="noshot">–</span>')+'</td></tr>';
     }).join("");
   }
 
@@ -312,7 +312,7 @@
     var rows=[["날짜","크리에이터","핸들","시작예정","실제시작","종료","진행(분)","상태","메모","보고메모","스크린샷"]];
     visible().forEach(function(l){
       rows.push([l.date,l.creator,l.handle||"",l.startTime,l.actualStart||"",l.endTime||"",
-        minutes(l)||"",CHIP[status(l)][1],l.note||"",l.reportNote||"",l.shotUrl||""]);
+        minutes(l)||"",CHIP[status(l)][1],l.note||"",l.reportNote||"",l.shotSrc||""]);
     });
     var csv="﻿"+rows.map(function(r){return r.map(function(c){
       return '"'+String(c).replace(/"/g,'""')+'"'}).join(",")}).join("\n");

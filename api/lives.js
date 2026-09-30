@@ -13,6 +13,8 @@
 //     admin:true 계정은 모든 라이브를 보고·수정할 수 있습니다.
 
 const { put, get } = require("@vercel/blob");
+const crypto = require("crypto");
+const { Readable } = require("stream");
 
 const INDEX_KEY = "live-board/lives.json";
 const MAX_SHOT_BYTES = 4 * 1024 * 1024;
@@ -27,6 +29,33 @@ function blobToken() {
 // 새 Vercel Blob은 BLOB_STORE_ID + VERCEL_OIDC_TOKEN 으로 SDK가 자동 인증한다.
 function blobReady() {
   return !!(blobToken() || process.env.BLOB_STORE_ID);
+}
+function shotSecret() {
+  return process.env.LIVE_SECRET || process.env.LIVE_USERS || process.env.BLOB_STORE_ID || "dalba-live";
+}
+function shotSig(pathname, exp) {
+  return crypto.createHmac("sha256", shotSecret()).update(pathname + "|" + exp).digest("base64url");
+}
+function shotSrc(pathname) {
+  const exp = Date.now() + 12 * 3600 * 1000;   // 12시간 유효
+  return "/api/lives?shot=" + encodeURIComponent(pathname) + "&e=" + exp + "&t=" + shotSig(pathname, exp);
+}
+function shotOk(pathname, e, t) {
+  const exp = Number(e || 0);
+  if (!exp || Date.now() > exp) return false;
+  const want = Buffer.from(shotSig(pathname, exp));
+  const got = Buffer.from(String(t || ""));
+  return want.length === got.length && crypto.timingSafeEqual(want, got);
+}
+async function serveShot(req, res, pathname) {
+  if (!shotOk(pathname, req.query && req.query.e, req.query && req.query.t)) {
+    res.status(403).end("forbidden"); return;
+  }
+  const r = await get(pathname, blobOpts({ access: "private" }));
+  if (!r || r.statusCode !== 200 || !r.stream) { res.status(404).end("not found"); return; }
+  res.setHeader("Content-Type", r.contentType || "image/jpeg");
+  res.setHeader("Cache-Control", "private, max-age=600");
+  Readable.fromWeb(r.stream).pipe(res);
 }
 function blobOpts(extra) {
   const o = Object.assign({}, extra || {});
@@ -125,6 +154,11 @@ module.exports = async (req, res) => {
   try {
     res.setHeader("Cache-Control", "no-store");
 
+    // 스크린샷은 서명 토큰으로 검증 (img 태그는 헤더를 못 보냄)
+    if (req.method === "GET" && req.query && req.query.shot) {
+      return await serveShot(req, res, String(req.query.shot));
+    }
+
     const auth = authenticate(req);
     if (auth.error) { res.status(500).json({ error: auth.error }); return; }
     if (auth.unauthorized) { res.status(401).json({ error: "아이디 또는 비밀번호가 올바르지 않습니다." }); return; }
@@ -150,7 +184,8 @@ module.exports = async (req, res) => {
     if (req.method === "GET") {
       const rows = await readAll();
       rows.sort((a, b) => (a.date + a.startTime < b.date + b.startTime ? 1 : -1));
-      res.status(200).json({ lives: rows, me, updated: new Date().toISOString() });
+      const out = rows.map(r => r.shotPath ? Object.assign({}, r, { shotSrc: shotSrc(r.shotPath) }) : r);
+      res.status(200).json({ lives: out, me, updated: new Date().toISOString() });
       return;
     }
 
@@ -163,7 +198,7 @@ module.exports = async (req, res) => {
         date: clean(body.date, 10),
         startTime: clean(body.startTime, 5),
         note: clean(body.note, 500),
-        endTime: "", actualStart: "", reportNote: "", shotUrl: "", reportedAt: "",
+        endTime: "", actualStart: "", reportNote: "", shotPath: "", reportedAt: "",
         createdAt: new Date().toISOString()
       };
       if (!isDate(rec.date) || !isTime(rec.startTime)) {
@@ -186,27 +221,27 @@ module.exports = async (req, res) => {
       }
       if (!isTime(body.endTime)) { res.status(400).json({ error: "종료 시각 형식이 올바르지 않습니다." }); return; }
 
-      let shotUrl = rows[i].shotUrl || "";
+      let shotPath = rows[i].shotPath || "";
       if (body.shotData && typeof body.shotData === "string") {
         const m = body.shotData.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
         if (!m) { res.status(400).json({ error: "스크린샷 형식이 올바르지 않습니다." }); return; }
         const buf = Buffer.from(m[2], "base64");
         if (buf.length > MAX_SHOT_BYTES) { res.status(413).json({ error: "스크린샷 용량이 너무 큽니다." }); return; }
         const blob = await put("live-board/shots/" + id + ".jpg", buf, blobOpts({
-          access: "public", contentType: m[1], addRandomSuffix: true
+          access: "private", contentType: m[1], addRandomSuffix: true
         }));
-        shotUrl = blob.url;
+        shotPath = blob.pathname;
       }
 
       rows[i] = Object.assign({}, rows[i], {
         actualStart: isTime(body.actualStart) ? body.actualStart : rows[i].startTime,
         endTime: body.endTime,
         reportNote: clean(body.reportNote, 500),
-        shotUrl,
+        shotPath,
         reportedAt: new Date().toISOString()
       });
       await writeAll(rows);
-      res.status(200).json({ ok: true, live: rows[i] });
+      res.status(200).json({ ok: true, live: Object.assign({}, rows[i], rows[i].shotPath ? { shotSrc: shotSrc(rows[i].shotPath) } : {}) });
       return;
     }
 
