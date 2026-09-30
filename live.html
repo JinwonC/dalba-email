@@ -333,7 +333,7 @@
   }
   function cardHTML(l,withActions){
     var c=CHIP[status(l)], ab=tzAbbr(l.tz||DEFTZ,l.date);
-    var h='<div class="card'+(mine(l)?" mine":"")+'"><div class="ctop"><div class="who">'+esc(l.creator)
+    var h='<div class="card'+((ME&&ME.admin&&mine(l))?" mine":"")+'"><div class="ctop"><div class="who">'+esc(l.creator)
       +'<div class="handle">'+esc(l.handle||"")+'</div></div><div style="text-align:right">'
       +'<div class="time num">'+esc(t12(l.startTime))+(l.endTime?' <span style="color:var(--muted)">– '+esc(t12(l.endTime))+'</span>':'')
       +' <span class="tzl">'+esc(ab)+'</span></div>'
@@ -358,7 +358,7 @@
     var items=LIVES.filter(function(l){return l.date===SEL}).sort(function(a,b){return a.startTime<b.startTime?-1:1});
     cnt.textContent=items.length?items.length+(items.length>1?" lives":" live"):"";
     box.innerHTML=items.length?items.map(function(l){return cardHTML(l,false)}).join("")
-      :'<div class="empty"><p>Nothing scheduled for this day.</p></div>';
+      :'<div class="empty"><p>You have nothing scheduled for this day.</p></div>';
   }
   function renderRep(){
     var box=document.getElementById("repBody");

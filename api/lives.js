@@ -185,7 +185,9 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === "GET") {
-      const rows = await readAll();
+      const all = await readAll();
+      // 크리에이터는 본인 라이브만, 운영(admin)만 전체를 본다.
+      const rows = me.admin ? all.slice() : all.filter(r => r.ownerId === me.id);
       rows.sort((a, b) => (a.date + a.startTime < b.date + b.startTime ? 1 : -1));
       const out = rows.map(r => r.shotPath ? Object.assign({}, r, { shotSrc: shotSrc(r.shotPath) }) : r);
       res.status(200).json({ lives: out, me, updated: new Date().toISOString() });
