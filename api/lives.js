@@ -17,6 +17,17 @@ const { put, list } = require("@vercel/blob");
 const INDEX_KEY = "live-board/lives.json";
 const MAX_SHOT_BYTES = 4 * 1024 * 1024;
 
+// Blob 토큰 찾기 — Vercel이 스토어 이름을 접두사로 붙이는 경우가 있어
+// 이름이 BLOB_READ_WRITE_TOKEN 으로 끝나는 환경변수는 모두 허용한다.
+function blobToken() {
+  if (process.env.BLOB_READ_WRITE_TOKEN) return process.env.BLOB_READ_WRITE_TOKEN;
+  const k = Object.keys(process.env).find(n => /BLOB_READ_WRITE_TOKEN$/i.test(n));
+  return k ? process.env[k] : "";
+}
+function blobEnvNames() {
+  return Object.keys(process.env).filter(n => /BLOB/i.test(n));
+}
+
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 
 function accounts() {
@@ -70,7 +81,7 @@ function authenticate(req) {
 }
 
 async function readAll() {
-  const { blobs } = await list({ prefix: INDEX_KEY, limit: 1 });
+  const { blobs } = await list({ prefix: INDEX_KEY, limit: 1, token: blobToken() });
   if (!blobs.length) return [];
   const r = await fetch(blobs[0].url + "?_=" + Date.now(), { cache: "no-store" });
   if (!r.ok) return [];
@@ -80,7 +91,7 @@ async function readAll() {
 async function writeAll(rows) {
   await put(INDEX_KEY, JSON.stringify(rows), {
     access: "public", contentType: "application/json",
-    addRandomSuffix: false, allowOverwrite: true
+    addRandomSuffix: false, allowOverwrite: true, token: blobToken()
   });
 }
 function clean(s, max) {
@@ -112,8 +123,12 @@ module.exports = async (req, res) => {
       return;
     }
 
-    if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      res.status(500).json({ error: "BLOB_READ_WRITE_TOKEN이 없습니다. Vercel에서 Blob 스토어를 만들어 주세요." });
+    if (!blobToken()) {
+      const found = blobEnvNames();
+      res.status(500).json({
+        error: "Blob 토큰을 찾지 못했습니다. Vercel Storage에서 Blob 스토어를 이 프로젝트에 연결하고 재배포하세요."
+             + (found.length ? " (발견된 BLOB 관련 변수: " + found.join(", ") + ")" : " (BLOB이 들어간 환경변수가 하나도 없습니다)")
+      });
       return;
     }
 
@@ -163,7 +178,7 @@ module.exports = async (req, res) => {
         const buf = Buffer.from(m[2], "base64");
         if (buf.length > MAX_SHOT_BYTES) { res.status(413).json({ error: "스크린샷 용량이 너무 큽니다." }); return; }
         const blob = await put("live-board/shots/" + id + ".jpg", buf, {
-          access: "public", contentType: m[1], addRandomSuffix: true
+          access: "public", contentType: m[1], addRandomSuffix: true, token: blobToken()
         });
         shotUrl = blob.url;
       }
