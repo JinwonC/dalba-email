@@ -1,32 +1,33 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>라이브 운영 현황</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@700;800&family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<title>d'Alba Live Ops</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Noto+Sans:wght@400;500;600;700&display=swap">
 <style>
+  /* d'Alba - champagne gold on cream, deep espresso text */
   :root{
-    --bg:#F5F5F8; --surface:#FFFFFF; --surface-2:#EFEFF4;
-    --fg:#17171F; --muted:#6E6E80; --faint:#9A9AAC;
-    --line:rgba(20,20,45,.10); --line-2:rgba(20,20,45,.18);
-    --live:#E11D48; --live-soft:rgba(225,29,72,.10);
-    --done:#0D7D72; --done-soft:rgba(13,125,114,.12);
-    --warn:#C2410C; --warn-soft:rgba(194,65,12,.12);
-    --plan:#4338CA; --plan-soft:rgba(67,56,202,.10);
-    --font-d:'Gothic A1','Noto Sans KR',system-ui,sans-serif;
-    --font-b:'Noto Sans KR',system-ui,-apple-system,sans-serif;
+    --bg:#FFFBF0; --surface:#FFFFFF; --surface-2:#FAF3E2;
+    --fg:#1C1400; --muted:#7A6A40; --faint:#A79768;
+    --line:rgba(140,104,0,.16); --line-2:rgba(140,104,0,.30);
+    --gold:#B8860B; --gold-2:#D4A017; --gold-soft:rgba(212,160,23,.16);
+    --champagne:#F4D991;
+    --ok:#4A7C59; --ok-soft:rgba(74,124,89,.14);
+    --alert:#A8442A; --alert-soft:rgba(168,68,42,.13);
+    --font-d:'Playfair Display',Georgia,serif;
+    --font-b:'Noto Sans',system-ui,-apple-system,sans-serif;
     color-scheme:light;
   }
   @media (prefers-color-scheme:dark){
     :root:not([data-theme="light"]){
-      --bg:#0F0F14; --surface:#191921; --surface-2:#22222C;
-      --fg:#ECECF3; --muted:#9C9CB0; --faint:#6E6E82;
-      --line:rgba(255,255,255,.10); --line-2:rgba(255,255,255,.18);
-      --live:#FB5C7A; --live-soft:rgba(251,92,122,.14);
-      --done:#2DD4BF; --done-soft:rgba(45,212,191,.14);
-      --warn:#FB923C; --warn-soft:rgba(251,146,60,.14);
-      --plan:#A5B4FC; --plan-soft:rgba(165,180,252,.14);
+      --bg:#14110A; --surface:#1E1A10; --surface-2:#282214;
+      --fg:#F4EEDD; --muted:#B8A87C; --faint:#8A7B54;
+      --line:rgba(244,217,145,.14); --line-2:rgba(244,217,145,.26);
+      --gold:#E3BC5A; --gold-2:#F0CB70; --gold-soft:rgba(240,203,112,.16);
+      --champagne:#F4D991;
+      --ok:#7FB08D; --ok-soft:rgba(127,176,141,.16);
+      --alert:#E08060; --alert-soft:rgba(224,128,96,.16);
       color-scheme:dark;
     }
   }
@@ -35,127 +36,125 @@
     line-height:1.5;-webkit-font-smoothing:antialiased;padding-top:env(safe-area-inset-top,0px)}
   img{max-width:100%} [hidden]{display:none!important}
   .num{font-variant-numeric:tabular-nums}
-  .wrap{max-width:1040px;margin:0 auto;padding-inline:16px;padding-block:18px 48px}
+  .wrap{max-width:1060px;margin:0 auto;padding-inline:16px;padding-block:20px 48px}
 
-  header{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:18px}
-  h1{font-family:var(--font-d);font-size:20px;font-weight:800;margin:0}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:20px}
+  h1{font-family:var(--font-d);font-size:23px;font-weight:700;margin:0;letter-spacing:-.01em}
   .hsub{font-size:12px;color:var(--muted);margin-top:3px}
-  .livedot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--live);margin-right:5px;vertical-align:1px}
+  .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--gold-2);margin-right:6px;vertical-align:1px}
   .hact{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
   .lnk{font-size:12px;color:var(--muted);text-decoration:none;border:1px solid var(--line-2);
-    background:var(--surface);border-radius:8px;padding:6px 11px}
+    background:var(--surface);border-radius:8px;padding:6px 12px;cursor:pointer}
   .lnk:hover{background:var(--surface-2)}
 
-  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:22px}
-  .kpi{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:13px 15px}
-  .kpi .n{font-family:var(--font-d);font-size:25px;font-weight:800;line-height:1.1}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px}
+  .kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .kpi .n{font-family:var(--font-d);font-size:26px;font-weight:700;line-height:1.1}
   .kpi .l{font-size:11.5px;color:var(--muted);margin-top:4px}
-  .kpi.a .n{color:var(--live)} .kpi.b .n{color:var(--done)} .kpi.c .n{color:var(--warn)}
+  .kpi.g .n{color:var(--gold)} .kpi.o .n{color:var(--ok)} .kpi.a .n{color:var(--alert)}
 
-  h2.sec{font-family:var(--font-d);font-size:13px;font-weight:700;color:var(--muted);margin:0 0 10px}
-  .panel{background:var(--surface);border:1px solid var(--line);border-radius:13px;overflow:hidden;margin-bottom:24px}
+  h2.sec{font-family:var(--font-d);font-size:16px;font-weight:600;color:var(--fg);margin:0 0 10px}
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:26px}
   .scroll{overflow-x:auto}
-  table{width:100%;border-collapse:collapse;min-width:560px}
-  th,td{text-align:left;padding:10px 13px;border-bottom:1px solid var(--line);vertical-align:middle}
-  th{font-size:11px;color:var(--faint);font-weight:600;letter-spacing:.03em;background:var(--surface-2);white-space:nowrap}
+  table{width:100%;border-collapse:collapse;min-width:600px}
+  th,td{text-align:left;padding:11px 13px;border-bottom:1px solid var(--line);vertical-align:middle}
+  th{font-size:10.5px;color:var(--faint);font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+     background:var(--surface-2);white-space:nowrap}
   tr:last-child td{border-bottom:none}
   td.r,th.r{text-align:right}
-  .cname{font-weight:700} .chandle{font-size:11.5px;color:var(--faint)}
+  .cname{font-weight:600} .chandle{font-size:11.5px;color:var(--faint)}
   .bar{height:6px;border-radius:99px;background:var(--surface-2);overflow:hidden;min-width:70px;margin-top:5px}
-  .bar i{display:block;height:100%;background:var(--done);border-radius:99px}
+  .bar i{display:block;height:100%;background:var(--gold);border-radius:99px}
 
-  .chip{display:inline-flex;align-items:center;font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:999px;white-space:nowrap}
-  .c-plan{background:var(--plan-soft);color:var(--plan)}
-  .c-live{background:var(--live-soft);color:var(--live)}
-  .c-done{background:var(--done-soft);color:var(--done)}
-  .c-late{background:var(--warn-soft);color:var(--warn)}
+  .chip{display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:3px 9px;
+    border-radius:999px;white-space:nowrap;letter-spacing:.03em;text-transform:uppercase}
+  .c-plan{background:var(--gold-soft);color:var(--gold)}
+  .c-live{background:var(--champagne);color:#6B5000}
+  .c-done{background:var(--ok-soft);color:var(--ok)}
+  .c-late{background:var(--alert-soft);color:var(--alert)}
 
   .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:11px;align-items:center}
   .tab{appearance:none;border:1px solid var(--line-2);background:var(--surface);color:var(--muted);
-    border-radius:999px;padding:6px 13px;font-size:12.5px;font-family:inherit;cursor:pointer}
-  .tab[aria-selected="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+    border-radius:999px;padding:6px 14px;font-size:12.5px;font-family:inherit;cursor:pointer}
+  .tab[aria-selected="true"]{background:var(--gold);color:#FFFBF0;border-color:var(--gold)}
   select,input[type=search]{font-family:inherit;font-size:13px;color:var(--fg);background:var(--surface);
-    border:1px solid var(--line-2);border-radius:9px;padding:7px 10px}
-  .grow{flex:1;min-width:130px}
+    border:1px solid var(--line-2);border-radius:8px;padding:7px 10px}
+  .grow{flex:1;min-width:140px}
 
-  .thumb{width:54px;height:54px;object-fit:cover;border-radius:7px;border:1px solid var(--line);display:block}
+  .thumb{width:54px;height:54px;object-fit:cover;border-radius:6px;border:1px solid var(--line);display:block}
   .noshot{font-size:11px;color:var(--faint)}
-  .dur{font-weight:700}
-  .empty{text-align:center;padding:40px 18px;color:var(--muted)}
-  .empty .big{font-family:var(--font-d);font-weight:700;color:var(--fg);font-size:15px;margin-bottom:6px}
-  .banner{background:var(--warn-soft);color:var(--warn);border-radius:10px;padding:11px 13px;font-size:12.5px;margin-bottom:16px;line-height:1.55}
-  .btn{appearance:none;border:0;padding:12px;border-radius:11px;cursor:pointer;width:100%;
-    font-family:var(--font-d);font-size:15px;font-weight:700;background:var(--live);color:#fff}
+  .empty{text-align:center;padding:42px 18px;color:var(--muted)}
+  .empty .big{font-family:var(--font-d);font-weight:600;color:var(--fg);font-size:16px;margin-bottom:6px}
+  .banner{background:var(--alert-soft);color:var(--alert);border-radius:9px;padding:11px 13px;font-size:12.5px;margin-bottom:16px;line-height:1.55}
+  .btn{appearance:none;border:0;padding:12px;border-radius:10px;cursor:pointer;width:100%;
+    font-family:var(--font-b);font-size:15px;font-weight:600;background:var(--gold);color:#FFFBF0}
 
   #gate{position:fixed;inset:0;background:var(--bg);display:none;align-items:center;justify-content:center;z-index:60;padding:20px}
-  .gcard{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:30px 26px;width:330px;max-width:100%;text-align:center}
-  .gcard h2{font-family:var(--font-d);font-size:17px;margin:0 0 5px}
-  .gcard p{font-size:12.5px;color:var(--muted);margin:0 0 16px}
+  .gcard{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:32px 26px;width:340px;max-width:100%;text-align:center}
+  .gcard .mark{font-family:var(--font-d);font-size:22px;font-weight:700;margin-bottom:3px}
+  .gcard p{font-size:12.5px;color:var(--muted);margin:0 0 17px}
   .gcard input{width:100%;font-family:inherit;font-size:15px;color:var(--fg);background:var(--surface);
-    border:1px solid var(--line-2);border-radius:10px;padding:11px 12px;margin-bottom:9px;text-align:center}
-  .gerr{color:var(--live);font-size:12px;min-height:17px;margin-bottom:5px}
+    border:1px solid var(--line-2);border-radius:9px;padding:11px 12px;margin-bottom:9px;text-align:center}
+  .gerr{color:var(--alert);font-size:12px;min-height:17px;margin-bottom:5px}
 
-  @media (max-width:640px){
-    .kpis{grid-template-columns:repeat(2,1fr)}
-    .wrap{padding-block:14px 40px}
-  }
+  @media (max-width:640px){ .kpis{grid-template-columns:repeat(2,1fr)} }
 </style>
 </head>
 <body>
 
 <div id="gate">
   <div class="gcard">
-    <h2>🔴 라이브 운영 현황</h2>
-    <p>운영(admin) 계정으로 로그인하세요</p>
+    <div class="mark">d'Alba</div>
+    <p>Live Ops &middot; admin accounts only</p>
     <div class="gerr" id="gerr"></div>
-    <input id="gid" placeholder="아이디" autocapitalize="off" autocomplete="username">
-    <input id="gpw" type="password" placeholder="비밀번호" autocomplete="current-password">
-    <button class="btn" id="gbtn">로그인</button>
+    <input id="gid" placeholder="Username" autocapitalize="off" autocomplete="username">
+    <input id="gpw" type="password" placeholder="Password" autocomplete="current-password">
+    <button class="btn" id="gbtn">Sign in</button>
   </div>
 </div>
 
 <div class="wrap">
   <header>
     <div>
-      <h1>라이브 운영 현황</h1>
-      <div class="hsub" id="meLine"><span class="livedot"></span>틱톡샵 어필리에잇 라이브</div>
+      <h1>Live Ops</h1>
+      <div class="hsub" id="meLine"><span class="dot"></span>d'Alba TikTok Shop</div>
     </div>
     <div class="hact">
-      <a class="lnk" href="/live.html">크리에이터 화면</a>
-      <a class="lnk" href="#" id="csvBtn">CSV 내려받기</a>
-      <a class="lnk" href="#" id="reload">새로고침</a>
-      <a class="lnk" href="#" id="logout">로그아웃</a>
+      <a class="lnk" href="/live.html">Creator view</a>
+      <a class="lnk" id="csvBtn">Download CSV</a>
+      <a class="lnk" id="reload">Refresh</a>
+      <a class="lnk" id="logout">Sign out</a>
     </div>
   </header>
 
   <div id="err" class="banner" hidden></div>
-
   <div class="kpis" id="kpis"></div>
 
-  <h2 class="sec">크리에이터별 현황</h2>
+  <h2 class="sec">By creator</h2>
   <div class="panel"><div class="scroll"><table id="byCreator">
-    <thead><tr><th>크리에이터</th><th class="r">등록</th><th class="r">완료</th>
-      <th class="r">미보고</th><th class="r">총 진행</th><th style="width:130px">완료율</th></tr></thead>
+    <thead><tr><th>Creator</th><th class="r">Scheduled</th><th class="r">Wrapped</th>
+      <th class="r">Open</th><th class="r">Air time</th><th style="width:140px">Wrap rate</th></tr></thead>
     <tbody></tbody></table></div></div>
 
-  <h2 class="sec">라이브 기록</h2>
+  <h2 class="sec">All lives</h2>
   <div class="filters">
-    <button class="tab" data-f="all" aria-selected="true">전체</button>
-    <button class="tab" data-f="late" aria-selected="false">보고 필요</button>
-    <button class="tab" data-f="plan" aria-selected="false">예정</button>
-    <button class="tab" data-f="done" aria-selected="false">완료</button>
-    <select id="whoSel"><option value="">크리에이터 전체</option></select>
-    <input type="search" id="q" class="grow" placeholder="이름·핸들·메모 검색">
+    <button class="tab" data-f="all" aria-selected="true">All</button>
+    <button class="tab" data-f="late" aria-selected="false">Needs wrap-up</button>
+    <button class="tab" data-f="plan" aria-selected="false">Upcoming</button>
+    <button class="tab" data-f="done" aria-selected="false">Wrapped</button>
+    <select id="whoSel"><option value="">All creators</option></select>
+    <input type="search" id="q" class="grow" placeholder="Search name, handle or notes">
   </div>
   <div class="panel"><div class="scroll"><table id="rows">
-    <thead><tr><th>날짜</th><th>크리에이터</th><th>시간</th><th class="r">진행</th>
-      <th>상태</th><th>메모</th><th>스크린샷</th></tr></thead>
+    <thead><tr><th>Date</th><th>Creator</th><th>Time</th><th class="r">Duration</th>
+      <th>Status</th><th>Notes</th><th>Screenshot</th></tr></thead>
     <tbody></tbody></table></div></div>
 </div>
 
 <script>
 (function(){
   var LIVES=[], ME=null, FILTER="all";
+  var DEFTZ="America/New_York";
   var pad=function(n){return (n<10?"0":"")+n};
   var iso=function(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())};
   var TODAY=iso(new Date());
@@ -164,14 +163,27 @@
   function cred(k){ try{return localStorage.getItem(k)||""}catch(e){return ""} }
   function setCred(i,p){ try{localStorage.setItem("lb_id",i);localStorage.setItem("lb_pw",p)}catch(e){} }
 
+  function tzAbbr(tz,dateStr){
+    try{
+      var d=new Date((dateStr||TODAY)+"T12:00:00Z");
+      var p=new Intl.DateTimeFormat("en-US",{timeZone:tz||DEFTZ,timeZoneName:"short"}).formatToParts(d);
+      var n=p.filter(function(x){return x.type==="timeZoneName"})[0];
+      return n?n.value:"";
+    }catch(e){ return "" }
+  }
+  function t12(hhmm){
+    if(!hhmm) return "";
+    var p=hhmm.split(":"),h=+p[0],m=p[1],s=h<12?"AM":"PM",hh=h%12; if(!hh) hh=12;
+    return hh+":"+m+" "+s;
+  }
   function api(method, body){
     return fetch("/api/lives",{method:method,cache:"no-store",
       headers:{"Content-Type":"application/json","x-live-id":cred("lb_id"),"x-live-pw":cred("lb_pw")},
       body:body?JSON.stringify(body):undefined
     }).then(function(r){
       return r.json().catch(function(){return {}}).then(function(j){
-        if(r.status===401){ var e=new Error(j.error||"로그인이 필요합니다"); e.auth=1; throw e }
-        if(!r.ok||j.error) throw new Error(j.error||"요청 실패");
+        if(r.status===401){ var e=new Error(j.error||"Please sign in."); e.auth=1; throw e }
+        if(!r.ok||j.error) throw new Error(j.error||"Request failed");
         return j;
       });
     });
@@ -184,64 +196,62 @@
 
   document.getElementById("gbtn").addEventListener("click",function(){
     var i=document.getElementById("gid").value.trim(), p=document.getElementById("gpw").value;
-    if(!i||!p){ document.getElementById("gerr").textContent="아이디와 비밀번호를 입력하세요."; return }
-    setCred(i,p); var b=this; b.disabled=true; b.textContent="확인 중…";
+    if(!i||!p){ document.getElementById("gerr").textContent="Enter your username and password."; return }
+    setCred(i,p); var b=this; b.disabled=true; b.textContent="Checking...";
     api("POST",{action:"login"}).then(function(j){
-      if(!j.me||!j.me.admin){ document.getElementById("gerr").textContent="운영(admin) 권한이 있는 계정만 볼 수 있습니다."; return }
+      if(!j.me||!j.me.admin){ document.getElementById("gerr").textContent="This page is for admin accounts only."; return }
       ME=j.me; hideGate(); load();
     }).catch(function(e){ document.getElementById("gerr").textContent=e.message })
-      .then(function(){ b.disabled=false; b.textContent="로그인" });
+      .then(function(){ b.disabled=false; b.textContent="Sign in" });
   });
   document.getElementById("gpw").addEventListener("keydown",function(e){ if(e.key==="Enter") document.getElementById("gbtn").click() });
-  document.getElementById("logout").addEventListener("click",function(e){ e.preventDefault();
+  document.getElementById("logout").addEventListener("click",function(){
     try{localStorage.removeItem("lb_pw")}catch(x){} ME=null; LIVES=[]; showGate("") });
-  document.getElementById("reload").addEventListener("click",function(e){ e.preventDefault(); load() });
+  document.getElementById("reload").addEventListener("click",function(){ load() });
 
   function status(l){ if(l.endTime) return "done"; if(l.date<TODAY) return "late";
     if(l.date===TODAY) return "today"; return "plan" }
-  var CHIP={done:["c-done","완료"],late:["c-late","보고 필요"],today:["c-live","오늘"],plan:["c-plan","예정"]};
+  var CHIP={done:["c-done","Wrapped"],late:["c-late","Needs wrap-up"],
+            today:["c-live","Today"],plan:["c-plan","Upcoming"]};
   function minutes(l){
     if(!l.endTime) return 0;
     var s=(l.actualStart||l.startTime).split(":"), e=l.endTime.split(":");
     var a=(+s[0])*60+(+s[1]), b=(+e[0])*60+(+e[1]);
-    if(b<a) b+=1440;              // 자정 넘긴 라이브
+    if(b<a) b+=1440;
     return b-a;
   }
-  function hm(m){ if(!m) return "–"; var h=Math.floor(m/60), r=m%60;
-    return (h?h+"시간 ":"")+(r?r+"분":(h?"":"0분")) }
+  function hm(m){ if(!m) return "-"; var h=Math.floor(m/60), r=m%60;
+    return (h?h+"h ":"")+(r?r+"m":(h?"":"0m")) }
 
   function load(){
     api("GET").then(function(j){
       LIVES=j.lives||[]; ME=j.me||ME;
-      if(!ME||!ME.admin){ showGate("운영(admin) 권한이 있는 계정만 볼 수 있습니다."); return }
-      document.getElementById("meLine").innerHTML='<span class="livedot"></span>'+esc(ME.name)+' · 운영';
+      if(!ME||!ME.admin){ showGate("This page is for admin accounts only."); return }
+      document.getElementById("meLine").innerHTML='<span class="dot"></span>'+esc(ME.name)+' &middot; admin';
       document.getElementById("err").hidden=true;
       fillWho(); render();
     }).catch(function(e){
       if(e.auth){ showGate(e.message); return }
-      var b=document.getElementById("err"); b.hidden=false; b.textContent="불러오지 못했습니다: "+e.message;
+      var b=document.getElementById("err"); b.hidden=false; b.textContent="Couldn't load: "+e.message;
     });
   }
   function fillWho(){
-    var sel=document.getElementById("whoSel"), cur=sel.value, seen={}, out='<option value="">크리에이터 전체</option>';
+    var sel=document.getElementById("whoSel"), cur=sel.value, seen={}, out='<option value="">All creators</option>';
     LIVES.forEach(function(l){ if(!seen[l.ownerId]){ seen[l.ownerId]=1;
       out+='<option value="'+esc(l.ownerId)+'">'+esc(l.creator)+'</option>' } });
     sel.innerHTML=out; sel.value=cur;
   }
-
   function render(){ renderKpis(); renderByCreator(); renderRows() }
 
+  function kpi(n,l,cls){ return '<div class="kpi '+cls+'"><div class="n num">'+n+'</div><div class="l">'+l+'</div></div>' }
   function renderKpis(){
     var done=LIVES.filter(function(l){return status(l)==="done"});
     var late=LIVES.filter(function(l){return status(l)==="late"});
-    var up=LIVES.filter(function(l){return l.date>=TODAY && !l.endTime});
     var mins=done.reduce(function(a,l){return a+minutes(l)},0);
     document.getElementById("kpis").innerHTML=
-      kpi(LIVES.length,"총 등록 라이브","")+kpi(done.length,"완료 보고","b")
-     +kpi(late.length,"보고 필요","c")+kpi(hm(mins).replace("시간","h").replace("분","m"),"총 진행 시간","a");
+      kpi(LIVES.length,"Lives scheduled","g")+kpi(done.length,"Wrapped up","o")
+     +kpi(late.length,"Needs wrap-up","a")+kpi(hm(mins),"Total air time","g");
   }
-  function kpi(n,l,cls){ return '<div class="kpi '+cls+'"><div class="n num">'+n+'</div><div class="l">'+l+'</div></div>' }
-
   function renderByCreator(){
     var by={};
     LIVES.forEach(function(l){
@@ -253,18 +263,17 @@
     var arr=Object.keys(by).map(function(k){return by[k]})
       .sort(function(a,b){ return b.late-a.late || b.total-a.total });
     var tb=document.querySelector("#byCreator tbody");
-    if(!arr.length){ tb.innerHTML='<tr><td colspan="6"><div class="empty">아직 등록된 라이브가 없습니다.</div></td></tr>'; return }
+    if(!arr.length){ tb.innerHTML='<tr><td colspan="6"><div class="empty">No lives scheduled yet.</div></td></tr>'; return }
     tb.innerHTML=arr.map(function(o){
       var pct=o.total?Math.round(o.done/o.total*100):0;
       return '<tr><td><div class="cname">'+esc(o.name)+'</div><div class="chandle">'+esc(o.handle||"")+'</div></td>'
-       +'<td class="r num">'+o.total+'</td><td class="r num" style="color:var(--done)">'+o.done+'</td>'
-       +'<td class="r num" style="color:'+(o.late?"var(--warn)":"var(--faint)")+'">'+o.late+'</td>'
+       +'<td class="r num">'+o.total+'</td><td class="r num" style="color:var(--ok)">'+o.done+'</td>'
+       +'<td class="r num" style="color:'+(o.late?"var(--alert)":"var(--faint)")+'">'+o.late+'</td>'
        +'<td class="r num">'+hm(o.mins)+'</td>'
        +'<td><div class="num" style="font-size:12px">'+pct+'%</div>'
        +'<div class="bar"><i style="width:'+pct+'%"></i></div></td></tr>';
     }).join("");
   }
-
   function visible(){
     var who=document.getElementById("whoSel").value;
     var q=document.getElementById("q").value.trim().toLowerCase();
@@ -281,18 +290,19 @@
   }
   function renderRows(){
     var list=visible(), tb=document.querySelector("#rows tbody");
-    if(!list.length){ tb.innerHTML='<tr><td colspan="7"><div class="empty"><div class="big">해당하는 기록이 없습니다</div></div></td></tr>'; return }
+    if(!list.length){ tb.innerHTML='<tr><td colspan="7"><div class="empty"><div class="big">Nothing matches those filters</div></div></td></tr>'; return }
     tb.innerHTML=list.map(function(l){
-      var c=CHIP[status(l)], m=minutes(l);
-      return '<tr><td class="num" style="white-space:nowrap">'+esc(l.date)+'</td>'
+      var c=CHIP[status(l)], m=minutes(l), ab=tzAbbr(l.tz,l.date);
+      return '<tr><td class="num" style="white-space:nowrap">'
+         +esc(new Date(l.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}))+'</td>'
        +'<td><div class="cname">'+esc(l.creator)+'</div><div class="chandle">'+esc(l.handle||"")+'</div></td>'
-       +'<td class="num" style="white-space:nowrap">'+esc(l.actualStart||l.startTime)
-         +(l.endTime?' → '+esc(l.endTime):'')+'</td>'
-       +'<td class="r num dur">'+(m?hm(m):'–')+'</td>'
+       +'<td class="num" style="white-space:nowrap">'+esc(t12(l.actualStart||l.startTime))
+         +(l.endTime?' - '+esc(t12(l.endTime)):'')+' <span style="color:var(--faint);font-size:11px">'+esc(ab)+'</span></td>'
+       +'<td class="r num">'+(m?hm(m):'-')+'</td>'
        +'<td><span class="chip '+c[0]+'">'+c[1]+'</span></td>'
-       +'<td style="min-width:150px;color:var(--muted);font-size:12.5px">'
+       +'<td style="min-width:160px;color:var(--muted);font-size:12.5px">'
          +esc([l.note,l.reportNote].filter(Boolean).join(" · "))+'</td>'
-       +'<td>'+(l.shotSrc?'<a href="'+esc(l.shotSrc)+'" target="_blank" rel="noopener"><img class="thumb" src="'+esc(l.shotSrc)+'" alt="스크린샷"></a>':'<span class="noshot">–</span>')+'</td></tr>';
+       +'<td>'+(l.shotSrc?'<a href="'+esc(l.shotSrc)+'" target="_blank" rel="noopener"><img class="thumb" src="'+esc(l.shotSrc)+'" alt="Screenshot"></a>':'<span class="noshot">-</span>')+'</td></tr>';
     }).join("");
   }
 
@@ -307,18 +317,17 @@
   document.getElementById("whoSel").addEventListener("change",renderRows);
   document.getElementById("q").addEventListener("input",renderRows);
 
-  document.getElementById("csvBtn").addEventListener("click",function(e){
-    e.preventDefault();
-    var rows=[["날짜","크리에이터","핸들","시작예정","실제시작","종료","진행(분)","상태","메모","보고메모","스크린샷"]];
+  document.getElementById("csvBtn").addEventListener("click",function(){
+    var rows=[["Date","Creator","Handle","Time zone","Planned start","Actual start","End","Minutes","Status","Notes","Wrap notes"]];
     visible().forEach(function(l){
-      rows.push([l.date,l.creator,l.handle||"",l.startTime,l.actualStart||"",l.endTime||"",
-        minutes(l)||"",CHIP[status(l)][1],l.note||"",l.reportNote||"",l.shotSrc||""]);
+      rows.push([l.date,l.creator,l.handle||"",l.tz||"",l.startTime,l.actualStart||"",l.endTime||"",
+        minutes(l)||"",CHIP[status(l)][1],l.note||"",l.reportNote||""]);
     });
     var csv="﻿"+rows.map(function(r){return r.map(function(c){
       return '"'+String(c).replace(/"/g,'""')+'"'}).join(",")}).join("\n");
     var a=document.createElement("a");
     a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
-    a.download="라이브현황_"+TODAY+".csv"; document.body.appendChild(a); a.click();
+    a.download="dalba-live-ops_"+TODAY+".csv"; document.body.appendChild(a); a.click();
     setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},1000);
   });
 

@@ -108,9 +108,9 @@ function authenticate(req) {
   const list_ = accounts();
   if (list_ === null) {
     const n = String(process.env.LIVE_USERS || "").trim().length;
-    return { error: "LIVE_USERS 값을 읽지 못했습니다(길이 " + n + "자). 한 줄에 한 명씩 '아이디:비번:이름:핸들' 형식으로 넣어 보세요." };
+    return { error: "Couldn't read LIVE_USERS (" + n + " chars). Use one account per line: username:password:name:handle[:admin]" };
   }
-  if (!list_.length) return { error: "LIVE_USERS 환경변수에 계정이 등록되어 있지 않습니다." };
+  if (!list_.length) return { error: "No accounts are configured in LIVE_USERS." };
   const id = String(req.headers["x-live-id"] || "").trim();
   const pw = String(req.headers["x-live-pw"] || "");
   if (!id || !pw) return { unauthorized: true };
@@ -143,6 +143,9 @@ function clean(s, max) {
 }
 const isDate = s => /^\d{4}-\d{2}-\d{2}$/.test(s || "");
 const isTime = s => /^\d{2}:\d{2}$/.test(s || "");
+const TZS = ["America/New_York","America/Chicago","America/Denver","America/Phoenix",
+  "America/Los_Angeles","America/Anchorage","Pacific/Honolulu","Asia/Seoul","UTC"];
+const isTz = s => TZS.indexOf(s) >= 0;
 
 async function readBody(req) {
   if (req.body && typeof req.body === "object") return req.body;
@@ -161,7 +164,7 @@ module.exports = async (req, res) => {
 
     const auth = authenticate(req);
     if (auth.error) { res.status(500).json({ error: auth.error }); return; }
-    if (auth.unauthorized) { res.status(401).json({ error: "아이디 또는 비밀번호가 올바르지 않습니다." }); return; }
+    if (auth.unauthorized) { res.status(401).json({ error: "Wrong username or password." }); return; }
     const me = auth.me;
 
     const body = (req.method === "POST" || req.method === "PATCH") ? await readBody(req) : {};
@@ -175,8 +178,8 @@ module.exports = async (req, res) => {
     if (!blobReady()) {
       const found = blobEnvNames();
       res.status(500).json({
-        error: "Blob 토큰을 찾지 못했습니다. Vercel Storage에서 Blob 스토어를 이 프로젝트에 연결하고 재배포하세요."
-             + (found.length ? " (발견된 BLOB 관련 변수: " + found.join(", ") + ")" : " (BLOB이 들어간 환경변수가 하나도 없습니다)")
+        error: "No Blob store credentials. Connect a Blob store to this project in Vercel Storage, then redeploy."
+             + (found.length ? " (BLOB vars present: " + found.join(", ") + ")" : " (no BLOB env vars found)")
       });
       return;
     }
@@ -197,12 +200,13 @@ module.exports = async (req, res) => {
         handle: me.handle,
         date: clean(body.date, 10),
         startTime: clean(body.startTime, 5),
+        tz: isTz(body.tz) ? body.tz : "America/New_York",
         note: clean(body.note, 500),
         endTime: "", actualStart: "", reportNote: "", shotPath: "", reportedAt: "",
         createdAt: new Date().toISOString()
       };
       if (!isDate(rec.date) || !isTime(rec.startTime)) {
-        res.status(400).json({ error: "날짜 또는 시간 형식이 올바르지 않습니다." }); return;
+        res.status(400).json({ error: "Please check the date and start time." }); return;
       }
       const rows = await readAll();
       rows.push(rec);
@@ -215,18 +219,44 @@ module.exports = async (req, res) => {
       const id = clean(body.id, 40);
       const rows = await readAll();
       const i = rows.findIndex(r => r.id === id);
-      if (i < 0) { res.status(404).json({ error: "해당 라이브를 찾을 수 없습니다." }); return; }
+      if (i < 0) { res.status(404).json({ error: "That live was not found." }); return; }
       if (!me.admin && rows[i].ownerId !== me.id) {
-        res.status(403).json({ error: "본인이 등록한 라이브만 보고할 수 있습니다." }); return;
+        res.status(403).json({ error: "You can only change your own lives." }); return;
       }
-      if (!isTime(body.endTime)) { res.status(400).json({ error: "종료 시각 형식이 올바르지 않습니다." }); return; }
+
+      // 일정 수정
+      if (body.action === "edit") {
+        if (!isDate(body.date) || !isTime(body.startTime)) {
+          res.status(400).json({ error: "Please check the date and start time." }); return;
+        }
+        rows[i] = Object.assign({}, rows[i], {
+          date: clean(body.date, 10),
+          startTime: clean(body.startTime, 5),
+          tz: isTz(body.tz) ? body.tz : (rows[i].tz || "America/New_York"),
+          note: clean(body.note, 500),
+          updatedAt: new Date().toISOString()
+        });
+        await writeAll(rows);
+        res.status(200).json({ ok: true, live: rows[i] });
+        return;
+      }
+
+      // 일정 취소(삭제)
+      if (body.action === "cancel") {
+        rows.splice(i, 1);
+        await writeAll(rows);
+        res.status(200).json({ ok: true, removed: true });
+        return;
+      }
+
+      if (!isTime(body.endTime)) { res.status(400).json({ error: "Please check the end time." }); return; }
 
       let shotPath = rows[i].shotPath || "";
       if (body.shotData && typeof body.shotData === "string") {
         const m = body.shotData.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
-        if (!m) { res.status(400).json({ error: "스크린샷 형식이 올바르지 않습니다." }); return; }
+        if (!m) { res.status(400).json({ error: "That screenshot format is not supported." }); return; }
         const buf = Buffer.from(m[2], "base64");
-        if (buf.length > MAX_SHOT_BYTES) { res.status(413).json({ error: "스크린샷 용량이 너무 큽니다." }); return; }
+        if (buf.length > MAX_SHOT_BYTES) { res.status(413).json({ error: "That screenshot is too large." }); return; }
         const blob = await put("live-board/shots/" + id + ".jpg", buf, blobOpts({
           access: "private", contentType: m[1], addRandomSuffix: true
         }));
@@ -245,7 +275,7 @@ module.exports = async (req, res) => {
       return;
     }
 
-    res.status(405).json({ error: "지원하지 않는 요청입니다." });
+    res.status(405).json({ error: "Unsupported request." });
   } catch (e) {
     res.status(500).json({ error: String((e && e.message) || e) });
   }
