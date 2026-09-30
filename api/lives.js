@@ -20,15 +20,46 @@ const MAX_SHOT_BYTES = 4 * 1024 * 1024;
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 
 function accounts() {
-  try {
-    const a = JSON.parse(process.env.LIVE_USERS || "[]");
-    return Array.isArray(a) ? a : [];
-  } catch (e) { return null; }
+  const raw = String(process.env.LIVE_USERS || "").trim();
+  if (!raw) return [];
+  // 스마트 따옴표 / 전각 문자 교정 (메모앱·모바일에서 복사하면 자주 바뀜)
+  const norm = raw
+    .replace(/[“”″＂]/g, '"')
+    .replace(/[‘’′]/g, "'")
+    .replace(/：/g, ":")
+    .replace(/，/g, ",");
+
+  // 1) JSON 배열 형식
+  if (norm[0] === "[" || norm[0] === "{") {
+    try {
+      let a = JSON.parse(norm);
+      if (!Array.isArray(a)) a = [a];
+      return a;
+    } catch (e) { return null; }
+  }
+
+  // 2) 줄 단위 간단 형식:  아이디:비번:이름:핸들[:admin]
+  const rows = norm.split(/[\r\n]+/).map(s => s.trim()).filter(s => s && s[0] !== "#");
+  const out = [];
+  for (const line of rows) {
+    const p = line.split(":").map(s => s.trim());
+    if (!p[0] || !p[1]) continue;
+    out.push({
+      id: p[0], pw: p[1],
+      name: p[2] || p[0],
+      handle: p[3] || "",
+      admin: /^admin$/i.test(p[4] || "")
+    });
+  }
+  return out.length ? out : null;
 }
 
 function authenticate(req) {
   const list_ = accounts();
-  if (list_ === null) return { error: "LIVE_USERS 환경변수의 JSON 형식이 올바르지 않습니다." };
+  if (list_ === null) {
+    const n = String(process.env.LIVE_USERS || "").trim().length;
+    return { error: "LIVE_USERS 값을 읽지 못했습니다(길이 " + n + "자). 한 줄에 한 명씩 '아이디:비번:이름:핸들' 형식으로 넣어 보세요." };
+  }
   if (!list_.length) return { error: "LIVE_USERS 환경변수에 계정이 등록되어 있지 않습니다." };
   const id = String(req.headers["x-live-id"] || "").trim();
   const pw = String(req.headers["x-live-pw"] || "");
