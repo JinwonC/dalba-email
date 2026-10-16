@@ -52,6 +52,8 @@ function callApi(handler, query) {
 }
 
 module.exports = async (req, res) => {
+  const T0 = Date.now();
+  const tm = {};
   try {
     const q = req.method === "POST" ? await readJson(req) : (req.query || {});
     const pid = String(q.pid || "").trim();
@@ -71,8 +73,11 @@ module.exports = async (req, res) => {
     const dailyQuery = { format: "json" };
     if (date) dailyQuery.date = date;
     const adsQuery = { pw: process.env.DASHBOARD_PASSWORD || "" };
-    const adProm = callApi(adsHandler, adsQuery); // 병렬 시작
+    // 광고 시트는 크고 느릴 수 있어 22초 예산 — 넘으면 소재 데이터 없이 진행 (전체 60초 제한 보호)
+    const withTimeout = (pr, ms, val) => Promise.race([pr, new Promise((r) => setTimeout(() => r(val), ms))]);
+    const adProm = withTimeout(callApi(adsHandler, adsQuery), 22000, { error: "광고 시트 응답 지연(22초 초과)" }); // 병렬 시작
     let dr = await callApi(dailyHandler, dailyQuery);
+    tm.daily = Date.now() - T0;
     if (!dr || dr.error) { res.status(502).json({ error: "매출 데이터 오류: " + (dr && dr.error) }); return; }
 
     const p = (dr.products || []).find((x) => x.id === pid);
@@ -120,6 +125,7 @@ module.exports = async (req, res) => {
     let adByCid = null, adErr = null, prodCreatives = [];
     try {
       const ad = await adProm; // 위에서 병렬로 시작한 광고 페치
+      tm.ads = Date.now() - T0;
       const adList = ad && (ad.creatives || ad.list);
       if (ad && ad.error) { adErr = ad.error; }
       else if (Array.isArray(adList)) {
@@ -246,13 +252,19 @@ module.exports = async (req, res) => {
       "- 특정 날짜를 물으면 그 날과 직전 구간을 '일별_지표_최근40일'에서 직접 찾아 비교한다.\n" +
       "- 소재를 언급할 땐 크리에이터명과 링크를 함께 적어 바로 확인 가능하게 한다.";
 
-    const prompt = sys + "\n\n[질문]\n" + question + "\n\n[데이터]\n" + JSON.stringify(ctx);
+    let prompt = sys + "\n\n[질문]\n" + question + "\n\n[데이터]\n" + JSON.stringify(ctx);
+    if (dr.warnings && dr.warnings.length) prompt += "\n\n[데이터 경고] " + dr.warnings.join(" / ") + " → 광고비·ROI·증감분ROAS는 해석하지 말고, 언급이 필요하면 '광고 데이터 누락'으로만 표기.";
+    if (q.dry) { res.setHeader("cache-control", "no-store"); res.status(200).json({ dry: true, 기준일: dr.date, warnings: dr.warnings || [], ms: { ...tm, total: Date.now() - T0 }, adErr, prodCreativeCount: prodCreatives.length, promptChars: prompt.length }); return; }
+    // LLM 호출 예산: 전체 55초 안에 끝내 Vercel 60초 타임아웃(HTML 에러) 방지
+    const llmMs = Math.max(8000, 55000 - (Date.now() - T0));
+    const ac = new AbortController(); const llmTimer = setTimeout(() => ac.abort(), llmMs);
 
     let answer = "", model;
     if (provider === "gemini") {
       model = String(q.geminiModel || process.env.GEMINI_MODEL || "gemini-3.6-flash");
       const gurl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${gemKey}`;
       const r = await fetch(gurl, {
+        signal: ac.signal,
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -268,6 +280,7 @@ module.exports = async (req, res) => {
     } else {
       model = String(q.model || process.env.ASK_MODEL || "claude-haiku-4-5-20251001");
       const r = await fetch("https://api.anthropic.com/v1/messages", {
+        signal: ac.signal,
         method: "POST",
         headers: { "x-api-key": antKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
         body: JSON.stringify({ model, max_tokens: 3200, messages: [{ role: "user", content: prompt }] }),
@@ -277,11 +290,13 @@ module.exports = async (req, res) => {
       answer = (data.content || []).map((b) => b.text || "").join("").trim();
     }
 
+    clearTimeout(llmTimer); tm.llm = Date.now() - T0;
     res.setHeader("cache-control", "no-store");
-    const resp = { answer, provider, model, 기준일: dr.date, 제품: p.name };
+    const resp = { answer, provider, model, 기준일: dr.date, 제품: p.name, warnings: dr.warnings || [] };
     if (q.debug) {
       resp._debug = {
         adErr,
+        ms: { ...tm, total: Date.now() - T0 },
         adCidCount: adByCid ? Object.keys(adByCid).length : null,
         prodCreativeCount: prodCreatives.length,
         oganicVidCount: oganicVids.length,
@@ -294,6 +309,7 @@ module.exports = async (req, res) => {
     }
     res.status(200).json(resp);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    const aborted = e && (e.name === "AbortError" || /abort/i.test(e.message || ""));
+    res.status(aborted ? 504 : 500).json({ error: aborted ? "AI 응답이 지연되어 중단했습니다(55초). 잠시 후 다시 시도하거나 질문을 짧게 해주세요." : e.message, ms: Date.now() - T0 });
   }
 };

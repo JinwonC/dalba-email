@@ -640,7 +640,8 @@ function render(d){
   }
 
   DATA=d;
-  $("#app").innerHTML = sec1 + sec2 + secAdv + sec3 + `<div id="creSlot"></div>` + sec4 + sec5;
+  const warnHtml=(d.warnings||[]).map(w=>`<div class="card" style="border:2px solid #d4380d;background:rgba(212,56,13,.08);color:var(--ink);font-weight:600;margin-bottom:14px">⚠️ ${w}</div>`).join("");
+  $("#app").innerHTML = warnHtml + sec1 + sec2 + secAdv + sec3 + `<div id="creSlot"></div>` + sec4 + sec5;
   renderCreatives(DATA.creatives||null);   // 이미 도착했으면 즉시, 아니면 로딩 표시
   // 제품 딥다이브 펼칠 때 해당 제품 차트 지연 렌더
   document.querySelectorAll("details.pd").forEach(el=>{

@@ -97,9 +97,10 @@ async function ask(){
   $("meta").textContent="";
   try{
     const r=await fetch("/api/ask",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
-    const d=await r.json();
+    const txt=await r.text(); let d;
+    try{ d=JSON.parse(txt); }catch(_){ throw new Error("서버 응답 시간 초과 — 잠시 후 다시 시도하거나 질문을 짧게 해주세요"); }
     if(d.error){$("ans").innerHTML='<span class="err">오류: '+d.error+'</span>';$("outlbl").textContent="오류";}
-    else{$("ans").innerHTML=render(d.answer||"(응답 없음)");$("outlbl").textContent=d.제품+" 분석";$("meta").textContent="기준일 "+d.기준일+" · "+(d.provider||"")+" · "+d.model;}
+    else{$("ans").innerHTML=render(d.answer||"(응답 없음)");$("outlbl").textContent=d.제품+" 분석";$("meta").textContent="기준일 "+d.기준일+" · "+(d.provider||"")+" · "+d.model+((d.warnings&&d.warnings.length)?"  ⚠️ "+d.warnings.join(" / "):"");}
   }catch(e){$("ans").innerHTML='<span class="err">요청 실패: '+e.message+'</span>';}
   $("go").disabled=false;
 }

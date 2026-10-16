@@ -266,6 +266,15 @@ function parseAds(rows) {
   }
   return byDate;
 }
+// 광고 탭 상태 점검 — 수식 오류(#REF! 등)나 최근 7일 광고비 0이면 경고 문구 반환
+function adHealth(adRows, adByDate, targetKey) {
+  const first = String((adRows && adRows[0] && adRows[0][0]) || "");
+  if (/^#(REF|N\/A|ERROR|VALUE|NAME)/i.test(first)) return "광고 탭 수식 오류(" + first + ") — 광고비·ROI가 $0/빈값으로 표시됩니다. 구글시트 '광고' 탭 A1 수식을 복구해주세요.";
+  const keys = Object.keys(adByDate || {}).filter(k => k <= targetKey).sort().slice(-7);
+  const spend7 = keys.reduce((s, k) => s + ((adByDate[k] && adByDate[k].total) || 0), 0);
+  if (!keys.length || spend7 <= 0) return "최근 7일 광고비 데이터가 없습니다 — '광고' 탭이 비었거나 갱신되지 않아 광고비·ROI가 0으로 표시됩니다.";
+  return null;
+}
 function nearest(map, targetKey) {
   if (!map) return null;
   if (map[targetKey]) return map[targetKey];
@@ -649,6 +658,7 @@ function buildMain(a, ins) {
   const tip = k => (ins && ins[k]) ? `🗒 _${ins[k]}_\n` : "";
   let o = `*📊 d'Alba 데일리 매출 리포트 — ${a.date.label}*\n`;
   o += `_전일(${a.prevDay ? a.prevDay.md : "–"}) · 전주(${a.prevWeek ? a.prevWeek.md : "–"}) 대비_\n`;
+  if (a.adWarn) o += `⚠️ *${a.adWarn}*\n`;
   o += `🔗 *필수!* 제품 PM은 하기 웹사이트 반드시 확인해주세요 (자세한 데이터)\n${process.env.DASHBOARD_URL || "https://project-zizml.vercel.app/report.html"}\n\n`;
   // 1
   o += `*1. 전체 요약*\n`;
@@ -1401,6 +1411,7 @@ module.exports = async (req, res) => {
     const orgShopByDate = videoOrgShopByDate(vidByDate);
     const orgShopByPid = videoOrgShopByDatePid(vidByDate);
     const agg = aggregate(raw, targetKey, topN, adByDate, commCur, afByDate, parseLive(liveRows));
+    agg.adWarn = adHealth(adRows, adByDate, targetKey);
     const vid = aggregateVideos(vidByDate, targetKey);
     const skuByDate = parseSkuOrders(skuRows);
 
@@ -1410,6 +1421,7 @@ module.exports = async (req, res) => {
       const withInsights = req.query.insights === "1";
       const ins = withInsights ? await generateInsights(agg, vid) : null;
       const out = buildJson(agg, raw, adByDate, ins, vid, skuByDate, afByDate, orgShopByDate, orgShopByPid, MK);
+      if (agg.adWarn) out.warnings = [...(out.warnings || []), agg.adWarn];
       // 소재 타임라인 (?creatives=1) — 광고 시트를 추가로 읽으므로 요청 시에만
       if (req.query.creatives === "1") {
         const ck = "adcre:" + (process.env.ADS_SHEET_ID || "");
