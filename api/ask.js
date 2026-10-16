@@ -270,7 +270,9 @@ module.exports = async (req, res) => {
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           // maxOutputTokens는 사고(thinking) 토큰까지 포함하므로 넉넉히 (깊은 소재 분석은 길어져 잘림 방지)
-          generationConfig: { maxOutputTokens: 16384, temperature: 0.35 },
+          generationConfig: Object.assign({ maxOutputTokens: 16384, temperature: 0.35 },
+            // 사고(thinking) 예산 — 응답 시간 단축용. ?thinkingBudget= 또는 env GEMINI_THINKING_BUDGET
+            (q.thinkingBudget || process.env.GEMINI_THINKING_BUDGET) ? { thinkingConfig: { thinkingBudget: Number(q.thinkingBudget || process.env.GEMINI_THINKING_BUDGET) } } : {}),
         }),
       });
       const data = await r.json();
