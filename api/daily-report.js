@@ -1280,6 +1280,62 @@ module.exports = async (req, res) => {
     }
     const sheets = google.sheets({ version: "v4", auth });
 
+    // AF 라이브 크리에이터 리포트 (?afReport=1&afMonth=YYYY-MM[&creators=a,b,c])
+    //   원본 '2026 US 틱톡샵 매출/지표' 시트의 (수동) AF LIVE RAW(세션별 GMV·판매수량) +
+    //   (중요,수동) 주문별 AF 매출 RAW(Livestream 주문 → 제품별) 를 크리에이터별로 집계
+    if (req.query && req.query.afReport) {
+      const mainId = process.env.US_MAIN_SHEET_ID || "15dP91bH_skc7ZzcJ3ehH9H4IKCzSxcfuOcREr3OaL0o";
+      const mon = String(req.query.afMonth || "").trim();
+      const wantSet = String(req.query.creators || "").split(",").map(s => s.replace(/^@/, "").trim().toLowerCase()).filter(Boolean);
+      const want = wantSet.length ? new Set(wantSet) : null;
+      const meta = await sheets.spreadsheets.get({ spreadsheetId: mainId, fields: "sheets.properties.title" });
+      const titles = (meta.data.sheets || []).map(s => s.properties.title);
+      const liveTab = titles.find(t => /AF LIVE RAW/i.test(t));
+      const ordTab = titles.find(t => t.includes("주문별 AF"));
+      if (!liveTab || !ordTab) throw new Error("원본 시트에서 AF LIVE RAW / 주문별 AF 매출 RAW 탭을 찾지 못했습니다.");
+      const resp = await sheets.spreadsheets.values.batchGet({ spreadsheetId: mainId, ranges: [`'${liveTab}'!A:L`, `'${ordTab}'!A:N`] });
+      const liveRows = (resp.data.valueRanges[0] && resp.data.valueRanges[0].values) || [];
+      const ordRows = (resp.data.valueRanges[1] && resp.data.valueRanges[1].values) || [];
+      const C = {};
+      const get = h => C[h] || (C[h] = { handle: h, sessions: 0, minutes: 0, liveGmv: 0, liveItems: 0, orderPay: 0, orderCnt: 0, typeMix: {}, products: {} });
+      const lh = (liveRows[0] || []).map(norm);
+      const li = name => lh.findIndex(x => x === norm(name));
+      const L = { h: li("Handle"), t: li("Start time"), dur: li("LIVE duration"), gmv: li("LIVE-attributed GMV"), items: li("LIVE-attributed items sold") };
+      for (const r of liveRows.slice(1)) {
+        const h = String(r[L.h] || "").replace(/^@/, "").trim().toLowerCase();
+        if (!h || (want && !want.has(h))) continue;
+        const d = parseDate(r[L.t]); if (!d || (mon && d.key.slice(0, 7) !== mon)) continue;
+        const c = get(h), dm = String(r[L.dur] || "").match(/(?:(\d+)h)?\s*(?:(\d+)m)?/);
+        c.sessions++; c.minutes += (dm ? (+dm[1] || 0) * 60 + (+dm[2] || 0) : 0);
+        c.liveGmv += num(r[L.gmv]); c.liveItems += num(r[L.items]);
+      }
+      const M = mapVideoColumns(ordRows);
+      for (const r of ordRows) {
+        const h = String(r[M.creator] || "").replace(/^@/, "").trim().toLowerCase();
+        if (!h || (want && !want.has(h))) continue;
+        const d = parseDate(r[M.date]); if (!d || (mon && d.key.slice(0, 7) !== mon)) continue;
+        const type = String(r[M.ctype] || "").trim() || "기타", pay = num(r[M.pay]);
+        const c = get(h);
+        c.typeMix[type] = (c.typeMix[type] || 0) + pay;
+        if (!/live/i.test(type)) continue;
+        c.orderPay += pay; c.orderCnt++;
+        const pk = String(r[M.pid] || "").trim() || clean(r[M.pname]);
+        const p = c.products[pk] || (c.products[pk] = { pid: String(r[M.pid] || "").trim(), name: clean(r[M.pname]), pay: 0, qty: 0, orders: 0 });
+        p.pay += pay; p.qty += num(r[M.qty]); p.orders++;
+      }
+      const list = Object.values(C).map(c => ({
+        handle: c.handle, sessions: c.sessions, liveHours: +(c.minutes / 60).toFixed(1),
+        liveGmv: Math.round(c.liveGmv * 100) / 100, liveItems: c.liveItems,
+        liveOrderPay: Math.round(c.orderPay), liveOrders: c.orderCnt,
+        typeMix: Object.fromEntries(Object.entries(c.typeMix).map(([k, v]) => [k, Math.round(v)])),
+        topProducts: Object.values(c.products).sort((a, b) => b.pay - a.pay).slice(0, 10).map(p => ({ pid: p.pid, name: p.name, pay: Math.round(p.pay), qty: p.qty, orders: p.orders }))
+      })).sort((a, b) => b.liveGmv - a.liveGmv || b.liveOrderPay - a.liveOrderPay);
+      const missing = want ? wantSet.filter(h => !C[h]) : [];
+      res.setHeader("Cache-Control", "no-store");
+      res.status(200).json({ source: { sheet: mainId, liveTab, ordTab }, month: mon || null, creators: list, missing });
+      return;
+    }
+
     // 진단 모드: 탭 인식·컬럼 매핑 상태 확인 (?debug=1)
     //   ?debug=1            → 탭 인식 결과 + 전 탭 헤더 샘플(상위 3행×40열) + RAW 컬럼 매핑
     //   ?debug=1&tab=<이름> → 해당 탭의 상위 8행×60열 원본 덤프
