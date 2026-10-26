@@ -1310,11 +1310,17 @@ module.exports = async (req, res) => {
         c.liveGmv += num(r[L.gmv]); c.liveItems += num(r[L.items]);
       }
       const M = mapVideoColumns(ordRows);
+      const prodByType = {}; // 콘텐츠 유형(Livestream/Video/...)별 제품 집계 — 전체 크리에이터 기준
       for (const r of ordRows) {
         const h = String(r[M.creator] || "").replace(/^@/, "").trim().toLowerCase();
         if (!h || (want && !want.has(h))) continue;
         const d = parseDate(r[M.date]); if (!d || (mon && d.key.slice(0, 7) !== mon)) continue;
         const type = String(r[M.ctype] || "").trim() || "기타", pay = num(r[M.pay]);
+        const tk = String(r[M.pid] || "").trim() || clean(r[M.pname]);
+        const tb = prodByType[type] || (prodByType[type] = {});
+        const tp = tb[tk] || (tb[tk] = { pid: String(r[M.pid] || "").trim(), name: clean(r[M.pname]), pay: 0, qty: 0, orders: 0, creators: new Set() });
+        tp.pay += pay; tp.qty += num(r[M.qty]); tp.orders++; tp.creators.add(h);
+        if (req.query.productsOnly) continue;
         const c = get(h);
         c.typeMix[type] = (c.typeMix[type] || 0) + pay;
         if (!/live/i.test(type)) continue;
@@ -1332,7 +1338,9 @@ module.exports = async (req, res) => {
       })).sort((a, b) => b.liveGmv - a.liveGmv || b.liveOrderPay - a.liveOrderPay);
       const missing = want ? wantSet.filter(h => !C[h]) : [];
       res.setHeader("Cache-Control", "no-store");
-      res.status(200).json({ source: { sheet: mainId, liveTab, ordTab }, month: mon || null, creators: list, missing });
+      const products = Object.fromEntries(Object.entries(prodByType).map(([t, b]) => [t, Object.values(b).sort((a, z) => z.pay - a.pay).slice(0, 25)
+        .map(p => ({ pid: p.pid, name: p.name, pay: Math.round(p.pay), qty: p.qty, orders: p.orders, creators: p.creators.size }))]));
+      res.status(200).json({ source: { sheet: mainId, liveTab, ordTab }, month: mon || null, creators: req.query.productsOnly ? [] : list, missing, products });
       return;
     }
 
