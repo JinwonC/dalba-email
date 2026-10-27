@@ -1,0 +1,351 @@
+<title>라이브 주간 리포트 43주차</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: 한 장짜리 주간 보고서 — 요약 → 셀러 라이브(시간·트래픽·제품) → AF 라이브(크리에이터·제품·크리에이터×제품). 비교는 항상 W42(회색) vs W43(코발트) */
+:root{
+  --bg:#f5f6f8; --surface:#ffffff; --ink:#1b2130; --muted:#667085; --line:#e3e6ec;
+  --w43:#2d5bd1; --w42:#b9c1cf; --glob:#2d5bd1; --us:#d08a2d;
+  --good:#1b7f53; --bad:#c03b26; --soft:#eef2fb;
+  --f-body:"IBM Plex Sans KR",system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#11141b; --surface:#191e28; --ink:#e7eaf0; --muted:#9aa3b5; --line:#2a3140;
+  --w43:#7ea3ff; --w42:#4a5366; --glob:#7ea3ff; --us:#e6a656;
+  --good:#4fc28d; --bad:#ff7a63; --soft:#1e2636; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#11141b; --surface:#191e28; --ink:#e7eaf0; --muted:#9aa3b5; --line:#2a3140;
+  --w43:#7ea3ff; --w42:#4a5366; --glob:#7ea3ff; --us:#e6a656;
+  --good:#4fc28d; --bad:#ff7a63; --soft:#1e2636; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 64px}
+.wrap{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+h1{font-size:28px;line-height:1.25;margin:0;text-wrap:balance;font-weight:700}
+h2{font-size:21px;margin:0;text-wrap:balance}
+h3{font-size:16px;margin:0 0 4px;font-weight:600}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.sub{color:var(--muted);margin:6px 0 0}
+.num,td.n,th.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.kpi .v{font-family:var(--f-num);font-size:24px;font-weight:500}
+.kpi .l{font-size:13px;color:var(--muted)}
+.d-up{color:var(--good)} .d-dn{color:var(--bad)}
+.chip{display:inline-block;font-family:var(--f-num);font-size:12px;padding:1px 7px;border-radius:999px;background:var(--soft)}
+section.part{display:flex;flex-direction:column;gap:18px}
+.part-head{border-top:3px solid var(--ink);padding-top:12px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;min-width:0;display:flex;flex-direction:column;gap:12px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
+.take{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px}
+.take b{font-weight:600}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{font-weight:600;color:var(--muted);font-size:12.5px}
+td.n,th.n{text-align:right}
+tr.hl td{background:var(--soft)}
+svg text{fill:var(--ink);font-family:var(--f-body)}
+svg .t-muted{fill:var(--muted)}
+svg .t-num{font-family:var(--f-num)}
+.note{font-size:12.5px;color:var(--muted)}
+.callout{border-left:3px solid var(--w43);padding:8px 12px;background:var(--soft);border-radius:0 8px 8px 0;font-size:14px}
+.cp{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.cp .item{border:1px solid var(--line);border-radius:8px;padding:10px 12px;min-width:0}
+.cp .item h4{margin:0 0 4px;font-size:14px;display:flex;justify-content:space-between;gap:8px}
+.cp ol{margin:0;padding-left:18px;font-size:13px}
+.cp .prev{font-size:12px;color:var(--muted);margin-top:4px}
+:focus-visible{outline:2px solid var(--w43);outline-offset:2px}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">d'Alba US TikTok Shop · 라이브 커머스</div>
+    <h1>라이브 주간 리포트 43주차</h1>
+    <p class="sub">43주차 10/19(월)~10/25(일) vs 42주차 10/12(월)~10/18(일) · 셀러 라이브와 어필리에이트(AF) 라이브</p>
+  </header>
+
+  <div class="kpis" id="kpis"></div>
+  <div class="card">
+    <h3>요약</h3>
+    <ul class="take" id="summary"></ul>
+  </div>
+
+  <section class="part">
+    <div class="part-head"><div class="eyebrow">Part 1</div><h2>셀러 라이브 (브랜드 라이브)</h2></div>
+
+    <div class="card">
+      <h3>1. 방송 시간과 GMV</h3>
+      <div class="tbl"><table id="t-brand-week"></table></div>
+      <div class="legend"><span><i style="background:var(--w42)"></i>42주차</span><span><i style="background:var(--w43)"></i>43주차</span><span><i style="background:var(--us)"></i>@dalba_us_official</span></div>
+      <div id="c-sessions"></div>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <h3>방송 길이별 시간당 GMV</h3>
+        <p class="note">점 하나가 방송 1회. 가로는 방송 시간, 세로는 시간당 GMV입니다.</p>
+        <div id="c-scatter"></div>
+      </div>
+      <div class="card">
+        <h3>시작 시간대별 성과 (@dalba_global)</h3>
+        <div class="tbl"><table id="t-slot"></table></div>
+        <ul class="take" id="slot-take"></ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>2. 세부 트래픽 (@dalba_global)</h3>
+      <p class="note">출처: (수동) 브랜드 라이브 RAW. 상품 클릭률 = 상품 클릭 ÷ 조회수, 구매 전환율 = 주문 ÷ 시청자.</p>
+      <div class="tbl"><table id="t-funnel"></table></div>
+      <ul class="take" id="funnel-take"></ul>
+      <details>
+        <summary class="note">방송별 트래픽 전체 보기</summary>
+        <div class="tbl"><table id="t-sess-traffic"></table></div>
+      </details>
+    </div>
+
+    <div class="card">
+      <h3>3. 셀러 라이브 제품별 매출</h3>
+      <p class="note">출처: (중요,수동) 제품별 유입매출 RAW. Seller LIVE-attributed GMV와 판매 개수입니다.</p>
+      <div class="legend"><span><i style="background:var(--w42)"></i>42주차</span><span><i style="background:var(--w43)"></i>43주차</span></div>
+      <div id="c-slprod"></div>
+      <div class="tbl"><table id="t-slprod"></table></div>
+      <ul class="take" id="slprod-take"></ul>
+    </div>
+  </section>
+
+  <section class="part">
+    <div class="part-head"><div class="eyebrow">Part 2</div><h2>어필리에이트 라이브</h2></div>
+
+    <div class="card">
+      <h3>1. 누가 몇 시간 방송해서 얼마를 팔았나</h3>
+      <div class="kpis" id="af-kpis"></div>
+      <div class="callout" id="af-callout"></div>
+      <div class="legend"><span><i style="background:var(--w42)"></i>42주차</span><span><i style="background:var(--w43)"></i>43주차</span></div>
+      <div id="c-afcr"></div>
+      <div class="tbl"><table id="t-afcr"></table></div>
+      <p class="note" id="af-newlost"></p>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <h3>방송 시작 시간대별 AF 라이브 GMV</h3>
+        <p class="note">매출이 발생한 방송만 집계했습니다.</p>
+        <div id="c-afslot"></div>
+      </div>
+      <div class="card">
+        <h3>2. AF 라이브에서 잘 팔리는 제품</h3>
+        <p class="note">GMV: 제품별 유입매출 RAW (Creator LIVE-attributed). 개수와 판매 크리에이터 수: 주문별 AF 매출 RAW.</p>
+        <div id="c-afprod"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="tbl"><table id="t-afprod"></table></div>
+      <ul class="take" id="afprod-take"></ul>
+    </div>
+
+    <div class="card">
+      <h3>3. 누가 어떤 제품을 잘 파나 (43주차)</h3>
+      <p class="note">출처: (중요,수동) 주문별 AF 매출 RAW 의 Livestream 주문. 괄호 안은 판매 개수입니다.</p>
+      <div class="cp" id="cp"></div>
+    </div>
+  </section>
+
+  <footer class="note" id="foot"></footer>
+</div>
+
+<script>
+const D = {"store": {"W42": {"gmv": 183044, "sl": 15871, "afl": 17533}, "W43": {"gmv": 205069, "sl": 19392, "afl": 13525}}, "sessions": [{"date": "10-12", "week": "W42", "acct": "dalba_global", "start": "8:04:", "hour": 8, "hrs": 6.95, "gmv": 4087, "gph": 588, "viewers": 11460, "views": 18332, "clicks": 3360, "orders": 178, "aov": 22.96, "items": 196, "ctr": 18.33, "ctor": 5.63, "avgview": 71.99, "impr": 272854, "fol": 58, "title": "d'Alba Monday Deals!"}, {"date": "10-13", "week": "W42", "acct": "dalba_global", "start": "11:02", "hour": 11, "hrs": 5.97, "gmv": 3105, "gph": 520, "viewers": 8003, "views": 12783, "clicks": 2288, "orders": 131, "aov": 23.7, "items": 143, "ctr": 17.9, "ctor": 6.12, "avgview": 95.87, "impr": 213539, "fol": 31, "title": "d'Alba Super Deals!"}, {"date": "10-14", "week": "W42", "acct": "dalba_global", "start": "11:15", "hour": 11, "hrs": 4.77, "gmv": 2108, "gph": 442, "viewers": 4435, "views": 7485, "clicks": 1604, "orders": 89, "aov": 23.69, "items": 97, "ctr": 21.43, "ctor": 5.86, "avgview": 148.85, "impr": 146710, "fol": 44, "title": "d'Alba Special Promotions!"}, {"date": "10-14", "week": "W42", "acct": "dalba_us_official", "start": "7:11:", "hour": 7, "hrs": 1.42, "gmv": 233, "gph": 165, "viewers": 983, "views": 1387, "clicks": 239, "orders": 0, "aov": 0.0, "items": 13, "ctr": 5.01, "ctor": 5.44, "avgview": 0.0, "impr": 0, "fol": 39, "title": "d'Alba US LIVE DEALS!"}, {"date": "10-15", "week": "W42", "acct": "dalba_global", "start": "12:01", "hour": 12, "hrs": 5.02, "gmv": 2837, "gph": 565, "viewers": 6168, "views": 9465, "clicks": 1875, "orders": 107, "aov": 26.51, "items": 123, "ctr": 19.81, "ctor": 6.29, "avgview": 103.76, "impr": 169249, "fol": 40, "title": "d'Alba Special Promotions!"}, {"date": "10-15", "week": "W42", "acct": "dalba_us_official", "start": "7:16:", "hour": 7, "hrs": 1.5, "gmv": 403, "gph": 269, "viewers": 2673, "views": 3376, "clicks": 286, "orders": 0, "aov": 0.0, "items": 21, "ctr": 3.64, "ctor": 7.34, "avgview": 0.0, "impr": 0, "fol": 37, "title": "d'Alba US LIVE DEALS!"}, {"date": "10-16", "week": "W42", "acct": "dalba_global", "start": "11:30", "hour": 11, "hrs": 4.48, "gmv": 1819, "gph": 406, "viewers": 5929, "views": 9217, "clicks": 1437, "orders": 77, "aov": 23.62, "items": 85, "ctr": 15.59, "ctor": 5.78, "avgview": 74.52, "impr": 131481, "fol": 32, "title": "d'Alba Special Promotions!"}, {"date": "10-16", "week": "W42", "acct": "dalba_us_official", "start": "9:17:", "hour": 9, "hrs": 0.75, "gmv": 243, "gph": 323, "viewers": 910, "views": 1152, "clicks": 126, "orders": 0, "aov": 0.0, "items": 12, "ctr": 4.01, "ctor": 9.52, "avgview": 0.0, "impr": 0, "fol": 11, "title": "d'Alba Live Deals!!"}, {"date": "10-19", "week": "W43", "acct": "dalba_global", "start": "10:04", "hour": 10, "hrs": 4.48, "gmv": 1897, "gph": 423, "viewers": 5551, "views": 9344, "clicks": 1994, "orders": 88, "aov": 21.56, "items": 107, "ctr": 21.34, "ctor": 5.32, "avgview": 91.5, "impr": 172442, "fol": 37, "title": "d'Alba Super Deals!"}, {"date": "10-20", "week": "W43", "acct": "dalba_global", "start": "10:01", "hour": 10, "hrs": 5.48, "gmv": 3286, "gph": 599, "viewers": 7642, "views": 11923, "clicks": 1889, "orders": 137, "aov": 23.98, "items": 169, "ctr": 15.84, "ctor": 8.84, "avgview": 64.02, "impr": 206678, "fol": 38, "title": "d'Alba Super Deals!"}, {"date": "10-21", "week": "W43", "acct": "dalba_global", "start": "10:18", "hour": 10, "hrs": 5.77, "gmv": 2862, "gph": 496, "viewers": 6933, "views": 11130, "clicks": 2089, "orders": 111, "aov": 25.78, "items": 132, "ctr": 18.77, "ctor": 6.22, "avgview": 73.89, "impr": 217632, "fol": 36, "title": "d'Alba Live Deals!"}, {"date": "10-22", "week": "W43", "acct": "dalba_global", "start": "10:02", "hour": 10, "hrs": 6.02, "gmv": 3325, "gph": 553, "viewers": 5983, "views": 10155, "clicks": 2257, "orders": 113, "aov": 29.43, "items": 129, "ctr": 22.23, "ctor": 5.67, "avgview": 101.96, "impr": 200161, "fol": 40, "title": "d'Alba Live Deals!"}, {"date": "10-22", "week": "W43", "acct": "dalba_us_official", "start": "7:09:", "hour": 7, "hrs": 1.95, "gmv": 372, "gph": 191, "viewers": 1014, "views": 1473, "clicks": 384, "orders": 0, "aov": 0.0, "items": 18, "ctr": 6.23, "ctor": 4.69, "avgview": 0.0, "impr": 0, "fol": 42, "title": "d'Alba Live Deals!!"}, {"date": "10-23", "week": "W43", "acct": "dalba_global", "start": "10:02", "hour": 10, "hrs": 1.98, "gmv": 782, "gph": 394, "viewers": 2499, "views": 3618, "clicks": 721, "orders": 34, "aov": 23.0, "items": 38, "ctr": 19.93, "ctor": 5.13, "avgview": 71.81, "impr": 75628, "fol": 21, "title": "d'Alba Live Deals!"}, {"date": "10-23", "week": "W43", "acct": "dalba_global", "start": "14:02", "hour": 14, "hrs": 2.02, "gmv": 570, "gph": 282, "viewers": 2043, "views": 3024, "clicks": 574, "orders": 30, "aov": 18.98, "items": 30, "ctr": 18.98, "ctor": 5.23, "avgview": 89.2, "impr": 67840, "fol": 10, "title": "d'Alba Live Deals!"}, {"date": "10-23", "week": "W43", "acct": "dalba_us_official", "start": "7:21:", "hour": 7, "hrs": 1.55, "gmv": 346, "gph": 223, "viewers": 917, "views": 1314, "clicks": 277, "orders": 0, "aov": 0.0, "items": 13, "ctr": 5.18, "ctor": 4.69, "avgview": 0.0, "impr": 0, "fol": 28, "title": "d'Alba Live Deals!!"}, {"date": "10-24", "week": "W43", "acct": "dalba_global", "start": "7:40:", "hour": 7, "hrs": 6.02, "gmv": 3995, "gph": 664, "viewers": 7076, "views": 11725, "clicks": 2430, "orders": 119, "aov": 33.57, "items": 158, "ctr": 20.72, "ctor": 6.3, "avgview": 86.15, "impr": 229654, "fol": 40, "title": "d'Alba Live Deals!"}], "brand": {"W42": {"all": {"n": 8, "days": 5, "hrs": 30.9, "gmv": 14834, "gph": 481, "items": 690, "orders": 582, "viewers": 40561, "views": 63197, "clicks": 11215, "impr": 933833, "ctr": 17.7, "conv": 1.43, "aov": 25.49, "g1k": 366, "i2v": 4.34, "avgview": 82.2, "fol": 292}, "glob": {"n": 5, "days": 5, "hrs": 27.2, "gmv": 13955, "gph": 513, "items": 644, "orders": 582, "viewers": 35995, "views": 57282, "clicks": 10564, "impr": 933833, "ctr": 18.4, "conv": 1.62, "aov": 23.98, "g1k": 388, "i2v": 3.85, "avgview": 92.6, "fol": 205}, "us": {"n": 3, "days": 3, "hrs": 3.7, "gmv": 878, "gph": 240, "items": 46, "orders": 0, "viewers": 4566, "views": 5915, "clicks": 651, "impr": 0, "ctr": 11.0, "conv": 0.0, "aov": 0, "g1k": 192, "i2v": 0, "avgview": 0.0, "fol": 87}}, "W43": {"all": {"n": 9, "days": 6, "hrs": 35.3, "gmv": 17434, "gph": 494, "items": 794, "orders": 632, "viewers": 39658, "views": 63706, "clicks": 12615, "impr": 1170035, "ctr": 19.8, "conv": 1.59, "aov": 27.59, "g1k": 440, "i2v": 3.39, "avgview": 77.9, "fol": 292}, "glob": {"n": 7, "days": 6, "hrs": 31.8, "gmv": 16716, "gph": 526, "items": 763, "orders": 632, "viewers": 37727, "views": 60919, "clicks": 11954, "impr": 1170035, "ctr": 19.6, "conv": 1.68, "aov": 26.45, "g1k": 443, "i2v": 3.22, "avgview": 81.9, "fol": 222}, "us": {"n": 2, "days": 2, "hrs": 3.5, "gmv": 718, "gph": 205, "items": 31, "orders": 0, "viewers": 1931, "views": 2787, "clicks": 661, "impr": 0, "ctr": 23.7, "conv": 0.0, "aov": 0, "g1k": 372, "i2v": 0, "avgview": 0.0, "fol": 70}}}, "sl_products": [{"name": "PRO2X 3번들", "w42": 4137, "w43": 3479, "i42": 81, "i43": 68}, {"name": "PRO 2X", "w42": 1573, "w43": 2357, "i42": 96, "i43": 124}, {"name": "보르피린3종", "w42": 705, "w43": 2049, "i42": 13, "i43": 37}, {"name": "비타 5종 세트", "w42": 1857, "w43": 1790, "i42": 38, "i43": 36}, {"name": "더블라인", "w42": 404, "w43": 1253, "i42": 11, "i43": 29}, {"name": "5 Solution 기프트박스(라이브 전용)", "w42": 0, "w43": 1107, "i42": 0, "i43": 40}, {"name": "PRO 2X 4번들(라이브 전용)", "w42": 0, "w43": 800, "i42": 0, "i43": 9}, {"name": "퍼스트 기프트세트", "w42": 636, "w43": 612, "i42": 12, "i43": 12}, {"name": "퍼스트 본품", "w42": 391, "w43": 545, "i42": 22, "i43": 31}, {"name": "비타 풀루틴(라이브 전용)", "w42": 281, "w43": 464, "i42": 4, "i43": 6}, {"name": "더블레이어 세럼", "w42": 601, "w43": 426, "i42": 42, "i43": 39}, {"name": "리프레시 아쿠아 세럼", "w42": 432, "w43": 414, "i42": 54, "i43": 38}], "afl_products": [{"name": "PRO 2X", "w42": 2211, "w43": 3127, "i42": 133, "i43": 136, "c42": 24, "c43": 26}, {"name": "비타 풀루틴(라이브 전용)", "w42": 1622, "w43": 1273, "i42": 23, "i43": 16, "c42": 2, "c43": 2}, {"name": "더블라인", "w42": 1156, "w43": 1200, "i42": 7, "i43": 20, "c42": 5, "c43": 7}, {"name": "보르피린3종", "w42": 1261, "w43": 859, "i42": 14, "i43": 14, "c42": 4, "c43": 6}, {"name": "비타 5종 세트", "w42": 3061, "w43": 843, "i42": 15, "i43": 11, "c42": 5, "c43": 3}, {"name": "PRO2X 3번들", "w42": 1179, "w43": 783, "i42": 25, "i43": 15, "c42": 6, "c43": 6}, {"name": "퍼스트 본품", "w42": 545, "w43": 634, "i42": 20, "i43": 33, "c42": 11, "c43": 14}, {"name": "퍼스트 기프트세트", "w42": 294, "w43": 528, "i42": 6, "i43": 10, "c42": 4, "c43": 4}, {"name": "반반패드", "w42": 859, "w43": 421, "i42": 18, "i43": 17, "c42": 7, "c43": 7}, {"name": "더블레이어 세럼", "w42": 142, "w43": 307, "i42": 8, "i43": 15, "c42": 1, "c43": 5}, {"name": "풀 스킨케어 루틴 세트", "w42": 701, "w43": 298, "i42": 4, "i43": 2, "c42": 3, "c43": 2}, {"name": "비타 토너", "w42": 312, "w43": 297, "i42": 19, "i43": 18, "c42": 4, "c43": 6}], "af_tot": {"W42": {"creators": 391, "sellers": 38, "sessions": 935, "minutes": 97534, "gmv": 17556, "items": 656.0}, "W43": {"creators": 425, "sellers": 47, "sessions": 1006, "minutes": 111867, "gmv": 12762, "items": 545.0}}, "af_creators": [{"h": "stephosseili", "g42": 2268, "g43": 2651, "i42": 65, "i43": 87, "h42": 10.5, "h43": 16.3, "s42": 8, "s43": 15, "v43": 8790, "v42": 5337}, {"h": "59andflawless", "g42": 968, "g43": 2010, "i42": 45, "i43": 92, "h42": 34.6, "h43": 42.2, "s42": 8, "s43": 10, "v43": 26016, "v42": 20612}, {"h": "reallyhoneyy", "g42": 1897, "g43": 1552, "i42": 73, "i43": 70, "h42": 8.4, "h43": 9.1, "s42": 3, "s43": 3, "v43": 8914, "v42": 9349}, {"h": "tinabougiebestie", "g42": 0, "g43": 1438, "i42": 0, "i43": 59, "h42": 3.9, "h43": 15.2, "s42": 1, "s43": 3, "v43": 12314, "v42": 3945}, {"h": "josephinejonai", "g42": 0, "g43": 1182, "i42": 0, "i43": 56, "h42": 3.4, "h43": 15.1, "s42": 1, "s43": 7, "v43": 7539, "v42": 7800}, {"h": "pamelagammonphotography", "g42": 1186, "g43": 704, "i42": 55, "i43": 33, "h42": 12.8, "h43": 12.6, "s42": 4, "s43": 3, "v43": 5954, "v42": 5890}, {"h": "chirlenakleshinsk", "g42": 45, "g43": 527, "i42": 2, "i43": 25, "h42": 8.8, "h43": 4.0, "s42": 1, "s43": 1, "v43": 680, "v42": 2317}, {"h": "helensaysyes", "g42": 902, "g43": 423, "i42": 38, "i43": 21, "h42": 14.2, "h43": 8.7, "s42": 8, "s43": 6, "v43": 6843, "v42": 13108}, {"h": "sociallykarenn", "g42": 1708, "g43": 368, "i42": 49, "i43": 14, "h42": 15.3, "h43": 4.4, "s42": 12, "s43": 3, "v43": 2513, "v42": 11704}, {"h": "marf_glamofficial", "g42": 5996, "g43": 148, "i42": 211, "i43": 6, "h42": 8.8, "h43": 3.0, "s42": 3, "s43": 1, "v43": 7194, "v42": 36264}, {"h": "xteenaashcraft", "g42": 0, "g43": 170, "i42": 0, "i43": 9, "h42": 2.1, "h43": 13.3, "s42": 1, "s43": 4, "v43": 14857, "v42": 3336}, {"h": "ana.laura.624", "g42": 73, "g43": 165, "i42": 2, "i43": 8, "h42": 5.2, "h43": 6.3, "s42": 6, "s43": 4, "v43": 14125, "v42": 11562}, {"h": "4pawsandatinyhuman", "g42": 0, "g43": 131, "i42": 0, "i43": 4, "h42": 0.0, "h43": 2.0, "s42": 0, "s43": 1, "v43": 548, "v42": 0}, {"h": "shopdealswithmarisa", "g42": 0, "g43": 116, "i42": 0, "i43": 5, "h42": 0.0, "h43": 2.1, "s42": 0, "s43": 1, "v43": 334, "v42": 0}, {"h": "taidyguardiamilia", "g42": 0, "g43": 110, "i42": 0, "i43": 4, "h42": 0.0, "h43": 1.7, "s42": 0, "s43": 1, "v43": 671, "v42": 0}, {"h": "staceyford100", "g42": 140, "g43": 104, "i42": 7, "i43": 5, "h42": 3.3, "h43": 3.3, "s42": 2, "s43": 3, "v43": 1761, "v42": 1689}, {"h": "amanda__kay", "g42": 19, "g43": 86, "i42": 1, "i43": 4, "h42": 7.2, "h43": 5.2, "s42": 3, "s43": 2, "v43": 1931, "v42": 3334}, {"h": "rdiaz0813", "g42": 215, "g43": 84, "i42": 12, "i43": 2, "h42": 17.2, "h43": 13.4, "s42": 4, "s43": 3, "v43": 7161, "v42": 9361}, {"h": "arianemann", "g42": 278, "g43": 70, "i42": 16, "i43": 4, "h42": 1.7, "h43": 3.9, "s42": 1, "s43": 2, "v43": 4444, "v42": 2070}, {"h": "luxecuratorhandbagsllc", "g42": 0, "g43": 68, "i42": 0, "i43": 3, "h42": 1.5, "h43": 1.7, "s42": 2, "s43": 1, "v43": 1231, "v42": 1739}, {"h": "oltyanes", "g42": 0, "g43": 47, "i42": 0, "i43": 3, "h42": 0.0, "h43": 0.7, "s42": 0, "s43": 2, "v43": 561, "v42": 0}, {"h": "soulsourdough", "g42": 0, "g43": 45, "i42": 0, "i43": 1, "h42": 13.8, "h43": 12.9, "s42": 6, "s43": 9, "v43": 9037, "v42": 7534}, {"h": "samanthataormina", "g42": 0, "g43": 44, "i42": 0, "i43": 2, "h42": 0.0, "h43": 7.3, "s42": 0, "s43": 3, "v43": 23513, "v42": 0}, {"h": "courtneyluper", "g42": 0, "g43": 44, "i42": 0, "i43": 2, "h42": 9.5, "h43": 5.3, "s42": 2, "s43": 1, "v43": 37645, "v42": 26516}, {"h": "cielo1221", "g42": 57, "g43": 42, "i42": 3, "i43": 2, "h42": 10.2, "h43": 4.0, "s42": 2, "s43": 1, "v43": 2389, "v42": 9587}, {"h": "evasachsdesigns", "g42": 0, "g43": 40, "i42": 0, "i43": 2, "h42": 0.0, "h43": 5.7, "s42": 0, "s43": 2, "v43": 6167, "v42": 0}, {"h": "mamiandmefavs", "g42": 0, "g43": 37, "i42": 0, "i43": 2, "h42": 0.9, "h43": 9.9, "s42": 1, "s43": 9, "v43": 52845, "v42": 3194}, {"h": "bluewatersnetwork", "g42": 843, "g43": 20, "i42": 41, "i43": 1, "h42": 3.0, "h43": 3.0, "s42": 1, "s43": 1, "v43": 1986, "v42": 3232}, {"h": "shop.makeup.skin_withme", "g42": 0, "g43": 23, "i42": 0, "i43": 1, "h42": 9.9, "h43": 16.5, "s42": 4, "s43": 6, "v43": 11353, "v42": 9809}, {"h": "travel4daze", "g42": 0, "g43": 22, "i42": 0, "i43": 1, "h42": 0.0, "h43": 2.3, "s42": 0, "s43": 1, "v43": 340, "v42": 0}, {"h": "artistrybychellyllc", "g42": 0, "g43": 21, "i42": 0, "i43": 1, "h42": 0.0, "h43": 6.0, "s42": 0, "s43": 5, "v43": 2406, "v42": 0}, {"h": "copper0820", "g42": 0, "g43": 20, "i42": 0, "i43": 1, "h42": 15.6, "h43": 14.3, "s42": 3, "s43": 3, "v43": 4077, "v42": 4684}, {"h": "faithfessel", "g42": 0, "g43": 20, "i42": 0, "i43": 1, "h42": 0.0, "h43": 2.4, "s42": 0, "s43": 1, "v43": 3632, "v42": 0}, {"h": "monarchstyles", "g42": 0, "g43": 20, "i42": 0, "i43": 1, "h42": 11.1, "h43": 12.0, "s42": 5, "s43": 5, "v43": 2870, "v42": 2515}, {"h": "mel981076", "g42": 0, "g43": 19, "i42": 0, "i43": 1, "h42": 0.0, "h43": 1.0, "s42": 0, "s43": 1, "v43": 290, "v42": 0}, {"h": "damatorq", "g42": 0, "g43": 19, "i42": 0, "i43": 1, "h42": 0.0, "h43": 1.1, "s42": 0, "s43": 4, "v43": 414, "v42": 0}, {"h": "agallen22", "g42": 0, "g43": 19, "i42": 0, "i43": 1, "h42": 0.0, "h43": 2.4, "s42": 0, "s43": 2, "v43": 2114, "v42": 0}, {"h": "dollyday800", "g42": 0, "g43": 18, "i42": 0, "i43": 1, "h42": 6.5, "h43": 16.5, "s42": 2, "s43": 4, "v43": 35396, "v42": 14915}, {"h": "katiamontes_06", "g42": 0, "g43": 17, "i42": 0, "i43": 1, "h42": 0.0, "h43": 6.0, "s42": 0, "s43": 4, "v43": 2288, "v42": 0}, {"h": "thealexisedit10", "g42": 0, "g43": 17, "i42": 0, "i43": 1, "h42": 15.3, "h43": 23.7, "s42": 4, "s43": 6, "v43": 9417, "v42": 5309}, {"h": "roxymojica9", "g42": 0, "g43": 17, "i42": 0, "i43": 1, "h42": 4.0, "h43": 9.0, "s42": 2, "s43": 5, "v43": 11080, "v42": 11018}, {"h": "shazrific", "g42": 40, "g43": 16, "i42": 3, "i43": 1, "h42": 26.6, "h43": 15.2, "s42": 6, "s43": 4, "v43": 14096, "v42": 28727}, {"h": "julestoks", "g42": 15, "g43": 16, "i42": 1, "i43": 1, "h42": 10.9, "h43": 18.3, "s42": 5, "s43": 8, "v43": 4794, "v42": 1769}, {"h": "theafricanqueen1", "g42": 0, "g43": 16, "i42": 0, "i43": 1, "h42": 11.2, "h43": 7.3, "s42": 5, "s43": 3, "v43": 1934, "v42": 3738}, {"h": "beautyqueen_2024", "g42": 62, "g43": 15, "i42": 2, "i43": 1, "h42": 2.6, "h43": 0.6, "s42": 2, "s43": 1, "v43": 489, "v42": 1542}, {"h": "lizvazquez2186", "g42": 18, "g43": 14, "i42": 1, "i43": 1, "h42": 0.7, "h43": 1.3, "s42": 1, "s43": 1, "v43": 164, "v42": 320}, {"h": "shopcongabby", "g42": 0, "g43": 12, "i42": 0, "i43": 1, "h42": 0.0, "h43": 4.6, "s42": 0, "s43": 3, "v43": 1335, "v42": 0}, {"h": "viralfindsbyevy", "g42": 179, "g43": 0, "i42": 3, "i43": 0, "h42": 1.6, "h43": 5.5, "s42": 1, "s43": 5, "v43": 3014, "v42": 748}, {"h": "lisaglowupcoach", "g42": 115, "g43": 0, "i42": 1, "i43": 0, "h42": 2.3, "h43": 2.5, "s42": 2, "s43": 2, "v43": 1176, "v42": 1111}, {"h": "anirakssoc", "g42": 55, "g43": 0, "i42": 3, "i43": 0, "h42": 17.2, "h43": 12.2, "s42": 5, "s43": 4, "v43": 25717, "v42": 39728}, {"h": "gayle.with.a.y", "g42": 48, "g43": 0, "i42": 1, "i43": 0, "h42": 8.6, "h43": 7.4, "s42": 2, "s43": 2, "v43": 2826, "v42": 2839}, {"h": "kbeautyheejung", "g42": 43, "g43": 0, "i42": 1, "i43": 0, "h42": 4.7, "h43": 1.4, "s42": 4, "s43": 1, "v43": 531, "v42": 2468}, {"h": "nayna0869", "g42": 40, "g43": 0, "i42": 3, "i43": 0, "h42": 2.3, "h43": 2.3, "s42": 1, "s43": 1, "v43": 3679, "v42": 2491}, {"h": "aprilsglowingfromgrace", "g42": 39, "g43": 0, "i42": 1, "i43": 0, "h42": 5.0, "h43": 0.0, "s42": 2, "s43": 0, "v43": 0, "v42": 973}, {"h": "amanda.loves.pink", "g42": 39, "g43": 0, "i42": 3, "i43": 0, "h42": 8.8, "h43": 10.8, "s42": 5, "s43": 5, "v43": 3818, "v42": 2963}, {"h": "kerriebeautyfinds", "g42": 37, "g43": 0, "i42": 2, "i43": 0, "h42": 22.7, "h43": 15.9, "s42": 5, "s43": 3, "v43": 7324, "v42": 16866}, {"h": "maria.foundit", "g42": 37, "g43": 0, "i42": 1, "i43": 0, "h42": 2.9, "h43": 5.2, "s42": 3, "s43": 6, "v43": 2156, "v42": 1056}, {"h": "liascambionatural", "g42": 31, "g43": 0, "i42": 1, "i43": 0, "h42": 10.1, "h43": 9.3, "s42": 4, "s43": 4, "v43": 8198, "v42": 5647}, {"h": "monnbeautymua", "g42": 29, "g43": 0, "i42": 1, "i43": 0, "h42": 12.2, "h43": 10.9, "s42": 5, "s43": 5, "v43": 3331, "v42": 3747}, {"h": "girlmomwithj", "g42": 26, "g43": 0, "i42": 2, "i43": 0, "h42": 9.6, "h43": 14.5, "s42": 7, "s43": 14, "v43": 13878, "v42": 4956}, {"h": "cherideals", "g42": 19, "g43": 0, "i42": 1, "i43": 0, "h42": 37.4, "h43": 9.1, "s42": 19, "s43": 6, "v43": 19930, "v42": 126137}, {"h": "chas7576", "g42": 19, "g43": 0, "i42": 1, "i43": 0, "h42": 2.6, "h43": 0.7, "s42": 2, "s43": 1, "v43": 342, "v42": 563}, {"h": "mommycurlz", "g42": 19, "g43": 0, "i42": 1, "i43": 0, "h42": 1.2, "h43": 0.9, "s42": 1, "s43": 1, "v43": 646, "v42": 764}, {"h": "thenicolebrownlife", "g42": 18, "g43": 0, "i42": 1, "i43": 0, "h42": 12.9, "h43": 13.4, "s42": 5, "s43": 4, "v43": 7092, "v42": 7154}, {"h": "makeupbykarlarodriguezco", "g42": 18, "g43": 0, "i42": 1, "i43": 0, "h42": 2.2, "h43": 0.0, "s42": 1, "s43": 0, "v43": 0, "v42": 2742}, {"h": "jackiegaleas", "g42": 14, "g43": 0, "i42": 1, "i43": 0, "h42": 2.0, "h43": 0.0, "s42": 2, "s43": 0, "v43": 0, "v42": 1158}], "af_lost": [["viralfindsbyevy", 179], ["lisaglowupcoach", 115], ["anirakssoc", 55], ["gayle.with.a.y", 48], ["kbeautyheejung", 43], ["nayna0869", 40], ["aprilsglowingfromgrace", 39], ["amanda.loves.pink", 39], ["maria.foundit", 37], ["kerriebeautyfinds", 37], ["liascambionatural", 31], ["monnbeautymua", 29], ["girlmomwithj", 26], ["chas7576", 19], ["mommycurlz", 19], ["cherideals", 19], ["thenicolebrownlife", 18], ["makeupbykarlarodriguezco", 18], ["jackiegaleas", 14]], "af_new": [["tinabougiebestie", 1438], ["josephinejonai", 1182], ["xteenaashcraft", 170], ["4pawsandatinyhuman", 131], ["shopdealswithmarisa", 116], ["taidyguardiamilia", 110], ["luxecuratorhandbagsllc", 68], ["oltyanes", 47], ["soulsourdough", 45], ["courtneyluper", 44], ["samanthataormina", 44], ["evasachsdesigns", 40], ["mamiandmefavs", 37], ["shop.makeup.skin_withme", 23], ["travel4daze", 22], ["artistrybychellyllc", 21], ["copper0820", 20], ["monarchstyles", 20], ["faithfessel", 20], ["damatorq", 19], ["agallen22", 19], ["mel981076", 19], ["dollyday800", 18], ["thealexisedit10", 17], ["roxymojica9", 17], ["katiamontes_06", 17], ["theafricanqueen1", 16], ["shopcongabby", 12]], "cp": {"W42": {"kerriebeautyfinds": [{"name": "PRO 2X", "pay": 36, "qty": 2, "orders": 2}, {"name": "퍼스트 본품", "pay": 19, "qty": 1, "orders": 1}], "anagudino": [{"name": "PRO 2X", "pay": 22, "qty": 1, "orders": 1}], "beautyqueen_2024": [{"name": "더블라인", "pay": 41, "qty": 1, "orders": 1}, {"name": "비타 캡슐크림", "pay": 26, "qty": 1, "orders": 1}], "sociallykarenn": [{"name": "보르피린3종", "pay": 163, "qty": 3, "orders": 3}, {"name": "Night Repair 세트(라이브 전용)", "pay": 146, "qty": 1, "orders": 1}, {"name": "PRO 2X", "pay": 96, "qty": 5, "orders": 5}, {"name": "Morning Radiance 세트(라이브 전용)", "pay": 76, "qty": 1, "orders": 1}, {"name": "바이탈 스프레이", "pay": 38, "qty": 2, "orders": 2}], "reallyhoneyy": [{"name": "비타 풀루틴(라이브 전용)", "pay": 378, "qty": 5, "orders": 5}, {"name": "보르피린3종", "pay": 330, "qty": 5, "orders": 5}, {"name": "비타 5종 세트", "pay": 210, "qty": 4, "orders": 4}, {"name": "PRO 2X", "pay": 186, "qty": 12, "orders": 11}, {"name": "더블레이어 세럼", "pay": 154, "qty": 8, "orders": 1}], "helensaysyes": [{"name": "PRO 2X", "pay": 256, "qty": 14, "orders": 13}, {"name": "Night Repair 세트(라이브 전용)", "pay": 124, "qty": 1, "orders": 1}, {"name": "비타 토너", "pay": 74, "qty": 4, "orders": 4}, {"name": "Signature Vita Collagen Pore Tight", "pay": 24, "qty": 1, "orders": 1}, {"name": "리턴 오일 클렌저", "pay": 16, "qty": 1, "orders": 1}], "59andflawless": [{"name": "비타 5종 세트", "pay": 276, "qty": 6, "orders": 6}, {"name": "PRO 2X", "pay": 234, "qty": 14, "orders": 12}, {"name": "비타 토너", "pay": 188, "qty": 11, "orders": 11}, {"name": "비타 캡슐세럼", "pay": 115, "qty": 5, "orders": 5}, {"name": "Morning Radiance 세트(라이브 전용)", "pay": 82, "qty": 1, "orders": 1}], "stephosseili": [{"name": "비타 풀루틴(라이브 전용)", "pay": 1365, "qty": 18, "orders": 18}, {"name": "PRO2X 3번들", "pay": 441, "qty": 8, "orders": 8}, {"name": "PRO 2X", "pay": 292, "qty": 15, "orders": 15}, {"name": "Volufiline Lift & Eye Full Routine", "pay": 81, "qty": 1, "orders": 1}, {"name": "풀 스킨케어 루틴 세트", "pay": 71, "qty": 1, "orders": 1}], "maria.foundit": [{"name": "더블라인", "pay": 41, "qty": 1, "orders": 1}], "jackiegaleas": [{"name": "퍼스트 본품", "pay": 15, "qty": 1, "orders": 1}], "pamelagammonphotography": [{"name": "보르피린3종", "pay": 254, "qty": 5, "orders": 5}, {"name": "PRO2X 3번들", "pay": 192, "qty": 4, "orders": 4}, {"name": "PRO 2X", "pay": 187, "qty": 12, "orders": 11}, {"name": "헤어 듀오", "pay": 124, "qty": 4, "orders": 4}, {"name": "퍼스트 기프트세트", "pay": 97, "qty": 2, "orders": 2}], "shazrific": [{"name": "퍼스트 본품", "pay": 43, "qty": 3, "orders": 3}], "nourishingnaturals": [{"name": "PRO 2X", "pay": 14, "qty": 1, "orders": 1}], "anirakssoc": [{"name": "PRO 2X", "pay": 61, "qty": 3, "orders": 3}], "cielo1221": [{"name": "PRO 2X", "pay": 63, "qty": 3, "orders": 3}], "liascambionatural": [{"name": "톤업", "pay": 33, "qty": 1, "orders": 1}], "bluewatersnetwork": [{"name": "PRO2X 3번들", "pay": 425, "qty": 9, "orders": 9}, {"name": "PRO 2X", "pay": 287, "qty": 15, "orders": 15}, {"name": "Intensive Vegan Volufiline Spray A", "pay": 120, "qty": 6, "orders": 6}, {"name": "그라인딩", "pay": 55, "qty": 2, "orders": 2}, {"name": "갈바닉 아이크림", "pay": 22, "qty": 1, "orders": 1}], "kbeautyheejung": [{"name": "퍼스트 본품", "pay": 46, "qty": 1, "orders": 1}], "lizvazquez2186": [{"name": "퍼스트 본품", "pay": 19, "qty": 1, "orders": 1}], "nadiyafinds": [{"name": "PRO 2X", "pay": 19, "qty": 1, "orders": 1}], "julestoks": [{"name": "퍼스트 본품", "pay": 17, "qty": 1, "orders": 1}], "rdiaz0813": [{"name": "PRO2X 3번들", "pay": 105, "qty": 2, "orders": 2}, {"name": "반반패드", "pay": 83, "qty": 5, "orders": 5}, {"name": "PRO 2X", "pay": 43, "qty": 4, "orders": 3}], "luxecuratorhandbagsllc": [{"name": "PRO 2X", "pay": 21, "qty": 1, "orders": 1}], "monnbeautymua": [{"name": "스프레이 세럼 3 Solutions", "pay": 32, "qty": 1, "orders": 1}], "aprilsglowingfromgrace": [{"name": "퍼스트 본품", "pay": 43, "qty": 1, "orders": 1}], "thenicolebrownlife": [{"name": "PRO 2X", "pay": 20, "qty": 1, "orders": 1}], "chas7576": [{"name": "PRO 2X", "pay": 21, "qty": 1, "orders": 1}], "ana.laura.624": [{"name": "비타 3단계 세트", "pay": 80, "qty": 2, "orders": 2}], "marf_glamofficial": [{"name": "Morning Radiance 세트(라이브 전용)", "pay": 392, "qty": 6, "orders": 6}, {"name": "PRO 2X", "pay": 217, "qty": 11, "orders": 11}, {"name": "리프레시 아쿠아 세럼", "pay": 208, "qty": 12, "orders": 12}, {"name": "헤어 듀오", "pay": 173, "qty": 5, "orders": 5}, {"name": "풀 스킨케어 루틴 세트", "pay": 140, "qty": 2, "orders": 2}], "rociofonseca_": [{"name": "풀 스킨케어 루틴 세트", "pay": 87, "qty": 1, "orders": 1}], "mommycurlz": [{"name": "PRO 2X", "pay": 21, "qty": 1, "orders": 1}], "amanda__kay": [{"name": "PRO 2X", "pay": 21, "qty": 1, "orders": 1}], "makeupbykarlarodriguezco": [{"name": "반반패드", "pay": 19, "qty": 1, "orders": 1}], "chirlenakleshinsk": [{"name": "비타 5종 세트", "pay": 49, "qty": 1, "orders": 1}], "staceyford100": [{"name": "멀티밤", "pay": 78, "qty": 3, "orders": 3}, {"name": "PRO 2X", "pay": 52, "qty": 3, "orders": 1}], "girlmomwithj": [{"name": "PRO 2X", "pay": 15, "qty": 1, "orders": 1}, {"name": "퍼스트 본품", "pay": 13, "qty": 1, "orders": 1}], "lisaglowupcoach": [{"name": "Morning Radiance 세트(라이브 전용)", "pay": 126, "qty": 1, "orders": 1}], "amanda.loves.pink": [{"name": "Vita toning Capsule Cleansing Oil", "pay": 42, "qty": 3, "orders": 2}], "gayle.with.a.y": [{"name": "비타 5종 세트", "pay": 51, "qty": 1, "orders": 1}], "nayna0869": [{"name": "선스틱", "pay": 15, "qty": 1, "orders": 1}, {"name": "톤업", "pay": 15, "qty": 1, "orders": 1}, {"name": "마일드 선크림", "pay": 14, "qty": 1, "orders": 1}], "arianemann": [{"name": "PRO 2X", "pay": 179, "qty": 10, "orders": 10}, {"name": "헤어 듀오", "pay": 35, "qty": 1, "orders": 1}, {"name": "스프레이 세럼 3 Solutions", "pay": 33, "qty": 1, "orders": 1}, {"name": "반반패드", "pay": 18, "qty": 1, "orders": 1}, {"name": "바이탈 스프레이", "pay": 18, "qty": 1, "orders": 1}], "viralfindsbyevy": [{"name": "비타 5종 세트", "pay": 197, "qty": 3, "orders": 2}], "ericataylor2347": [{"name": "PRO 2X", "pay": 18, "qty": 1, "orders": 1}]}, "W43": {"beautyqueen_2024": [{"name": "비타 캡슐크림", "pay": 17, "qty": 1, "orders": 1}], "reallyhoneyy": [{"name": "퍼스트 기프트세트", "pay": 343, "qty": 6, "orders": 6}, {"name": "보르피린3종", "pay": 173, "qty": 3, "orders": 3}, {"name": "PRO2X 3번들", "pay": 169, "qty": 3, "orders": 2}, {"name": "비타 5종 세트", "pay": 163, "qty": 3, "orders": 3}, {"name": "헤어 듀오", "pay": 116, "qty": 4, "orders": 4}], "damatorq": [{"name": "반반패드", "pay": 20, "qty": 1, "orders": 1}], "staceyford100": [{"name": "PRO 2X", "pay": 82, "qty": 4, "orders": 4}, {"name": "그라인딩", "pay": 30, "qty": 1, "orders": 1}, {"name": "더블레이어 세럼", "pay": 22, "qty": 1, "orders": 1}], "59andflawless": [{"name": "PRO 2X", "pay": 376, "qty": 18, "orders": 17}, {"name": "비타 5종 세트", "pay": 359, "qty": 7, "orders": 7}, {"name": "비타 토너", "pay": 212, "qty": 12, "orders": 12}, {"name": "반반패드", "pay": 189, "qty": 9, "orders": 9}, {"name": "더블레이어 세럼", "pay": 183, "qty": 8, "orders": 8}], "dollyday800": [{"name": "PRO 2X", "pay": 20, "qty": 1, "orders": 1}], "xteenaashcraft": [{"name": "PRO 2X", "pay": 118, "qty": 6, "orders": 6}, {"name": "스프레이 세럼 3 Solutions", "pay": 45, "qty": 1, "orders": 1}, {"name": "퍼스트 본품", "pay": 20, "qty": 1, "orders": 1}], "sociallykarenn": [{"name": "PRO 2X", "pay": 74, "qty": 4, "orders": 4}, {"name": "더블라인", "pay": 46, "qty": 1, "orders": 1}, {"name": "멀티밤", "pay": 28, "qty": 1, "orders": 1}, {"name": "비타 캡슐세럼", "pay": 21, "qty": 1, "orders": 1}], "mamiandmefavs": [{"name": "PRO 2X", "pay": 40, "qty": 2, "orders": 2}], "katrinadimiele": [{"name": "퍼스트 본품", "pay": 16, "qty": 1, "orders": 1}], "helensaysyes": [{"name": "더블라인", "pay": 44, "qty": 1, "orders": 1}, {"name": "비타 미스트 8%", "pay": 28, "qty": 2, "orders": 1}, {"name": "PRO 2X", "pay": 20, "qty": 1, "orders": 1}, {"name": "비타 토너", "pay": 20, "qty": 1, "orders": 1}, {"name": "리턴 오일 클렌저", "pay": 18, "qty": 1, "orders": 1}], "monarchstyles": [{"name": "14 Sachets 3-in-1 Body Balance Jel", "pay": 20, "qty": 1, "orders": 1}], "stephosseili": [{"name": "비타 풀루틴(라이브 전용)", "pay": 1189, "qty": 15, "orders": 15}, {"name": "PRO 2X", "pay": 686, "qty": 24, "orders": 24}, {"name": "보르피린3종", "pay": 314, "qty": 5, "orders": 5}, {"name": "PRO2X 3번들", "pay": 312, "qty": 5, "orders": 5}, {"name": "퍼스트 기프트세트", "pay": 116, "qty": 2, "orders": 2}], "cielo1221": [{"name": "그라인딩", "pay": 29, "qty": 1, "orders": 1}, {"name": "톤업", "pay": 17, "qty": 1, "orders": 1}], "agallen22": [{"name": "PRO 2X", "pay": 20, "qty": 1, "orders": 1}], "marf_glamofficial": [{"name": "헤어 듀오", "pay": 34, "qty": 1, "orders": 1}, {"name": "PRO 2X", "pay": 21, "qty": 1, "orders": 1}, {"name": "멀티밤", "pay": 13, "qty": 1, "orders": 1}], "artistrybychellyllc": [{"name": "PRO 2X", "pay": 22, "qty": 1, "orders": 1}], "sparklingrosecontent": [{"name": "퍼스트 본품", "pay": 37, "qty": 2, "orders": 2}], "katiamontes_06": [{"name": "반반패드", "pay": 18, "qty": 1, "orders": 1}], "copper0820": [{"name": "비타 토너", "pay": 22, "qty": 1, "orders": 1}], "arianemann": [{"name": "PRO 2X", "pay": 57, "qty": 3, "orders": 3}, {"name": "리프레시 아쿠아 세럼", "pay": 20, "qty": 1, "orders": 1}], "rdiaz0813": [{"name": "PRO2X 3번들", "pay": 90, "qty": 2, "orders": 2}], "josephinejonai": [{"name": "PRO 2X", "pay": 703, "qty": 35, "orders": 31}, {"name": "퍼스트 본품", "pay": 207, "qty": 12, "orders": 12}, {"name": "비타 풀루틴(라이브 전용)", "pay": 137, "qty": 1, "orders": 1}, {"name": "풀 스킨케어 루틴 세트", "pay": 89, "qty": 1, "orders": 1}, {"name": "더블레이어 세럼", "pay": 64, "qty": 3, "orders": 3}], "lizvazquez2186": [{"name": "UV 에센스 선크림", "pay": 14, "qty": 1, "orders": 1}], "mel981076": [{"name": "반반패드", "pay": 20, "qty": 1, "orders": 1}], "shop.makeup.skin_withme": [{"name": "PRO 2X", "pay": 25, "qty": 1, "orders": 1}], "soulsourdough": [{"name": "보르피린3종", "pay": 48, "qty": 1, "orders": 1}], "shazrific": [{"name": "퍼스트 본품", "pay": 18, "qty": 1, "orders": 1}], "tinabougiebestie": [{"name": "더블라인", "pay": 197, "qty": 5, "orders": 5}, {"name": "5 Solution 기프트박스(라이브 전용)", "pay": 164, "qty": 5, "orders": 5}, {"name": "PRO 2X", "pay": 119, "qty": 2, "orders": 2}, {"name": "Intensive Vegan Volufiline Spray A", "pay": 87, "qty": 4, "orders": 4}, {"name": "클렌징 듀오", "pay": 82, "qty": 2, "orders": 2}], "courtneyluper": [{"name": "PRO 2X", "pay": 47, "qty": 2, "orders": 1}], "4pawsandatinyhuman": [{"name": "풀 스킨케어 루틴 세트", "pay": 92, "qty": 1, "orders": 1}, {"name": "퍼스트 기프트세트", "pay": 48, "qty": 1, "orders": 1}], "bluewatersnetwork": [{"name": "PRO 2X", "pay": 21, "qty": 1, "orders": 1}], "faithfessel": [{"name": "더블세럼&크림", "pay": 53, "qty": 2, "orders": 2}, {"name": "PRO 2X", "pay": 21, "qty": 1, "orders": 1}], "ana.laura.624": [{"name": "PRO 2X", "pay": 180, "qty": 8, "orders": 8}], "roxymojica9": [{"name": "퍼스트 본품", "pay": 18, "qty": 1, "orders": 1}], "travel4daze": [{"name": "그라인딩", "pay": 24, "qty": 1, "orders": 1}], "thealexisedit10": [{"name": "바이탈 스프레이", "pay": 19, "qty": 1, "orders": 1}], "chirlenakleshinsk": [{"name": "더블라인", "pay": 145, "qty": 3, "orders": 3}, {"name": "PRO2X 3번들", "pay": 105, "qty": 2, "orders": 2}, {"name": "퍼스트 본품", "pay": 87, "qty": 6, "orders": 5}, {"name": "스프레이 세럼 3 Solutions", "pay": 47, "qty": 1, "orders": 1}, {"name": "PRO 2X", "pay": 41, "qty": 2, "orders": 2}], "amanda__kay": [{"name": "PRO 2X", "pay": 91, "qty": 4, "orders": 1}], "taidyguardiamilia": [{"name": "보르피린3종", "pay": 58, "qty": 1, "orders": 1}, {"name": "톤업", "pay": 35, "qty": 1, "orders": 1}, {"name": "퍼스트 본품", "pay": 26, "qty": 2, "orders": 2}], "evasachsdesigns": [{"name": "14 Sachets 3-in-1 Body Balance Jel", "pay": 42, "qty": 2, "orders": 2}], "theafricanqueen1": [{"name": "멀티밤", "pay": 18, "qty": 1, "orders": 1}], "pamelagammonphotography": [{"name": "더블라인", "pay": 216, "qty": 7, "orders": 7}, {"name": "보르피린3종", "pay": 151, "qty": 3, "orders": 3}, {"name": "PRO2X 3번들", "pay": 55, "qty": 1, "orders": 1}, {"name": "PRO 2X", "pay": 50, "qty": 3, "orders": 3}, {"name": "갈바닉 아이크림", "pay": 36, "qty": 2, "orders": 2}], "shopcongabby": [{"name": "Vita toning Capsule Cleansing Oil", "pay": 13, "qty": 1, "orders": 1}], "luxecuratorhandbagsllc": [{"name": "PRO 2X", "pay": 74, "qty": 3, "orders": 3}], "julestoks": [{"name": "퍼스트 본품", "pay": 16, "qty": 1, "orders": 1}], "shopdealswithmarisa": [{"name": "PRO 2X", "pay": 57, "qty": 3, "orders": 3}, {"name": "더블라인", "pay": 43, "qty": 1, "orders": 1}, {"name": "그라인딩", "pay": 24, "qty": 1, "orders": 1}], "samanthataormina": [{"name": "PRO 2X", "pay": 47, "qty": 2, "orders": 2}]}}, "af_slots": {"W42": {"0-6시": {"gmv": 2302, "n": 15, "hrs": 47.3}, "6-12시": {"gmv": 7112, "n": 22, "hrs": 51.9}, "12-18시": {"gmv": 7906, "n": 29, "hrs": 71.0}, "18-24시": {"gmv": 236, "n": 6, "hrs": 19.3}}, "W43": {"0-6시": {"gmv": 2304, "n": 14, "hrs": 52.0}, "6-12시": {"gmv": 4416, "n": 31, "hrs": 69.1}, "12-18시": {"gmv": 4643, "n": 25, "hrs": 64.4}, "18-24시": {"gmv": 1398, "n": 14, "hrs": 28.4}}}};
+const $ = s => document.querySelector(s);
+const usd = v => "$" + Math.round(v).toLocaleString("en-US");
+const pct = (a, b) => b ? ((a - b) / b * 100) : null;
+const dl = (a, b, unit) => { const p = pct(a, b); if (p === null) return '<span class="chip">신규</span>'; const c = p >= 0 ? "d-up" : "d-dn"; return `<span class="${c} num">${p >= 0 ? "+" : ""}${p.toFixed(1)}%</span>`; };
+const dp = (a, b) => { const d = a - b; const c = d >= 0 ? "d-up" : "d-dn"; return `<span class="${c} num">${d >= 0 ? "+" : ""}${d.toFixed(2)}%p</span>`; };
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const DOW = {"10-12":"월","10-13":"화","10-14":"수","10-15":"목","10-16":"금","10-17":"토","10-18":"일","10-19":"월","10-20":"화","10-21":"수","10-22":"목","10-23":"금","10-24":"토","10-25":"일"};
+
+// ---------- KPI
+const S = D.store, w2 = S.W42, w3 = S.W43;
+const sh2 = (w2.sl + w2.afl) / w2.gmv * 100, sh3 = (w3.sl + w3.afl) / w3.gmv * 100;
+$("#kpis").innerHTML = [
+  ["스토어 매출", usd(w3.gmv), dl(w3.gmv, w2.gmv), usd(w2.gmv)],
+  ["셀러 라이브 GMV", usd(w3.sl), dl(w3.sl, w2.sl), usd(w2.sl)],
+  ["AF 라이브 GMV", usd(w3.afl), dl(w3.afl, w2.afl), usd(w2.afl)],
+  ["라이브 매출 비중", sh3.toFixed(1) + "%", dp(sh3, sh2), sh2.toFixed(1) + "%"],
+].map(([l, v, d, p]) => `<div class="kpi"><span class="l">${l}</span><span class="v">${v}</span><span class="l">${d} · 42주차 <span class="num">${p}</span></span></div>`).join("");
+
+const B = D.brand, G2 = B.W42.glob, G3 = B.W43.glob;
+const AT = D.af_tot;
+const marf = D.af_creators.find(c => c.h === "marf_glamofficial") || {g42: 0, g43: 0};
+const ex2 = AT.W42.gmv - marf.g42, ex3 = AT.W43.gmv - marf.g43;
+$("#summary").innerHTML = [
+  `<b>셀러 라이브 ${usd(w3.sl)} (${dl(w3.sl, w2.sl)})</b>. @dalba_global 방송 시간이 ${G2.hrs}시간에서 ${G3.hrs}시간으로 늘었고, 시간당 GMV도 ${usd(G2.gph)}에서 ${usd(G3.gph)}로 올랐습니다. 객단가가 ${"$" + G2.aov}에서 ${"$" + G3.aov}로 오른 것이 컸습니다.`,
+  `<b>6시간 이상 길게 한 방송이 시간당 GMV도 가장 높았습니다.</b> 2시간 방송은 시간당 $282~394, 5시간 이상 방송은 $496~664였습니다. 오전 7~8시에 시작한 두 방송(10/12, 10/24)이 1, 2위였습니다.`,
+  `<b>셀러 라이브 제품은 보르피린3종(${dl(D.sl_products.find(p=>p.name==="보르피린3종").w43, D.sl_products.find(p=>p.name==="보르피린3종").w42)})과 라이브 전용 신규 묶음(5 Solution 기프트박스, PRO 2X 4번들)이 성장</b>을 이끌었고, PRO2X 3번들은 1위를 지켰지만 16% 줄었습니다.`,
+  `<b>AF 라이브 ${usd(w3.afl)} (${dl(w3.afl, w2.afl)})</b>. 42주차 @marf_glamofficial 한 명이 ${usd(marf.g42)}을 팔았다가 43주차엔 ${usd(marf.g43)}에 그친 영향입니다. 이 한 명을 빼면 AF 라이브는 ${usd(ex2)}에서 ${usd(ex3)}로 ${dl(ex3, ex2)} 늘었고, 매출이 난 크리에이터도 ${AT.W42.sellers}명에서 ${AT.W43.sellers}명으로 늘었습니다.`,
+  `<b>AF 라이브 제품은 PRO 2X가 1위</b>(${usd(D.afl_products[0].w43)}, 판매 크리에이터 ${D.afl_products[0].c43}명)이고, 비타 풀루틴(라이브 전용)은 사실상 @stephosseili 한 명이 팔고 있습니다.`
+].map(x => `<li>${x}</li>`).join("");
+
+// ---------- SVG helpers
+function hbars(el, rows, opt) {
+  const W = 720, lw = opt.lw || 200, rh = opt.pair ? 30 : 24, pad = 8, H = rows.length * rh + pad * 2;
+  const max = Math.max(...rows.map(r => Math.max(r.a || 0, r.b || 0))) || 1;
+  const sx = v => (W - lw - 90) * v / max;
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${opt.aria}">`;
+  rows.forEach((r, i) => {
+    const y = pad + i * rh;
+    s += `<text x="${lw - 8}" y="${y + rh / 2 + 4}" text-anchor="end" font-size="12.5">${r.label}</text>`;
+    if (opt.pair) {
+      s += `<rect x="${lw}" y="${y + 3}" width="${Math.max(sx(r.a), r.a ? 2 : 0)}" height="10" rx="2" fill="${css("--w42")}"><title>42주차 ${opt.fmt(r.a)}</title></rect>`;
+      s += `<rect x="${lw}" y="${y + 15}" width="${Math.max(sx(r.b), r.b ? 2 : 0)}" height="10" rx="2" fill="${css("--w43")}"><title>43주차 ${opt.fmt(r.b)}</title></rect>`;
+      s += `<text x="${lw + sx(r.a) + 6}" y="${y + 12}" font-size="10.5" class="t-num t-muted">${r.a ? opt.fmt(r.a) : ""}</text>`;
+      s += `<text x="${lw + sx(r.b) + 6}" y="${y + 24}" font-size="12" class="t-num">${opt.fmt(r.b)}</text>`;
+    } else {
+      s += `<rect x="${lw}" y="${y + 4}" width="${Math.max(sx(r.a), 2)}" height="${rh - 8}" rx="2" fill="${r.color}"><title>${r.tip || ""}</title></rect>`;
+      s += `<text x="${lw + sx(r.a) + 6}" y="${y + rh / 2 + 4}" font-size="12" class="t-num">${opt.fmt(r.a)}${r.extra ? `<tspan class="t-muted"> ${r.extra}</tspan>` : ""}</text>`;
+    }
+  });
+  el.innerHTML = s + "</svg>";
+}
+
+function drawAll() {
+  // 1. sessions
+  const ses = D.sessions;
+  hbars($("#c-sessions"), ses.map(x => ({
+    label: `${x.date}(${DOW[x.date]}) ${x.start} · ${x.hrs.toFixed(1)}h`,
+    a: x.gmv, color: x.acct !== "dalba_global" ? css("--us") : (x.week === "W43" ? css("--w43") : css("--w42")),
+    extra: `시간당 ${usd(x.gph)}`, tip: `${x.acct} ${x.title}`
+  })), {lw: 190, fmt: usd, aria: "방송별 GMV"});
+
+  // scatter
+  const W = 520, H = 300, L = 54, Bm = 40, T = 14, R = 14;
+  const xs = h => L + (W - L - R) * h / 7.5, ys = g => H - Bm - (H - Bm - T) * g / 700;
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="방송 시간 대비 시간당 GMV">`;
+  [0, 200, 400, 600].forEach(g => { s += `<line x1="${L}" x2="${W - R}" y1="${ys(g)}" y2="${ys(g)}" stroke="${css("--line")}"/><text x="${L - 6}" y="${ys(g) + 4}" text-anchor="end" font-size="11" class="t-muted t-num">$${g}</text>`; });
+  [0, 2, 4, 6].forEach(h => { s += `<text x="${xs(h)}" y="${H - Bm + 16}" text-anchor="middle" font-size="11" class="t-muted t-num">${h}h</text>`; });
+  s += `<text x="${(W + L) / 2}" y="${H - 6}" text-anchor="middle" font-size="11" class="t-muted">방송 시간</text>`;
+  ses.forEach(x => {
+    const c = x.acct !== "dalba_global" ? css("--us") : (x.week === "W43" ? css("--w43") : css("--w42"));
+    s += `<circle cx="${xs(x.hrs)}" cy="${ys(x.gph)}" r="7" fill="${c}" stroke="${css("--surface")}" stroke-width="2"><title>${x.date} ${x.start} ${x.hrs.toFixed(1)}h · 시간당 ${usd(x.gph)} · ${usd(x.gmv)}</title></circle>`;
+    if (x.gph >= 580) s += `<text x="${xs(x.hrs) - 10}" y="${ys(x.gph) - 10}" text-anchor="end" font-size="11">${x.date} ${x.start}</text>`;
+  });
+  $("#c-scatter").innerHTML = s + "</svg>";
+
+  // SL products
+  hbars($("#c-slprod"), D.sl_products.map(p => ({label: p.name, a: p.w42, b: p.w43})), {pair: true, lw: 230, fmt: usd, aria: "셀러 라이브 제품별 GMV"});
+  // AF creators
+  hbars($("#c-afcr"), D.af_creators.slice(0, 15).map(c => ({label: "@" + c.h, a: c.g42, b: c.g43})), {pair: true, lw: 200, fmt: usd, aria: "AF 크리에이터별 GMV"});
+  // AF slots
+  const sl = ["0-6시", "6-12시", "12-18시", "18-24시"];
+  hbars($("#c-afslot"), sl.map(k => ({label: k, a: D.af_slots.W42[k].gmv, b: D.af_slots.W43[k].gmv})), {pair: true, lw: 80, fmt: usd, aria: "시간대별 AF 라이브 GMV"});
+  // AF products
+  hbars($("#c-afprod"), D.afl_products.slice(0, 10).map(p => ({label: p.name, a: p.w42, b: p.w43})), {pair: true, lw: 210, fmt: usd, aria: "AF 라이브 제품별 GMV"});
+}
+
+// ---------- tables
+const row = (cells, cls) => `<tr${cls ? ` class="${cls}"` : ""}>${cells.join("")}</tr>`;
+const tn = v => `<td class="n">${v}</td>`, tt = v => `<td>${v}</td>`;
+{
+  const h = `<tr><th>계정</th><th class="n">42주차 방송</th><th class="n">43주차 방송</th><th class="n">42주차 시간</th><th class="n">43주차 시간</th><th class="n">42주차 GMV</th><th class="n">43주차 GMV</th><th class="n">증감</th><th class="n">시간당 GMV</th></tr>`;
+  const r = (lab, a, b, cls) => row([tt(lab), tn(a.n + "회 / " + a.days + "일"), tn(b.n + "회 / " + b.days + "일"), tn(a.hrs + "h"), tn(b.hrs + "h"), tn(usd(a.gmv)), tn(usd(b.gmv)), tn(dl(b.gmv, a.gmv)), tn(usd(a.gph) + " → " + usd(b.gph))], cls);
+  $("#t-brand-week").innerHTML = h + r("@dalba_global", B.W42.glob, B.W43.glob) + r("@dalba_us_official", B.W42.us, B.W43.us) + r("합계", B.W42.all, B.W43.all, "hl");
+}
+{
+  const g = D.sessions.filter(x => x.acct === "dalba_global");
+  const bucket = x => x.hour < 9 ? "07~09시 시작" : x.hour < 12 ? "10~11시 시작" : "12시 이후 시작";
+  const agg = {};
+  g.forEach(x => { const k = bucket(x); const a = agg[k] || (agg[k] = {n: 0, h: 0, g: 0, best: 0}); a.n++; a.h += x.hrs; a.g += x.gmv; });
+  const order = ["07~09시 시작", "10~11시 시작", "12시 이후 시작"];
+  $("#t-slot").innerHTML = `<tr><th>시작 시간</th><th class="n">방송</th><th class="n">평균 길이</th><th class="n">GMV</th><th class="n">시간당 GMV</th></tr>` +
+    order.filter(k => agg[k]).map(k => { const a = agg[k]; return row([tt(k), tn(a.n + "회"), tn((a.h / a.n).toFixed(1) + "h"), tn(usd(a.g)), tn(usd(a.g / a.h))]); }).join("");
+  const dur = {"5시간 이상": [], "4~5시간": [], "2시간": []};
+  g.forEach(x => (x.hrs >= 5 ? dur["5시간 이상"] : x.hrs >= 4 ? dur["4~5시간"] : dur["2시간"]).push(x));
+  const avg = L => usd(L.reduce((s, x) => s + x.gmv, 0) / L.reduce((s, x) => s + x.hrs, 0));
+  $("#slot-take").innerHTML = [
+    `방송 길이별 시간당 GMV: 5시간 이상 ${avg(dur["5시간 이상"])}(${dur["5시간 이상"].length}회), 4~5시간 ${avg(dur["4~5시간"])}(${dur["4~5시간"].length}회), 2시간 ${avg(dur["2시간"])}(${dur["2시간"].length}회).`,
+    `오전 7~8시에 시작한 10/12(월) 6.9h와 10/24(토) 6.0h가 시간당 GMV 1, 2위입니다. 10/23(금) 14시에 시작한 2시간 방송은 시간당 $282로 가장 낮았습니다.`,
+    `@dalba_us_official은 오전 7시대에 1.5시간 정도 방송하고 시간당 $191~323입니다. @dalba_global의 절반 수준입니다.`,
+    `시간대 기준은 시트의 Start time 그대로입니다(셀러센터 기준 시간대). 방송 안의 시간대별 매출은 RAW에 없어서, 방송 단위로만 비교했습니다.`
+  ].map(x => `<li>${x}</li>`).join("");
+}
+{
+  const f = [
+    ["방송 시간", G2.hrs + "h", G3.hrs + "h", dl(G3.hrs, G2.hrs)],
+    ["라이브 노출(Impressions)", G2.impr.toLocaleString(), G3.impr.toLocaleString(), dl(G3.impr, G2.impr)],
+    ["시청자(Viewers)", G2.viewers.toLocaleString(), G3.viewers.toLocaleString(), dl(G3.viewers, G2.viewers)],
+    ["노출 → 시청 진입률", G2.i2v + "%", G3.i2v + "%", dp(G3.i2v, G2.i2v)],
+    ["조회수(Views)", G2.views.toLocaleString(), G3.views.toLocaleString(), dl(G3.views, G2.views)],
+    ["상품 클릭", G2.clicks.toLocaleString(), G3.clicks.toLocaleString(), dl(G3.clicks, G2.clicks)],
+    ["상품 클릭률", G2.ctr + "%", G3.ctr + "%", dp(G3.ctr, G2.ctr)],
+    ["주문", G2.orders.toLocaleString(), G3.orders.toLocaleString(), dl(G3.orders, G2.orders)],
+    ["구매 전환율", G2.conv + "%", G3.conv + "%", dp(G3.conv, G2.conv)],
+    ["객단가", "$" + G2.aov, "$" + G3.aov, dl(G3.aov, G2.aov)],
+    ["시청자 1천 명당 GMV", usd(G2.g1k), usd(G3.g1k), dl(G3.g1k, G2.g1k)],
+    ["평균 시청 시간(초)", G2.avgview, G3.avgview, dl(G3.avgview, G2.avgview)],
+    ["신규 팔로워", G2.fol, G3.fol, dl(G3.fol, G2.fol)],
+    ["GMV", usd(G2.gmv), usd(G3.gmv), dl(G3.gmv, G2.gmv)],
+  ];
+  $("#t-funnel").innerHTML = `<tr><th>지표</th><th class="n">42주차</th><th class="n">43주차</th><th class="n">증감</th></tr>` + f.map(r => row([tt(r[0]), tn(r[1]), tn(r[2]), tn(r[3])], r[0] === "GMV" ? "hl" : "")).join("");
+  $("#funnel-take").innerHTML = [
+    `노출은 ${dl(G3.impr, G2.impr)} 늘었지만 시청자는 ${dl(G3.viewers, G2.viewers)}에 그쳐 <b>노출 → 시청 진입률이 ${G2.i2v}%에서 ${G3.i2v}%로 낮아졌습니다.</b> 썸네일과 방송 제목이 노출 대비 들어오게 만드는 힘이 약했습니다.`,
+    `들어온 시청자의 반응은 좋아졌습니다. 상품 클릭률 ${G2.ctr}% → ${G3.ctr}%, 구매 전환율 ${G2.conv}% → ${G3.conv}%, 객단가 $${G2.aov} → $${G3.aov}.`,
+    `결과적으로 시청자 1천 명당 GMV가 ${usd(G2.g1k)}에서 ${usd(G3.g1k)}로 ${dl(G3.g1k, G2.g1k)} 올랐습니다. 라이브 전용 묶음(4번들, 기프트박스)이 객단가를 끌어올린 영향입니다.`
+  ].map(x => `<li>${x}</li>`).join("");
+  $("#t-sess-traffic").innerHTML = `<tr><th>날짜</th><th>계정</th><th>시작</th><th class="n">시간</th><th class="n">GMV</th><th class="n">시청자</th><th class="n">클릭률</th><th class="n">CTOR</th><th class="n">주문</th><th class="n">객단가</th><th class="n">평균 시청(초)</th><th class="n">팔로워</th></tr>` +
+    D.sessions.map(x => row([tt(`${x.date}(${DOW[x.date]})`), tt(x.acct === "dalba_global" ? "global" : "us_official"), tt(x.start), tn(x.hrs.toFixed(1) + "h"), tn(usd(x.gmv)), tn(x.viewers.toLocaleString()), tn(x.ctr + "%"), tn(x.ctor + "%"), tn(x.orders || "-"), tn(x.aov ? "$" + x.aov : "-"), tn(x.avgview || "-"), tn(x.fol)])).join("");
+}
+{
+  $("#t-slprod").innerHTML = `<tr><th>제품</th><th class="n">42주차 GMV</th><th class="n">43주차 GMV</th><th class="n">증감</th><th class="n">42주차 개수</th><th class="n">43주차 개수</th></tr>` +
+    D.sl_products.map(p => row([tt(p.name), tn(usd(p.w42)), tn(usd(p.w43)), tn(dl(p.w43, p.w42)), tn(p.i42), tn(p.i43)])).join("");
+  const sp = n => D.sl_products.find(p => p.name === n);
+  $("#slprod-take").innerHTML = [
+    `<b>PRO2X 3번들</b>이 ${usd(sp("PRO2X 3번들").w43)}(${sp("PRO2X 3번들").i43}개)로 1위를 지켰지만 ${dl(sp("PRO2X 3번들").w43, sp("PRO2X 3번들").w42)}. 같은 주에 PRO 2X 4번들(라이브 전용, ${usd(sp("PRO 2X 4번들(라이브 전용)").w43)})이 처음 나와 일부 수요가 넘어간 것으로 보입니다.`,
+    `<b>보르피린3종</b> ${usd(sp("보르피린3종").w42)} → ${usd(sp("보르피린3종").w43)}, <b>더블라인</b> ${usd(sp("더블라인").w42)} → ${usd(sp("더블라인").w43)}로 세트 상품이 크게 늘었습니다.`,
+    `신규 <b>5 Solution 기프트박스(라이브 전용)</b>가 첫 주 ${usd(sp("5 Solution 기프트박스(라이브 전용)").w43)}, ${sp("5 Solution 기프트박스(라이브 전용)").i43}개로 바로 6위에 올랐습니다. 연말 선물 수요에 맞는 구성입니다.`
+  ].map(x => `<li>${x}</li>`).join("");
+}
+{
+  const a2 = AT.W42, a3 = AT.W43;
+  $("#af-kpis").innerHTML = [
+    ["AF 라이브 GMV (세션 합계)", usd(a3.gmv), dl(a3.gmv, a2.gmv), usd(a2.gmv)],
+    ["매출 낸 크리에이터", a3.sellers + "명", dl(a3.sellers, a2.sellers), a2.sellers + "명"],
+    ["방송한 크리에이터 / 방송 수", a3.creators + "명 / " + a3.sessions + "회", dl(a3.sessions, a2.sessions), a2.creators + "명 / " + a2.sessions + "회"],
+    ["총 방송 시간", Math.round(a3.minutes / 60).toLocaleString() + "h", dl(a3.minutes, a2.minutes), Math.round(a2.minutes / 60).toLocaleString() + "h"],
+  ].map(([l, v, d, p]) => `<div class="kpi"><span class="l">${l}</span><span class="v">${v}</span><span class="l">${d} · 42주차 <span class="num">${p}</span></span></div>`).join("");
+  $("#af-callout").innerHTML = `42주차에는 <b>@marf_glamofficial</b>이 방송 3회로 ${usd(marf.g42)}(AF 라이브의 ${(marf.g42 / a2.gmv * 100).toFixed(0)}%)를 팔았고, 43주차엔 1회 ${usd(marf.g43)}였습니다. 이 한 명을 빼고 보면 AF 라이브는 <b>${usd(ex2)} → ${usd(ex3)} (${dl(ex3, ex2)})</b>로 오히려 늘었습니다. 다만 매출이 한두 명의 큰 방송에 크게 좌우되는 구조입니다.`;
+  $("#t-afcr").innerHTML = `<tr><th>크리에이터</th><th class="n">42주차 GMV</th><th class="n">43주차 GMV</th><th class="n">증감</th><th class="n">43주차 방송</th><th class="n">43주차 시간</th><th class="n">시간당 GMV</th><th class="n">판매 개수</th><th class="n">시청자</th></tr>` +
+    D.af_creators.slice(0, 20).map(c => row([tt("@" + c.h), tn(usd(c.g42)), tn(usd(c.g43)), tn(c.g42 ? dl(c.g43, c.g42) : '<span class="chip">신규</span>'), tn(c.s43 + "회"), tn(c.h43 + "h"), tn(c.h43 ? usd(c.g43 / c.h43) : "-"), tn(c.i43), tn(c.v43.toLocaleString())])).join("");
+  const nl = D.af_new.slice(0, 8).map(x => `@${x[0]} ${usd(x[1])}`).join(", "), ll = D.af_lost.slice(0, 8).map(x => `@${x[0]} ${usd(x[1])}`).join(", ");
+  $("#af-newlost").innerHTML = `43주차 새로 매출을 낸 크리에이터 ${D.af_new.length}명: ${nl} 등. 42주차엔 팔았지만 43주차 매출이 없는 크리에이터 ${D.af_lost.length}명: ${ll} 등.`;
+  $("#t-afprod").innerHTML = `<tr><th>제품</th><th class="n">42주차 GMV</th><th class="n">43주차 GMV</th><th class="n">증감</th><th class="n">43주차 개수</th><th class="n">판매 크리에이터</th></tr>` +
+    D.afl_products.map(p => row([tt(p.name), tn(usd(p.w42)), tn(usd(p.w43)), tn(dl(p.w43, p.w42)), tn(p.i43 + "개"), tn(p.c43 + "명")])).join("");
+  const ap = n => D.afl_products.find(p => p.name === n);
+  $("#afprod-take").innerHTML = [
+    `<b>PRO 2X</b>는 ${usd(ap("PRO 2X").w42)} → ${usd(ap("PRO 2X").w43)}로 늘며 1위. 판매 크리에이터가 ${ap("PRO 2X").c43}명으로 가장 많아 AF 라이브의 기본 상품입니다.`,
+    `<b>비타 5종 세트</b>는 ${usd(ap("비타 5종 세트").w42)} → ${usd(ap("비타 5종 세트").w43)}. 42주차 @marf_glamofficial 방송에서 많이 팔린 제품이라 감소 폭이 컸습니다.`,
+    `<b>비타 풀루틴(라이브 전용)</b>은 ${usd(ap("비타 풀루틴(라이브 전용)").w43)}로 2위지만 판매 크리에이터가 ${ap("비타 풀루틴(라이브 전용)").c43}명뿐입니다. 다른 크리에이터에게도 이 묶음을 열어주면 키울 여지가 있습니다.`,
+    `<b>더블라인</b>(${ap("더블라인").i42}개 → ${ap("더블라인").i43}개)과 <b>퍼스트 본품</b>(${ap("퍼스트 본품").i42}개 → ${ap("퍼스트 본품").i43}개)은 판매 개수가 늘었습니다.`
+  ].map(x => `<li>${x}</li>`).join("");
+}
+{
+  const top = D.af_creators.filter(c => c.g43 > 100).slice(0, 12);
+  $("#cp").innerHTML = top.map(c => {
+    const ps = D.cp.W43[c.h] || [], pv = D.cp.W42[c.h] || [];
+    const li = ps.map(p => `<li>${p.name} <span class="num">${usd(p.pay)}</span> (${p.qty}개)</li>`).join("") || "<li>주문 데이터 없음</li>";
+    const prev = pv.length ? "42주차: " + pv.slice(0, 3).map(p => `${p.name} ${usd(p.pay)}`).join(", ") : "42주차 판매 없음";
+    return `<div class="item"><h4><span>@${c.h}</span><span class="num">${usd(c.g43)}</span></h4><ol>${li}</ol><div class="prev">${prev}</div></div>`;
+  }).join("");
+}
+$("#foot").innerHTML = `데이터: '2026 US 틱톡샵 매출/지표' 시트의 (수동) 브랜드 라이브 RAW, (수동) AF LIVE RAW, (중요,수동) 제품별 유입매출 RAW (520업데이트), (중요,수동) 주문별 AF 매출 RAW. 방송 시간대는 시트의 Start time 기준입니다. 셀러 라이브 금액은 상단 KPI·제품은 제품별 유입매출 RAW(Seller LIVE-attributed GMV), 방송별 표는 브랜드 라이브 RAW(LIVE-attributed GMV) 기준이라 소폭 차이가 납니다. @dalba_us_official 방송은 주문 수와 객단가가 RAW에 비어 있습니다. AF 라이브 크리에이터별 금액은 AF LIVE RAW(세션 합계), 제품별 금액은 제품별 유입매출 RAW 기준입니다.`;
+
+drawAll();
+const mq = matchMedia("(prefers-color-scheme: dark)");
+(mq.addEventListener ? mq.addEventListener("change", drawAll) : mq.addListener(drawAll));
+new MutationObserver(drawAll).observe(document.documentElement, {attributes: true, attributeFilter: ["data-theme"]});
+</script>
