@@ -1280,6 +1280,34 @@ module.exports = async (req, res) => {
     }
     const sheets = google.sheets({ version: "v4", auth });
 
+    // 원본 시트 RAW 탭 기간 추출 (?rawTabs=브랜드 라이브 RAW|AF LIVE RAW&from=YYYY-MM-DD&to=YYYY-MM-DD&format=json)
+    //   탭 이름 일부(| 구분)로 찾아 날짜(A열 또는 Start time 열)가 기간 안인 행만 {header, rows}로 반환 — 주간 라이브 보고서용
+    if (req.query && req.query.rawTabs) {
+      const mainId = process.env.US_MAIN_SHEET_ID || "15dP91bH_skc7ZzcJ3ehH9H4IKCzSxcfuOcREr3OaL0o";
+      const from = String(req.query.from || ""), to = String(req.query.to || "9999-12-31");
+      const meta = await sheets.spreadsheets.get({ spreadsheetId: mainId, fields: "sheets.properties.title" });
+      const titles = (meta.data.sheets || []).map(s => s.properties.title);
+      const wants = String(req.query.rawTabs).split("|").map(s => s.trim()).filter(Boolean);
+      const found = wants.map(w => titles.find(t => t.includes(w)) || null);
+      const tabs = found.filter(Boolean);
+      const resp = tabs.length ? await sheets.spreadsheets.values.batchGet({ spreadsheetId: mainId, ranges: tabs.map(t => `'${t}'!A:GZ`) }) : { data: { valueRanges: [] } };
+      const out = {};
+      tabs.forEach((t, i) => {
+        const rows = (resp.data.valueRanges[i] && resp.data.valueRanges[i].values) || [];
+        const hi = rows.findIndex(r => r.some(c => /^(start time|product id|order id)$/i.test(String(c).trim())));
+        const header = rows[hi < 0 ? 0 : hi] || [];
+        const st = header.findIndex(c => /^start time$/i.test(String(c).trim()));
+        const sel = rows.slice((hi < 0 ? 0 : hi) + 1).filter(r => {
+          const d = parseDate(r[0]) || (st >= 0 ? parseDate(r[st]) : null);
+          return d && d.key >= from && d.key <= to;
+        });
+        out[t] = { header, rows: sel };
+      });
+      res.setHeader("Cache-Control", "no-store");
+      res.status(200).json({ source: mainId, from, to, missingTabs: wants.filter((w, i) => !found[i]), tabs: out });
+      return;
+    }
+
     // AF 라이브 크리에이터 리포트 (?afReport=1&afMonth=YYYY-MM[&creators=a,b,c])
     //   원본 '2026 US 틱톡샵 매출/지표' 시트의 (수동) AF LIVE RAW(세션별 GMV·판매수량) +
     //   (중요,수동) 주문별 AF 매출 RAW(Livestream 주문 → 제품별) 를 크리에이터별로 집계
