@@ -1280,6 +1280,13 @@ module.exports = async (req, res) => {
     }
     const sheets = google.sheets({ version: "v4", auth });
 
+    // 원본·광고 시트 원자료 조회 모드(rawTabs/afReport/afCreator)는 대시보드 비밀번호 필요
+    //   (DASHBOARD_PASSWORD 설정 시 ?pw= 또는 x-dash-pw / x-dash-key 헤더 일치)
+    if (req.query && (req.query.rawTabs || req.query.afReport || req.query.afCreator) && process.env.DASHBOARD_PASSWORD) {
+      const given = req.query.pw || req.headers["x-dash-pw"] || req.headers["x-dash-key"] || "";
+      if (given !== process.env.DASHBOARD_PASSWORD) { res.status(401).json({ error: "unauthorized" }); return; }
+    }
+
     // 원본 시트 RAW 탭 기간 추출 (?rawTabs=브랜드 라이브 RAW|AF LIVE RAW&from=YYYY-MM-DD&to=YYYY-MM-DD&format=json)
     //   탭 이름 일부(| 구분)로 찾아 날짜(A열 또는 Start time 열)가 기간 안인 행만 {header, rows}로 반환 — 주간 라이브 보고서용
     //   &sheet=ads → 광고 시트(ADS_SHEET_ID), from 생략 시 날짜 필터 없이 전체 행(PID 매칭 등 작은 탭용)
