@@ -209,7 +209,7 @@ function render(raw) {
   const adNote = Math.abs(D.ads.a.prodSpend * D.fa - D.ads.b.prodSpend * D.fb) < D.ads.b.prodSpend * D.fb * 0.05 ? " 상품 광고비는 거의 같습니다." : ` 상품 광고비는 ${sd(D.ads.a.prodSpend * D.fa - D.ads.b.prodSpend * D.fb)} 움직였습니다.`;
   $("#app").innerHTML = `
   <div class="headline">매출 <b class="num">${usd(n.gmv)}</b>, 비교 대비 <b class="num ${cls(TOT)}">${sd(TOT)} (${spc(o.gmv, n.gmv)})</b>. 가장 크게 움직인 건 <b style="color:var(${COL[top.id]})">${top.name} ${sd(top.d)}</b>(${Math.round(top.d / TOT * 100)}%)입니다.${liveNote}${adNote}</div>
-  <div class="box"><div class="bar"><h2>핵심 크리에이터 TOP 50 (최근 30일 매출)</h2><div class="seg" id="tcf"><button class="chip" type="button" data-f="all" aria-pressed="true">전체</button><button class="chip" type="button" data-f="slow" aria-pressed="false">매출 둔화</button><button class="chip" type="button" data-f="stop" aria-pressed="false">포스팅 멈춤</button></div></div>
+  <div class="box"><div class="bar"><h2>핵심 크리에이터 TOP 50 (최근 30일 매출)</h2><div class="seg" id="tcf"><button class="chip" type="button" data-f="all" aria-pressed="true">전체</button><button class="chip" type="button" data-f="slow" aria-pressed="false">매출 둔화</button><button class="chip" type="button" data-f="stop" aria-pressed="false">포스팅·라이브 멈춤</button></div></div>
   <p class="note" id="tcnote"></p><div class="ctable" id="top50"></div></div>
   <div class="box"><h2>스토어 파이프</h2><p class="note">매출 = 상품 노출 × 방문률 × 구매 전환율 × 객단가. 각 마디 아래 금액은 그 단계가 만든 매출 차이입니다.</p><div id="storePipe"></div></div>
   <div class="main"><div class="mapbox" id="mapbox"><div class="legend" id="legend"></div><svg id="map" role="img" aria-label="매출 원인 노선도"></svg></div><aside class="card" id="card" aria-live="polite"></aside></div>
@@ -599,7 +599,10 @@ function drawAfl() {
 let TCF = "all";
 function tcStatus(t, end) {
   const daysSincePost = t.lastPost ? Math.round((Date.parse(end) - Date.parse(t.lastPost)) / 86400000) : 999;
-  const stop = daysSincePost > 14, slow = t.prev7 > 0 && t.last7 < t.prev7 * 0.7;
+  const liveMain = t.live > t.video * 2;
+  const slow = t.prev7 > 0 && t.last7 < t.prev7 * 0.7;
+  if (liveMain) { const off = t.last7 === 0; return {daysSincePost, stop: off, slow, label: off ? ["라이브 멈춤", "bad"] : slow ? ["매출 둔화", "bad"] : ["라이브 위주", "good"]}; }
+  const stop = daysSincePost > 14;
   return {daysSincePost, stop, slow, label: stop ? ["포스팅 멈춤", "bad"] : slow ? ["매출 둔화", "bad"] : t.posts7 > 0 ? ["활발", "good"] : ["보통", ""]};
 }
 function drawTop50() {
@@ -607,7 +610,7 @@ function drawTop50() {
   document.querySelectorAll("#tcf [data-f]").forEach(b => { b.setAttribute("aria-pressed", b.dataset.f === TCF); b.onclick = () => { TCF = b.dataset.f; drawTop50(); }; });
   const rows = T.map((t, i) => ({t, i, st: tcStatus(t, end)})).filter(x => TCF === "all" || (TCF === "slow" ? x.st.slow : x.st.stop));
   const nStop = T.filter(t => tcStatus(t, end).stop).length, nSlow = T.filter(t => tcStatus(t, end).slow).length;
-  $("#tcnote").innerHTML = `${md(dates[0])} ~ ${md(end)} AF 매출 상위 50명. 포스팅 멈춤 <b class="down">${nStop}명</b>, 매출 둔화 <b class="down">${nSlow}명</b>. 포스팅 수는 매출이 난 영상의 포스팅일(영상 ID) 기준입니다. 매출이 없는 영상은 시트에 없어 세지 못합니다.`;
+  $("#tcnote").innerHTML = `${md(dates[0])} ~ ${md(end)} AF 매출 상위 50명. 포스팅·라이브 멈춤 <b class="down">${nStop}명</b>, 매출 둔화 <b class="down">${nSlow}명</b>. 포스팅 수는 매출이 난 영상의 포스팅일(영상 ID) 기준입니다. 매출이 없는 영상은 시트에 없어 세지 못합니다.`;
   $("#top50").innerHTML = `<table><tr><th>#</th><th>크리에이터</th><th class="n">30일 매출</th><th>30일 추이</th><th class="n">최근 7일 vs 이전 7일</th><th class="n">새 영상 7일 / 30일</th><th class="n">마지막 포스팅</th><th>상태</th><th>주력 제품</th></tr>${rows.map(({t, i, st}) => {
     const p = pct(t.prev7, t.last7);
     return `<tr><td class="note">${i + 1}</td><td><a href="https://www.tiktok.com/@${t.h}" target="_blank" rel="noopener">@${t.h}</a></td>
