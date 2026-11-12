@@ -350,8 +350,8 @@ function buildAdsJson(parsed, startKey, endKey, targetHistory, creatorMap) {
 //   광고 시트엔 크리에이터 정보가 없어서, 매출지표 시트의 `매출발생영상` 탭에서 끌어온다.
 //   SHEET_ID 미설정이거나 탭이 없으면 조용히 빈 맵 반환(링크는 임시 핸들로 동작).
 async function fetchCreatorMap(sheets) {
-  const sid = process.env.SHEET_ID;
-  if (!sid) return {};
+  // 원본 매출 시트(주문별 AF 매출 RAW)에서 영상 ID → 크리에이터 매칭
+  const sid = process.env.US_MAIN_SHEET_ID || "15dP91bH_skc7ZzcJ3ehH9H4IKCzSxcfuOcREr3OaL0o";
   try {
     const meta = await sheets.spreadsheets.get({ spreadsheetId: sid, fields: "sheets.properties.title" });
     const titles = (meta.data.sheets || []).map(s => s.properties.title);
