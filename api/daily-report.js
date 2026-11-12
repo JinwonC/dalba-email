@@ -32,6 +32,7 @@ const DEFAULT_CHANNEL = "C0BAEH36VDX"; // #데일리-분석
 const DEFAULT_TOP_N = 15;
 const CHUNK_LIMIT = 3800; // Slack 메시지 1건 안전 길이
 // warm 인스턴스 메모리 캐시 (시트 읽기 결과 2분 · 탭 매핑 10분) — 연속 조회/이중 호출 가속
+const US_MAIN_DEFAULT = "15dP91bH_skc7ZzcJ3ehH9H4IKCzSxcfuOcREr3OaL0o";
 const MEM = globalThis.__dalbaCache || (globalThis.__dalbaCache = {});
 
 // ── 매출raw 컬럼 인덱스(고정 레이아웃, 검증됨) ──────────────────
@@ -787,23 +788,29 @@ async function resolveTabs(sheets, sheetId) {
   const headers = (hb.data.valueRanges || []).map(v => ((v.values || []).flat()).map(x => String(x).toLowerCase()));
   const has = (h, kw) => h.some(c => c.includes(kw));
   const find = pred => { for (let i = 0; i < titles.length; i++) if (headers[i] && pred(headers[i], titles[i])) return titles[i]; return null; };
+  // 원본 시트는 탭이 많아 헤더 탐지가 오인할 수 있으므로 알려진 탭 이름을 먼저 찾음
+  const byName = (...keys) => titles.find(t => { const n = t.replace(/\s/g, ""); return keys.some(k => n.includes(k)); }) || null;
+  const named = {
+    raw: byName("제품별유입매출RAW"), vid: byName("주문별AF매출RAW"), af: byName("제품별AF매출RAW"),
+    live: byName("브랜드라이브RAW"), skuOrder: byName("SKUOrder")
+  };
   return {
-    raw: find(h => !has(h, "samples shipped") && ( // AF 탭(샘플 열 보유) 오인 방지
+    raw: named.raw || find(h => !has(h, "samples shipped") && ( // AF 탭(샘플 열 보유) 오인 방지
       (has(h, "gmv range") && has(h, "listing status"))
       || (has(h, "seller live-attributed gmv") && has(h, "product id"))
       || (has(h, "listing status") && has(h, "product impressions"))
       // 일반형: 제품ID + 노출 지표 + GMV가 함께 있는 탭
       || (has(h, "product id") && (has(h, "impression") || has(h, "노출")) && (has(h, "gmv") || has(h, "매출"))))),
-    vid: find(h => has(h, "content type") && has(h, "creator username")),
+    vid: named.vid || find(h => has(h, "content type") && has(h, "creator username")),
     // 광고비 탭: 한글(지출금액) 또는 영문 소재 성과(cost+videoid+grossrevenue) — 매출 대시보드의 광고비·ROI 계산용
     ad: find(h => has(h, "지출금액"))
       || find(h => has(h, "cost") && has(h, "videoid") && has(h, "grossrevenue"))
       || (titles.includes("광고") ? "광고" : null),
-    af: find(h => has(h, "samples shipped") || (has(h, "est. commission") && has(h, "creators posted content"))),
-    live: find(h => has(h, "live duration") && (has(h, "room id") || has(h, "live-attributed gmv"))),
+    af: named.af || find(h => has(h, "samples shipped") || (has(h, "est. commission") && has(h, "creators posted content"))),
+    live: named.live || find(h => has(h, "live duration") && (has(h, "room id") || has(h, "live-attributed gmv"))),
     // SKU Order 탭: 탭 이름 우선, 없으면 헤더(제품ID+SKU+금액/수량)로 인식.
     // 단, 콘텐츠 매출 탭(creator/content 열 보유)은 제외해 오탐 방지.
-    skuOrder: find((h, t) => String(t).toLowerCase().replace(/\s/g, "").includes("skuorder"))
+    skuOrder: named.skuOrder || find((h, t) => String(t).toLowerCase().replace(/\s/g, "").includes("skuorder"))
       || find(h => has(h, "product id") && has(h, "sku") && !has(h, "creator username") && !has(h, "content type") && (has(h, "quantity") || has(h, "gmv") || has(h, "payment amount"))),
     // 수식 오류(#ERROR!/#REF! 등)가 있는 탭 — 진단 메시지용
     broken: titles.filter((t, i) => headers[i] && headers[i].some(c => c.startsWith("#error") || c.startsWith("#ref") || c.startsWith("#n/a") || c.startsWith("#value")))
@@ -1266,7 +1273,8 @@ module.exports = async (req, res) => {
 
     // 시장 선택 (?market=us|uk) — 시트·통화가 달라짐. 미지정/슬래시/크론은 US
     const MK = pickMarket(req.query);
-    const sheetId = process.env[MK.env];
+    // US는 원본 '2026 US 틱톡샵 매출/지표' 시트를 직접 읽음 (슬랙용 IMPORTRANGE 시트는 사용하지 않음)
+    const sheetId = MK.key === "us" ? (process.env.US_MAIN_SHEET_ID || US_MAIN_DEFAULT) : process.env[MK.env];
     if (!sheetId) throw new Error(`${MK.label} 시트 ID 환경변수(${MK.env})가 필요합니다.`);
     const topN = Math.max(1, parseInt(process.env.TOP_N, 10) || DEFAULT_TOP_N);
 
@@ -1431,13 +1439,16 @@ module.exports = async (req, res) => {
     let sd = (!fresh && MEM["sheet:" + sheetId] && now - MEM["sheet:" + sheetId].ts < 120000) ? MEM["sheet:" + sheetId].data : null;
     if (!sd) {
       // 탭 이름이 자주 바뀌므로 헤더 내용으로 자동 인식 (env 지정 시 그 값 우선 · 매핑 10분 캐시)
-      let rawSheet = process.env.RAW_SHEET, vidSheet = process.env.VIDEO_SHEET, adSheet = process.env.AD_SHEET, afSheet = process.env.AF_SHEET, liveSheet = process.env.LIVE_SHEET, skuSheet = process.env.SKU_SHEET;
+      // 탭 이름 환경변수(RAW_SHEET 등)는 예전 슬랙용 시트 기준이라 원본 시트(US)에서는 쓰지 않음
+      const envTabs = MK.key !== "us";
+      const ev = k => (envTabs ? process.env[k] : undefined);
+      let rawSheet = ev("RAW_SHEET"), vidSheet = ev("VIDEO_SHEET"), adSheet = ev("AD_SHEET"), afSheet = ev("AF_SHEET"), liveSheet = ev("LIVE_SHEET"), skuSheet = ev("SKU_SHEET");
       if (!rawSheet || !vidSheet || !adSheet || !afSheet || !liveSheet || !skuSheet) {
         let det = (!fresh && MEM["tabs:" + sheetId] && now - MEM["tabs:" + sheetId].ts < 600000) ? MEM["tabs:" + sheetId].val : null;
         if (!det) { det = await resolveTabs(sheets, sheetId); MEM["tabs:" + sheetId] = { ts: now, val: det }; }
         rawSheet = rawSheet || det.raw;
         vidSheet = vidSheet || det.vid;
-        adSheet = adSheet || det.ad;
+        adSheet = adSheet || (MK.key === "us" ? null : det.ad); // US 광고비는 광고 시트의 '캠페인 광고성과'에서 직접 읽음
         afSheet = afSheet || det.af;
         liveSheet = liveSheet || det.live;
         skuSheet = skuSheet || det.skuOrder;
@@ -1457,12 +1468,16 @@ module.exports = async (req, res) => {
       const afIdx = afSheet ? ranges.push(`'${afSheet}'!A:S`) - 1 : -1;
       const liveIdx = liveSheet ? ranges.push(`'${liveSheet}'!A:AD`) - 1 : -1;
       const skuIdx = skuSheet ? ranges.push(`'${skuSheet}'!A:Z`) - 1 : -1;
-      const resp = await sheets.spreadsheets.values.batchGet({ spreadsheetId: sheetId, ranges });
+      const adsSid = MK.key === "us" ? process.env.ADS_SHEET_ID : null;
+      const [resp, adResp] = await Promise.all([
+        sheets.spreadsheets.values.batchGet({ spreadsheetId: sheetId, ranges }),
+        adsSid ? sheets.spreadsheets.values.get({ spreadsheetId: adsSid, range: "'캠페인 광고성과'!A:J" }).catch(() => null) : Promise.resolve(null)
+      ]);
       const vrs = resp.data.valueRanges;
       sd = {
         rawRows: (vrs[0] && vrs[0].values) || [],
         vidRows: (vrs[1] && vrs[1].values) || [],
-        adRows: (adIdx >= 0 && vrs[adIdx] && vrs[adIdx].values) || [],
+        adRows: (adResp && adResp.data.values) || (adIdx >= 0 && vrs[adIdx] && vrs[adIdx].values) || [],
         afRows: (afIdx >= 0 && vrs[afIdx] && vrs[afIdx].values) || [],
         liveRows: (liveIdx >= 0 && vrs[liveIdx] && vrs[liveIdx].values) || [],
         skuRows: (skuIdx >= 0 && vrs[skuIdx] && vrs[skuIdx].values) || []
