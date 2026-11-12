@@ -831,7 +831,7 @@ function afCreativeDaily(vidByDate) {
   }
   return cre;
 }
-async function fetchAdCreatives(sheets) {
+async function fetchAdCreatives(sheets, lookbackRows) {
   const sid = process.env.ADS_SHEET_ID;
   if (!sid) return null;
   try {
@@ -847,8 +847,12 @@ async function fetchAdCreatives(sheets) {
       if (i >= 0) tab = titles[i];
     }
     if (!tab) return null;
-    const rr = await sheets.spreadsheets.values.get({ spreadsheetId: sid, range: `'${tab}'!A:Z` });
-    const rows = rr.data.values || [];
+    // 소재별 탭은 수십만 행이라 전체를 읽으면 응답 한도를 넘음 → 헤더 + 최근 행(기본 9만 행 ≈ 2개월)만 읽음
+    const gm = await sheets.spreadsheets.get({ spreadsheetId: sid, ranges: [`'${tab}'!A1`], fields: "sheets.properties.gridProperties.rowCount" });
+    const rowCount = (((gm.data.sheets || [])[0] || {}).properties || {}).gridProperties ? gm.data.sheets[0].properties.gridProperties.rowCount : 0;
+    const start = Math.max(2, rowCount - (lookbackRows || 90000));
+    const rb = await sheets.spreadsheets.values.batchGet({ spreadsheetId: sid, ranges: [`'${tab}'!A1:W1`, `'${tab}'!A${start}:W${rowCount || ""}`] });
+    const rows = [((rb.data.valueRanges[0] || {}).values || [[]])[0], ...((rb.data.valueRanges[1] || {}).values || [])];
     if (rows.length < 2) return null;
     const h = (rows[0] || []).map(x => String(x || "").toLowerCase().replace(/\s+/g, ""));
     const F = (...kw) => { for (let i = 0; i < h.length; i++) if (h[i] && kw.some(k => h[i].includes(k))) return i; return -1; };
@@ -1538,13 +1542,13 @@ module.exports = async (req, res) => {
       if (agg.adWarn) out.warnings = [...(out.warnings || []), agg.adWarn];
       // 소재 타임라인 (?creatives=1) — 광고 시트를 추가로 읽으므로 요청 시에만
       if (req.query.creatives === "1") {
-        const ck = "adcre:" + (process.env.ADS_SHEET_ID || "");
-        let adCre = (!fresh && MEM[ck] && now - MEM[ck].ts < 300000) ? MEM[ck].val : null;
-        if (!adCre) { adCre = await fetchAdCreatives(sheets); MEM[ck] = { ts: now, val: adCre }; }
-        const kk = Object.keys(raw.byDate).sort();
-        const ii = kk.indexOf(agg.date.key);
         // ?cdays=N (기본 30일 창), ?ctop=N (기본 60개, 최대 800)
         const cdays = Math.min(60, Math.max(1, parseInt(req.query.cdays, 10) || 30));
+        const ck = "adcre:" + (process.env.ADS_SHEET_ID || "") + ":" + cdays;
+        let adCre = (!fresh && MEM[ck] && now - MEM[ck].ts < 300000) ? MEM[ck].val : null;
+        if (!adCre) { adCre = await fetchAdCreatives(sheets, (cdays + 5) * 2000); MEM[ck] = { ts: now, val: adCre }; }
+        const kk = Object.keys(raw.byDate).sort();
+        const ii = kk.indexOf(agg.date.key);
         const ctop = Math.min(800, Math.max(1, parseInt(req.query.ctop, 10) || 60));
         const win = kk.slice(Math.max(0, ii - cdays + 1), ii + 1);
         out.creatives = buildCreativeTimeline(afCreativeDaily(vidByDate), adCre, win, agg.date.key, ctop);
