@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>매출 원인 지도</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: 모든 정보가 파이프라인 — 상단 스토어 파이프 → 노선도(매출 → 채널 → 제품/방송/크리에이터 → 소재 구슬) + 원인 카드 → 소재 파이프 보드 · 라이브 파이프 · 제품 파이프 */
+:root{
+  --bg:#f4f5f7; --surface:#ffffff; --ink:#18202e; --muted:#667085; --line:#e2e5eb; --soft:#eef1f6;
+  --up:#13895a; --down:#cf3b2e; --neutral:#98a1b0;
+  --c-live:#7448d8; --c-video:#2463c8; --c-afl:#dd741c; --c-card:#7f8796; --c-sv:#0e9483;
+  --f-body:"IBM Plex Sans KR",system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#10131a; --surface:#181d27; --ink:#e8ebf1; --muted:#9aa3b5; --line:#293141; --soft:#1f2635;
+  --up:#3fc48a; --down:#ff7563; --neutral:#5d6678;
+  --c-live:#a183ff; --c-video:#6e9eff; --c-afl:#f2a050; --c-card:#a2a9b6; --c-sv:#40c9b5; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#10131a; --surface:#181d27; --ink:#e8ebf1; --muted:#9aa3b5; --line:#293141; --soft:#1f2635;
+  --up:#3fc48a; --down:#ff7563; --neutral:#5d6678;
+  --c-live:#a183ff; --c-video:#6e9eff; --c-afl:#f2a050; --c-card:#a2a9b6; --c-sv:#40c9b5; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14.5px;line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 56px}
+.wrap{max-width:1440px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+h1{font-size:22px;margin:0;font-weight:700}
+h2{font-size:17px;margin:0}
+h3{font-size:15px;margin:0}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.up{color:var(--up)} .down{color:var(--down)} .muted{color:var(--muted)}
+.note{font-size:12px;color:var(--muted)}
+.bar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+.period{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.period label{font-size:12px;color:var(--muted)}
+.period input{font:inherit;font-family:var(--f-num);font-size:13px;border:1px solid var(--line);border-radius:6px;padding:3px 6px;background:var(--bg);color:var(--ink)}
+.chip{font:inherit;font-size:12.5px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:3px 10px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.btn{font:inherit;font-weight:600;border:0;border-radius:8px;padding:8px 14px;background:var(--c-live);color:#fff;cursor:pointer}
+.btn.ghost{background:var(--surface);color:var(--ink);border:1px solid var(--line)}
+button:focus-visible{outline:2px solid var(--c-video);outline-offset:2px}
+.headline{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;font-size:16px}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+/* HTML 파이프 (스토어·라이브·제품 공통) */
+.pipe{display:flex;align-items:flex-start;overflow-x:auto;padding:4px 0 6px}
+.stop{flex:1 0 118px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:2px;position:relative;padding:0 4px;min-width:0}
+.stop::before{content:"";position:absolute;top:15px;left:-50%;right:50%;height:6px;background:var(--pc,var(--ink));opacity:.28;z-index:0}
+.stop:first-child::before{display:none}
+.stop .dot{width:36px;height:36px;border-radius:50%;background:var(--surface);border:5px solid var(--neutral);z-index:1;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+.stop .dot.up{border-color:var(--up);color:var(--up)} .stop .dot.down{border-color:var(--down);color:var(--down)}
+.stop .nm{font-size:12.5px;font-weight:600}
+.stop .vv{font-size:12px;font-family:var(--f-num);color:var(--muted)}
+.stop .cc{font-size:13px;font-family:var(--f-num);font-weight:600}
+.main{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:12px;align-items:start}
+@media (max-width:1060px){.main{grid-template-columns:1fr}}
+.mapbox{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px;overflow-x:auto;position:relative}
+.mapbox svg{display:block;min-width:1180px;width:100%;height:auto}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);padding:4px 8px}
+.legend i{display:inline-block;width:18px;height:4px;border-radius:2px;vertical-align:middle;margin-right:5px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-width:0;position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto}
+.card .crumb{font-size:12px;color:var(--muted)}
+.card .big{font-family:var(--f-num);font-size:24px;font-weight:600}
+.card table{width:100%;border-collapse:collapse;font-size:13px}
+.card td,.card th{padding:5px 4px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.card th{color:var(--muted);font-weight:500;font-size:12px}
+.card td.n,.card th.n{text-align:right;font-family:var(--f-num);white-space:nowrap}
+.why{font-size:13.5px;background:var(--soft);border-radius:8px;padding:8px 10px}
+.act{font-size:13px;border-left:3px solid var(--c-live);padding:4px 10px}
+.tag{display:inline-block;font-size:11px;padding:0 6px;border-radius:999px;border:1px solid var(--line);margin-left:4px;white-space:nowrap}
+.tag.good{border-color:var(--up);color:var(--up)} .tag.bad{border-color:var(--down);color:var(--down)} .tag.new{border-color:var(--c-video);color:var(--c-video)}
+a{color:var(--c-video)}
+.rows{display:flex;flex-direction:column;gap:2px}
+.row{display:grid;grid-template-columns:170px minmax(0,1fr);gap:10px;align-items:center;border-bottom:1px solid var(--line);padding:4px 0}
+.row .lab{font-size:13px;font-weight:600;min-width:0}
+.row .lab small{display:block;font-weight:400;font-family:var(--f-num);font-size:12px}
+.row .lane{overflow-x:auto}
+.row .lane svg{display:block}
+@media (max-width:640px){.row{grid-template-columns:1fr}}
+.flow{animation:flow 1.6s linear infinite}
+.flow.out{animation-direction:reverse}
+@keyframes flow{to{stroke-dashoffset:-48}}
+@media (prefers-reduced-motion: reduce){.flow{animation:none}}
+.st{cursor:pointer}
+.st:focus{outline:none}
+.st:focus-visible circle,.st:focus-visible rect{stroke-width:6}
+.dim{opacity:.22;transition:opacity .2s}
+.tip{position:fixed;pointer-events:none;background:var(--ink);color:var(--surface);font-size:12px;padding:6px 8px;border-radius:6px;max-width:280px;z-index:20}
+.bubble{position:absolute;max-width:290px;background:var(--ink);color:var(--surface);padding:10px 12px;border-radius:10px;font-size:13.5px;box-shadow:0 6px 20px rgba(0,0,0,.25);z-index:15}
+.bubble .nav{display:flex;justify-content:space-between;margin-top:8px;gap:8px}
+.bubble button{font:inherit;font-size:12px;border:1px solid var(--surface);background:transparent;color:var(--surface);border-radius:6px;padding:2px 8px;cursor:pointer}
+.loading{padding:40px;text-align:center;color:var(--muted)}
+.row .pipe .stop{flex:0 0 150px}
+.row .pipe .stop .dot{width:26px;height:26px;border-width:4px;font-size:11px}
+.row .pipe .stop::before{top:10px;height:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="bar">
+    <div><div class="note">d'Alba US TikTok Shop</div><h1>매출 원인 지도</h1></div>
+    <form class="period" id="pform" aria-label="기간 선택">
+      <label for="a">기준</label><input id="a" type="date"><span class="note">~</span><input id="a2" type="date">
+      <label for="b">비교</label><input id="b" type="date"><span class="note">~</span><input id="b2" type="date">
+      <button class="chip" type="button" data-p="prev" aria-pressed="true">전날 / 직전 같은 길이</button>
+      <button class="chip" type="button" data-p="wow" aria-pressed="false">지난주 같은 요일</button>
+      <button class="btn ghost" type="submit">보기</button>
+    </form>
+    <button class="btn" id="tourBtn" type="button">왜 올랐을까 따라가기 ▶</button>
+  </div>
+  <p class="note" id="periodNote"></p>
+  <div id="app"><div class="loading">시트에서 데이터를 불러오는 중…</div></div>
+</div>
+<div class="tip" id="tip" hidden></div>
+<script>
+const $ = s => document.querySelector(s);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const usd = v => (v < 0 ? "-$" : "$") + Math.abs(Math.round(v)).toLocaleString("en-US");
+const sd = v => v == null ? "" : (v >= 0 ? "+" : "-") + "$" + Math.abs(Math.round(v)).toLocaleString("en-US");
+const pct = (o, n) => o ? (n - o) / o * 100 : null;
+const spc = (o, n) => { const p = pct(o, n); return p == null ? "신규" : (p >= 0 ? "+" : "") + p.toFixed(1) + "%"; };
+const cls = v => v == null || Math.abs(v) < 0.5 ? "muted" : v > 0 ? "up" : "down";
+const COL = {live: "--c-live", afl: "--c-afl", video: "--c-video", card: "--c-card", sv: "--c-sv"};
+const md = k => k ? (+k.slice(5, 7)) + "/" + (+k.slice(8)) : "";
+const DOW = k => "일월화수목금토"[new Date(k + "T00:00:00Z").getUTCDay()];
+const vlink = (cid, h) => `https://www.tiktok.com/@${h || "tiktok"}/video/${cid}`;
+// 증감을 곱셈 요인별로 나누기 (합이 정확히 맞는 로그 분해)
+function split(oldF, newF, oldV, newV) {
+  if (!(oldV > 0 && newV > 0) || oldF.some(x => !(x > 0)) || newF.some(x => !(x > 0))) return oldF.map(() => null);
+  const L = oldV === newV ? oldV : (newV - oldV) / (Math.log(newV) - Math.log(oldV));
+  return oldF.map((o, i) => L * Math.log(newF[i] / o));
+}
+const SHORT = [["PRO 2X 4 Bundle","PRO 2X 4번들"],["Holiday Gift Set] White Truffle First Spray Serum PRO 2X 3 Bundle","PRO 2X 3번들 홀리데이"],["PRO2X 3 Bundle","PRO2X 3번들"],["Serum PRO 2X","PRO 2X"],["First Spray Serum Holiday Gift Set (3+2+1)","퍼스트 기프트세트"],["Tone Up Sunscreen Serum Holiday Gift Set | Tone Up Sunscreen 5EA","톤업 5번들"],["Tone Up Sunscreen Serum Holiday","톤업 홀리데이 세트"],["Authentic Face Glow Serum","퍼스트 본품"],["Age Less, Lift More","보르피린3종"],["Volufiline Plumping","볼루필린 풀세트(라이브)"],["Galvanic","갈바닉 아이크림"],["Grinding Cream","그라인딩"],["Overnight Radiance Vita Set","비타 5종"],["Affordable Vita","비타 7종(라이브)"],["Glow & Lift Routine","더블라인"],["Waterfull Tone Up Sunscreen","톤업"],["Liposome","반반패드"],["All-in-one Multi Balm","멀티밤"],["5 Solution Gift Box","5 Solution 기프트박스"],["No Cakey","No Cakey 세트(라이브)"],["Morning Radiance","Morning Radiance(라이브)"],["Night Repair","Night Repair(라이브)"],["Hair Essential Duo","헤어 듀오"],["Full Skincare Routine","풀 스킨케어 루틴"],["UV Essence","UV 에센스 선크림"],["Vita Toning Anti-Aging Spray","비타 미스트 8%"],["Double Layer Revitalizing","더블레이어 세럼"],["Double Serum & Cream","더블세럼&크림"],["Vita Toning Serum Toner","비타 토너"],["Refresh Aqua","리프레시 아쿠아"],["Cleansing Duo","클렌징 듀오"],["Daily 3 Step","비타 3단계"],["Sun Stick","선스틱"]];
+const short = n => { for (const [k, v] of SHORT) if (String(n).toLowerCase().includes(k.toLowerCase())) return v; return String(n).replace(/\[[^\]]*\]\s*/g, "").split(/[|,–-]/)[0].trim().slice(0, 22); };
+const TROI_MAP = {"프로투엑스": "PRO 2X", "퍼스트": "퍼스트 본품", "퍼스트 3번들": "퍼스트 기프트세트", "톤업선크림 (단품)": "톤업", "비타 5종": "비타 5종", "비타라인 5종": "비타 5종", "반반패드": "반반패드", "더블라인": "더블라인", "갈바닉 아이크림": "갈바닉 아이크림", "그라인딩크림": "그라인딩", "보르피린 3종": "보르피린3종", "멀티밤": "멀티밤"};
+
+let D, NODES = {}, CUR = null;
+// ---------------- 데이터 준비
+function prep(raw) {
+  const A = raw.periods.a, B = raw.periods.b, dA = raw.periods.days.a, dB = raw.periods.days.b;
+  const norm = dA !== dB; // 길이가 다르면 일평균 비교
+  const fa = norm ? 1 / dA : 1, fb = norm ? 1 / dB : 1;
+  const S = {a: raw.store.a, b: raw.store.b};
+  const nv = (o, side) => o * (side === "a" ? fa : fb);
+  const prods = raw.products.map(p => ({id: p.id, name: short(p.name), full: p.name, a: scale(p.a, fa), b: scale(p.b, fb), ads: p.ads}));
+  function scale(o, f) { const r = {}; for (const k in o) r[k] = o[k] * f; return r; }
+  const st = {a: scale(S.a, fa), b: scale(S.b, fb)};
+  const troi = raw.troi.filter(t => t.date >= B[0] && t.date <= A[1]).map(t => ({...t, name: TROI_MAP[t.product] || t.product}));
+  const cre = raw.creatives.map(c => ({...c, name: short(c.product || ""), sa: c.a.spend * fa, sb: c.b.spend * fb, ga: c.a.gmv * fa, gb: c.b.gmv * fb, label: c.creator ? "@" + c.creator : "소재 …" + c.cid.slice(-5)}))
+    .map(c => ({...c, dg: c.ga - c.gb, ds: c.sa - c.sb}));
+  const creators = raw.afLive.map(c => {
+    const o = c.b || {sessions: 0, minutes: 0, gmv: 0, items: 0, viewers: 0}, n = c.a || {sessions: 0, minutes: 0, gmv: 0, items: 0, viewers: 0};
+    return {h: c.h, o, n, d: n.gmv * fa - o.gmv * fb, prods: c.products};
+  }).sort((x, y) => Math.abs(y.d) - Math.abs(x.d));
+  return {raw, A, B, dA, dB, norm, fa, fb, st, prods, troi, cre, creators, ads: raw.ads};
+}
+// ---------------- 렌더
+function render(raw) {
+  D = prep(raw); NODES = {};
+  const {st, A, B} = D, n = st.a, o = st.b, TOT = n.gmv - o.gmv;
+  $("#periodNote").textContent = `기준 ${md(A[0])}(${DOW(A[0])})${A[1] !== A[0] ? " ~ " + md(A[1]) + "(" + DOW(A[1]) + ")" : ""} vs 비교 ${md(B[0])}(${DOW(B[0])})${B[1] !== B[0] ? " ~ " + md(B[1]) + "(" + DOW(B[1]) + ")" : ""}${D.norm ? " · 기간 길이가 달라 일평균으로 비교합니다" : ""}`;
+  const chans = [
+    {id: "live", name: "브랜드 라이브", key: "sl"}, {id: "afl", name: "AF 라이브", key: "cl"}, {id: "video", name: "AF 영상", key: "cv"},
+    {id: "card", name: "상품카드", key: "pc"}, {id: "sv", name: "셀러 영상", key: "sv"}].map(c => ({...c, o: o[c.key], n: n[c.key], d: n[c.key] - o[c.key]})).sort((x, y) => Math.abs(y.d) - Math.abs(x.d));
+  D.chans = chans; D.TOT = TOT;
+  const top = chans[0];
+  const blA = D.raw.brandLive.a, blB = D.raw.brandLive.b;
+  const liveNote = top.id === "live" && blB.length === 0 && blA.length ? ` 비교일엔 브랜드 라이브를 쉬었고, 기준일에 ${(blA.reduce((s, x) => s + x.minutes, 0) / 60).toFixed(1)}시간 방송했습니다.` : "";
+  const adNote = Math.abs(D.ads.a.prodSpend * D.fa - D.ads.b.prodSpend * D.fb) < D.ads.b.prodSpend * D.fb * 0.05 ? " 상품 광고비는 거의 같습니다." : ` 상품 광고비는 ${sd(D.ads.a.prodSpend * D.fa - D.ads.b.prodSpend * D.fb)} 움직였습니다.`;
+  $("#app").innerHTML = `
+  <div class="headline">매출 <b class="num">${usd(n.gmv)}</b>, 비교 대비 <b class="num ${cls(TOT)}">${sd(TOT)} (${spc(o.gmv, n.gmv)})</b>. 가장 크게 움직인 건 <b style="color:var(${COL[top.id]})">${top.name} ${sd(top.d)}</b>(${Math.round(top.d / TOT * 100)}%)입니다.${liveNote}${adNote}</div>
+  <div class="box"><h2>스토어 파이프</h2><p class="note">매출 = 상품 노출 × 방문률 × 구매 전환율 × 객단가. 각 마디 아래 금액은 그 단계가 만든 매출 차이입니다.</p><div id="storePipe"></div></div>
+  <div class="main"><div class="mapbox" id="mapbox"><div class="legend" id="legend"></div><svg id="map" role="img" aria-label="매출 원인 노선도"></svg></div><aside class="card" id="card" aria-live="polite"></aside></div>
+  <div class="box"><h2>소재 파이프 보드</h2><p class="note">제품마다 광고 소재를 매출 증감 순으로 늘어놓았습니다. 왼쪽일수록 많이 오른 소재, 오른쪽일수록 많이 빠진 소재입니다. 구슬 크기 = 기준 기간 광고 매출, 색 = 판정(초록 효자·숨은 영웅, 빨강 주의, 회색 보통). 누르면 오른쪽 위 카드에 상세가 나옵니다.</p><div class="rows" id="board"></div></div>
+  <div class="box"><h2>라이브 파이프</h2><div id="livePipes"></div></div>
+  <div class="box"><h2>제품 파이프</h2><p class="note">제품별 매출 = 노출 × 방문률 × 전환율 × 객단가. 각 단계가 만든 금액입니다.</p><div class="rows" id="prodPipes"></div></div>
+  <p class="note">데이터: 2026 US 틱톡샵 매출/지표(제품별 유입매출 RAW, 브랜드 라이브 RAW, AF LIVE RAW, 주문별 AF 매출 RAW), 틱톡샵 광고 대시보드(캠페인 광고성과, 소재별 광고성과, PID 매칭, TROI 변동 내역). 광고 매출 = GMV Max 전체 매출. 포스팅일은 영상 ID로 계산.</p>`;
+  drawStorePipe(); drawMap(); drawBoard(); drawLive(); drawProdPipes(); select("root");
+}
+function stops(items, color) {
+  return `<div class="pipe" style="--pc:var(${color || "--ink"})">${items.map(x => `<div class="stop"><div class="dot ${x.c == null ? "" : x.c >= 0 ? "up" : "down"}">${x.icon || (x.c == null ? "·" : x.c >= 0 ? "+" : "−")}</div><div class="nm">${x.name}</div><div class="vv">${x.v}</div><div class="cc ${cls(x.c)}">${x.c == null ? (x.cc || "") : sd(x.c)}</div></div>`).join("")}</div>`;
+}
+function drawStorePipe() {
+  const n = D.st.a, o = D.st.b;
+  const f = s => [s.imp, s.uclk / s.imp, s.orders / s.uclk, s.gmv / s.orders];
+  const c = split(f(o), f(n), o.gmv, n.gmv);
+  $("#storePipe").innerHTML = stops([
+    {name: "상품 노출", v: `${Math.round(o.imp).toLocaleString()} → ${Math.round(n.imp).toLocaleString()}`, c: c[0]},
+    {name: "방문률", v: `${(o.uclk / o.imp * 100).toFixed(2)}% → ${(n.uclk / n.imp * 100).toFixed(2)}%`, c: c[1]},
+    {name: "구매 전환율", v: `${(o.orders / o.uclk * 100).toFixed(2)}% → ${(n.orders / n.uclk * 100).toFixed(2)}%`, c: c[2]},
+    {name: "객단가", v: `$${(o.gmv / o.orders).toFixed(2)} → $${(n.gmv / n.orders).toFixed(2)}`, c: c[3]},
+    {name: "매출", v: `${usd(o.gmv)} → ${usd(n.gmv)}`, c: n.gmv - o.gmv, icon: "$"},
+    {name: "광고비 (상품 / 라이브)", v: `${usd(D.ads.b.prodSpend * D.fb)} / ${usd(D.ads.b.liveSpend * D.fb)} → ${usd(D.ads.a.prodSpend * D.fa)} / ${usd(D.ads.a.liveSpend * D.fa)}`, c: null, cc: `ROI ${(o.gmv / (D.ads.b.spend * D.fb)).toFixed(2)} → ${(n.gmv / (D.ads.a.spend * D.fa)).toFixed(2)}`, icon: "₩"}
+  ]) + `<p class="note">라이브 시청자는 상품 방문으로 잡히지 않아, 라이브가 큰 날은 방문률↓ 전환율↑로 보일 수 있습니다.</p>`;
+}
+// ---------------- 노선도
+function laneData() {
+  const lanes = [];
+  const P = D.prods;
+  const by = k => P.map(p => ({p, d: p.a[k] - p.b[k], o: p.b[k], n: p.a[k]})).filter(x => Math.abs(x.d) >= 30).sort((x, y) => Math.abs(y.d) - Math.abs(x.d));
+  for (const ch of D.chans) {
+    const sub = [];
+    if (ch.id === "live") {
+      const L = brandFunnel();
+      if (L) sub.push({id: "live-pipe", name: L.title, kind: "stage", beads: L.steps.map((s, i) => ({id: "lstage-" + i, label: s.name, d: s.c, sub: s.v, kind: "stage", data: {...s, ref: L}}))});
+      sub.push({id: "live-prod", name: "라이브 판매 제품", kind: "prod", beads: by("sl").slice(0, 9).map(x => ({id: "lp-" + x.p.id, label: x.p.name, d: x.d, sub: `${usd(x.o)}→${usd(x.n)}`, kind: "prod", data: {p: x.p, key: "sl"}}))});
+    } else if (ch.id === "afl") {
+      const C = D.creators.filter(c => Math.abs(c.d) >= 15);
+      sub.push({id: "afl-up", name: "늘어난·새로 온 크리에이터", kind: "creator", beads: C.filter(c => c.d > 0).slice(0, 9).map(c => ({id: "cr-" + c.h, label: "@" + c.h, d: c.d, sub: c.o.gmv ? `${usd(c.o.gmv * D.fb)}→${usd(c.n.gmv * D.fa)}` : "새로 옴", kind: "creator", data: c}))});
+      sub.push({id: "afl-down", name: "줄어든·결석 크리에이터", kind: "creator", beads: C.filter(c => c.d < 0).slice(0, 9).map(c => ({id: "cr-" + c.h, label: "@" + c.h, d: c.d, sub: c.n.gmv ? `${usd(c.o.gmv * D.fb)}→${usd(c.n.gmv * D.fa)}` : "결석", kind: "creator", data: c}))});
+    } else if (ch.id === "video") {
+      for (const x of by("cv").slice(0, 5)) {
+        const cs = D.cre.filter(c => c.pid === x.p.id && Math.abs(c.dg) >= 20).sort((u, v) => Math.abs(v.dg) - Math.abs(u.dg)).slice(0, 9);
+        sub.push({id: "v-" + x.p.id, name: x.p.name, d: x.d, o: x.o, n: x.n, kind: "prodlane", prod: x.p, beads: cs.map(c => ({id: "c-" + c.cid + c.camp, label: c.label, d: c.dg, sub: `광고비 ${usd(c.sb)}→${usd(c.sa)}`, kind: "creative", data: c}))});
+      }
+    } else {
+      const k = ch.key;
+      sub.push({id: ch.id + "-prod", name: "제품별", kind: "prod", beads: by(k).slice(0, 9).map(x => ({id: ch.id + "p-" + x.p.id, label: x.p.name, d: x.d, sub: `${usd(x.o)}→${usd(x.n)}`, kind: "prod", data: {p: x.p, key: k}}))});
+    }
+    lanes.push({...ch, sub: sub.filter(s => s.beads.length || s.kind === "prodlane")});
+  }
+  return lanes;
+}
+function drawMap() {
+  const lanes = laneData(); D.lanes = lanes;
+  const W = 1300, rowH = 66, headH = 26, gap = 18;
+  let y = 16; const pos = [];
+  lanes.forEach(l => { const h = headH + Math.max(1, l.sub.length) * rowH; pos.push({y0: y, y1: y + h}); y += h + gap; });
+  const H = y + 4, rx = 70, ry = H / 2;
+  const maxL = Math.max(...lanes.map(l => Math.abs(l.d))) || 1;
+  const allB = lanes.flatMap(l => l.sub.flatMap(s => s.beads)).filter(b => b.d != null);
+  const maxB = Math.max(1, ...allB.map(b => Math.abs(b.d)));
+  const svg = $("#map"); svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  let s = "";
+  lanes.forEach((l, i) => {
+    const col = css(COL[l.id]), {y0} = pos[i], cy = y0 + headH + (l.sub.length * rowH) / 2 - rowH / 2 + 8, cx = 190;
+    const w = 3 + 14 * Math.abs(l.d) / maxL;
+    const p0 = `M${rx},${ry} C${rx + 60},${ry} ${cx - 60},${cy} ${cx},${cy}`;
+    s += `<path d="${p0}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linecap="round"/><path class="flow ${l.d < 0 ? "out" : ""}" d="${p0}" fill="none" stroke="${css("--surface")}" stroke-width="${Math.max(1.5, w / 4)}" stroke-dasharray="3 21"/>`;
+    s += `<text x="${cx - 4}" y="${y0 + 14}" font-size="14" font-weight="700" fill="${col}">${l.name} <tspan class="num" fill="${css(l.d >= 0 ? "--up" : "--down")}" font-size="13">${sd(l.d)}</tspan><tspan fill="${css("--muted")}" font-size="12"> ${usd(l.o)} → ${usd(l.n)}</tspan></text>`;
+    l.sub.forEach((sb, j) => {
+      const ly = y0 + headH + j * rowH + 22, sw = Math.max(2, w * 0.6);
+      const p1 = `M${cx},${cy} C${cx + 50},${cy} ${cx + 40},${ly} ${cx + 100},${ly} L${W - 20},${ly}`;
+      s += `<path d="${p1}" fill="none" stroke="${col}" stroke-width="${sw}" stroke-linecap="round" opacity=".55"/>`;
+      // 서브 레인 이름표(제품/그룹)
+      const lab = sb.kind === "prodlane" ? `${sb.name}` : sb.name;
+      const dtxt = sb.kind === "prodlane" ? sd(sb.d) : "";
+      const lid = sb.kind === "prodlane" ? "pl-" + sb.prod.id + "-" + l.id : "grp-" + sb.id;
+      NODES[lid] = sb.kind === "prodlane" ? {type: "prodlane", lane: l, sub: sb} : {type: "group", lane: l, sub: sb};
+      s += `<g class="st" tabindex="0" role="button" data-id="${lid}" aria-label="${lab} ${dtxt}"><rect x="${cx + 96}" y="${ly - 13}" width="168" height="26" rx="13" fill="${css("--surface")}" stroke="${sb.kind === "prodlane" ? css(sb.d >= 0 ? "--up" : "--down") : col}" stroke-width="2.5"/>
+        <text x="${cx + 108}" y="${ly + 4}" font-size="12" font-weight="600" fill="${css("--ink")}">${lab.length > 13 ? lab.slice(0, 12) + "…" : lab}</text>
+        <text x="${cx + 256}" y="${ly + 4}" font-size="11.5" text-anchor="end" class="num" fill="${css(sb.d >= 0 ? "--up" : "--down")}">${dtxt}</text></g>`;
+      sb.beads.forEach((b, k) => {
+        const bx = cx + 330 + k * 84, r = b.d == null ? 7 : 5 + 11 * Math.sqrt(Math.abs(b.d) / maxB);
+        const ring = b.d == null ? css("--neutral") : css(b.d >= 0 ? "--up" : "--down");
+        NODES[b.id] = {type: "bead", lane: l, sub: sb, bead: b};
+        const t = b.label.length > 11 ? b.label.slice(0, 10) + "…" : b.label;
+        s += `<g class="st" tabindex="0" role="button" data-id="${b.id}" aria-label="${b.label} ${sd(b.d)}"><circle cx="${bx}" cy="${ly}" r="${r}" fill="${css("--surface")}" stroke="${ring}" stroke-width="3.5"/>
+          <text x="${bx}" y="${ly - r - 5}" text-anchor="middle" font-size="10.5" fill="${css("--ink")}">${t}</text>
+          <text x="${bx}" y="${ly + r + 12}" text-anchor="middle" font-size="10.5" class="num" fill="${ring}">${b.d == null ? "" : sd(b.d)}</text></g>`;
+      });
+      if (!sb.beads.length) s += `<text x="${cx + 330}" y="${ly + 4}" font-size="11" fill="${css("--muted")}">소재 변화 작음</text>`;
+    });
+    NODES["lane-" + l.id] = {type: "lane", lane: l};
+  });
+  s += `<g class="st" tabindex="0" role="button" data-id="root" aria-label="스토어 매출 ${sd(D.TOT)}"><circle cx="${rx}" cy="${ry}" r="48" fill="${css("--surface")}" stroke="${css("--ink")}" stroke-width="5"/>
+    <text x="${rx}" y="${ry - 8}" text-anchor="middle" font-size="12" fill="${css("--muted")}">스토어 매출</text>
+    <text x="${rx}" y="${ry + 12}" text-anchor="middle" font-size="16" font-weight="700" class="num" fill="${css(D.TOT >= 0 ? "--up" : "--down")}">${sd(D.TOT)}</text>
+    <text x="${rx}" y="${ry + 28}" text-anchor="middle" font-size="11" class="num" fill="${css("--muted")}">${spc(D.st.b.gmv, D.st.a.gmv)}</text></g>`;
+  NODES.root = {type: "root"};
+  svg.innerHTML = s;
+  $("#legend").innerHTML = lanes.map(l => `<span><i style="background:var(${COL[l.id]})"></i>${l.name}</span>`).join("") + `<span>선 굵기 = 증감 금액 · 구슬 테두리 <b class="up">초록</b> 올림 / <b class="down">빨강</b> 깎음 · 구슬 크기 = 증감 크기 · 흐르는 점 = 매출이 들어옴/빠짐</span>`;
+  bindSt(svg);
+  if (CUR) highlight(CUR);
+}
+function bindSt(root) {
+  root.querySelectorAll(".st").forEach(g => {
+    g.addEventListener("click", () => select(g.dataset.id));
+    g.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(g.dataset.id); } });
+  });
+}
+function highlight(id) {
+  const n = NODES[id];
+  $("#map").querySelectorAll(".st").forEach(g => {
+    const m = NODES[g.dataset.id];
+    const keep = !n || n.type === "root" || g.dataset.id === "root" || (m && m.lane && n.lane && m.lane.id === n.lane.id);
+    g.classList.toggle("dim", !keep);
+  });
+}
+// ---------------- 브랜드 라이브 분해
+function brandFunnel() {
+  const A = D.raw.brandLive.a, B = D.raw.brandLive.b.length ? D.raw.brandLive.b : (D.raw.brandLive.lastBeforeA || []);
+  if (!A.length || !B.length) return null;
+  const agg = L => { const g = L.filter(x => x.handle === "dalba_global"); const t = k => g.reduce((s, x) => s + x[k], 0); return {hrs: t("minutes") / 60, impr: t("impr"), viewers: t("viewers"), clicks: t("clicks"), orders: t("orders"), gmv: t("gmv"), auction: t("auction"), date: g[0] && g[0].date}; };
+  const o = agg(B), n = agg(A);
+  if (!(o.impr && n.impr && o.orders && n.orders)) return null;
+  const f = s => [s.hrs, s.impr / s.hrs, s.viewers / s.impr, s.clicks / s.viewers, s.orders / s.clicks, s.gmv / s.orders];
+  const c = split(f(o), f(n), o.gmv, n.gmv);
+  const names = ["방송 시간", "시간당 노출", "시청 진입률", "상품 클릭률", "구매 전환", "객단가"];
+  const fmt = [v => v.toFixed(1) + "h", v => Math.round(v).toLocaleString(), v => (v * 100).toFixed(2) + "%", v => (v * 100).toFixed(1) + "%", v => (v * 100).toFixed(2) + "%", v => "$" + v.toFixed(2)];
+  const fo = f(o), fn = f(n);
+  const sameAsB = D.raw.brandLive.b.length > 0;
+  return {o, n, sameAsB, title: sameAsB ? "방송 파이프" : `방송 파이프 (vs ${md(o.date)} 방송)`, steps: names.map((nm, i) => ({name: nm, v: `${fmt[i](fo[i])}→${fmt[i](fn[i])}`, c: c[i]}))};
+}
+// ---------------- 카드
+function crRows(L) {
+  return `<table><tr><th>소재</th><th class="n">광고비</th><th class="n">광고 매출</th></tr>${L.map(c => `<tr><td><a href="${vlink(c.cid, c.creator)}" target="_blank" rel="noopener">${c.label}</a>${c.posted >= addD(D.A[0], -7) ? '<span class="tag new">신규</span>' : ""}<br><span class="note">${md(c.posted)} 포스팅</span></td><td class="n">${usd(c.sb)} → ${usd(c.sa)}</td><td class="n">${usd(c.gb)} → ${usd(c.ga)}<br><span class="${cls(c.dg)}">${sd(c.dg)}</span></td></tr>`).join("")}</table>`;
+}
+const addD = (k, n) => new Date(Date.parse(k + "T00:00:00Z") + n * 86400000).toISOString().slice(0, 10);
+function judge(c) {
+  if (c.dg >= 40 && c.ds <= 5) return ["숨은 영웅", "good"];
+  if (c.dg >= 40) return c.dg >= c.ds * 2 ? ["효자", "good"] : ["보통", ""];
+  if (c.dg <= -40 && c.ds >= 0) return ["주의", "bad"];
+  if (c.dg <= -40) return ["식은 소재", ""];
+  return ["", ""];
+}
+function prodCard(p, chKey) {
+  const f = s => [s.imp, s.uclk / s.imp, s.orders / s.uclk, s.gmv / s.orders];
+  const c = split(f(p.b), f(p.a), p.b.gmv, p.a.gmv);
+  const tr = D.troi.filter(t => t.name === p.name);
+  const ad = p.ads ? `<tr><td>광고비</td><td class="n">${usd(p.ads.b.spend * D.fb)} → ${usd(p.ads.a.spend * D.fa)}</td></tr><tr><td>광고 매출</td><td class="n">${usd(p.ads.b.gmv * D.fb)} → ${usd(p.ads.a.gmv * D.fa)}</td></tr>` : "";
+  const cs = D.cre.filter(x => x.pid === p.id && Math.abs(x.dg) >= 20).sort((u, v) => Math.abs(v.dg) - Math.abs(u.dg)).slice(0, 8);
+  return `<table><tr><th>${p.name} 전체</th><th class="n">비교 → 기준</th></tr>
+    <tr><td>매출</td><td class="n">${usd(p.b.gmv)} → ${usd(p.a.gmv)}</td></tr>
+    <tr><td>방문</td><td class="n">${Math.round(p.b.uclk).toLocaleString()} → ${Math.round(p.a.uclk).toLocaleString()}</td></tr>
+    <tr><td>구매 전환율</td><td class="n">${p.b.uclk ? (p.b.orders / p.b.uclk * 100).toFixed(2) : "-"}% → ${p.a.uclk ? (p.a.orders / p.a.uclk * 100).toFixed(2) : "-"}%</td></tr>
+    <tr><td>객단가</td><td class="n">$${p.b.orders ? (p.b.gmv / p.b.orders).toFixed(2) : "-"} → $${p.a.orders ? (p.a.gmv / p.a.orders).toFixed(2) : "-"}</td></tr>${ad}</table>
+    ${c[0] != null ? `<div class="why"><b>왜?</b> 노출 <b class="${cls(c[0])}">${sd(c[0])}</b> · 방문률 <b class="${cls(c[1])}">${sd(c[1])}</b> · 전환율 <b class="${cls(c[2])}">${sd(c[2])}</b> · 객단가 <b class="${cls(c[3])}">${sd(c[3])}</b></div>` : ""}
+    ${tr.length ? `<div class="act"><b>광고 설정 변경</b>: ${tr.map(t => `${md(t.date)} Target ROI ${t.from} → ${t.to}`).join(", ")}</div>` : ""}
+    <div class="why">채널: 영상 ${sd(p.a.cv - p.b.cv)} · AF 라이브 ${sd(p.a.cl - p.b.cl)} · 브랜드 라이브 ${sd(p.a.sl - p.b.sl)} · 상품카드 ${sd(p.a.pc - p.b.pc)} · 셀러 영상 ${sd(p.a.sv - p.b.sv)}</div>
+    ${cs.length ? `<h3>소재별 광고비와 광고 매출</h3>${crRows(cs)}` : ""}`;
+}
+function card(id) {
+  const n = NODES[id]; if (!n) return; let h = "", title = "", crumb = "스토어 매출";
+  if (n.type === "root") {
+    title = "스토어 매출";
+    h = `<div class="big ${cls(D.TOT)}">${sd(D.TOT)}</div><div class="muted num">${usd(D.st.b.gmv)} → ${usd(D.st.a.gmv)}</div>
+    <table><tr><th>채널</th><th class="n">비교 → 기준</th><th class="n">증감</th><th class="n">비중</th></tr>${D.chans.map(l => `<tr><td>${l.name}</td><td class="n">${usd(l.o)} → ${usd(l.n)}</td><td class="n ${cls(l.d)}">${sd(l.d)}</td><td class="n">${D.TOT ? Math.round(l.d / D.TOT * 100) : 0}%</td></tr>`).join("")}</table>
+    ${D.troi.length ? `<div class="act"><b>기간 중 Target ROI 변경</b><br>${D.troi.map(t => `${md(t.date)} ${t.name} ${t.from} → ${t.to}`).join("<br>")}</div>` : ""}`;
+  } else {
+    const l = n.lane; crumb += " › " + l.name;
+    if (n.type === "lane") { title = l.name; h = `<div class="big ${cls(l.d)}">${sd(l.d)}</div>`; }
+    else if (n.type === "prodlane") { const p = n.sub.prod; title = p.name; crumb += " › " + p.name; h = `<div class="big ${cls(n.sub.d)}">${sd(n.sub.d)}</div><div class="muted">${l.name}에서 ${usd(n.sub.o)} → ${usd(n.sub.n)}</div>` + prodCard(p); }
+    else if (n.type === "group") { title = n.sub.name; crumb += " › " + n.sub.name; h = `<table>${n.sub.beads.map(b => `<tr><td>${b.label}<br><span class="note">${b.sub}</span></td><td class="n ${cls(b.d)}">${sd(b.d)}</td></tr>`).join("")}</table>`; }
+    else {
+      const b = n.bead; crumb += " › " + n.sub.name; title = b.label;
+      if (b.kind === "creative") {
+        const c = b.data, [j, k] = judge(c);
+        h = `<div class="big ${cls(c.dg)}">${sd(c.dg)}</div><div class="muted">${c.name} 광고 소재${j ? ` <span class="tag ${k}">${j}</span>` : ""}</div>
+        <table><tr><th></th><th class="n">비교</th><th class="n">기준</th></tr>
+        <tr><td>광고비</td><td class="n">${usd(c.sb)}</td><td class="n">${usd(c.sa)}</td></tr>
+        <tr><td>광고 매출</td><td class="n">${usd(c.gb)}</td><td class="n">${usd(c.ga)}</td></tr>
+        <tr><td>ROI</td><td class="n">${c.sb ? (c.gb / c.sb).toFixed(2) : "-"}</td><td class="n">${c.sa ? (c.ga / c.sa).toFixed(2) : "-"}</td></tr>
+        <tr><td>주문</td><td class="n">${c.b.orders}</td><td class="n">${c.a.orders}</td></tr>
+        <tr><td>노출 / 클릭</td><td class="n">${c.b.imp.toLocaleString()} / ${c.b.clk}</td><td class="n">${c.a.imp.toLocaleString()} / ${c.a.clk}</td></tr>
+        ${c.afRev ? `<tr><td>AF 영상 매출</td><td class="n">${usd(c.afRev.b)}</td><td class="n">${usd(c.afRev.a)}</td></tr>` : ""}</table>
+        <div class="why">${md(c.posted)} 포스팅${c.posted >= addD(D.A[0], -7) ? " (신규)" : ""} · 캠페인 ${c.camp}</div>
+        <a href="${vlink(c.cid, c.creator)}" target="_blank" rel="noopener">영상 보기 (${c.cid})</a>`;
+      } else if (b.kind === "creator") {
+        const c = b.data, o = c.o, nn = c.n;
+        const pr = side => Object.entries(c.prods[side] || {}).sort((x, y) => y[1].pay - x[1].pay).slice(0, 4).map(([pid, v]) => `${short((D.prods.find(p => p.id === pid) || {}).full || pid)} ${usd(v.pay)}(${v.qty}개)`).join(", ") || "-";
+        h = `<div class="big ${cls(c.d)}">${sd(c.d)}</div>
+        <table><tr><th></th><th class="n">비교</th><th class="n">기준</th></tr>
+        <tr><td>방송</td><td class="n">${o.sessions}회 ${(o.minutes / 60).toFixed(1)}h</td><td class="n">${nn.sessions}회 ${(nn.minutes / 60).toFixed(1)}h</td></tr>
+        <tr><td>라이브 GMV</td><td class="n">${usd(o.gmv)}</td><td class="n">${usd(nn.gmv)}</td></tr>
+        <tr><td>판매 개수</td><td class="n">${o.items}</td><td class="n">${nn.items}</td></tr>
+        <tr><td>시청자</td><td class="n">${o.viewers.toLocaleString()}</td><td class="n">${nn.viewers.toLocaleString()}</td></tr>
+        <tr><td>시간당 GMV</td><td class="n">${o.minutes ? usd(o.gmv / (o.minutes / 60)) : "-"}</td><td class="n">${nn.minutes ? usd(nn.gmv / (nn.minutes / 60)) : "-"}</td></tr></table>
+        <div class="why"><b>판매 제품</b><br>기준: ${pr("a")}<br>비교: ${pr("b")}</div>`;
+      } else if (b.kind === "stage") {
+        const L = b.data.ref;
+        h = `<div class="big ${cls(b.d)}">${sd(b.d)}</div><div class="why">${b.label}: ${b.data.v}</div>
+        <div class="note">브랜드 라이브 매출 ${usd(L.o.gmv)} → ${usd(L.n.gmv)}${L.sameAsB ? "" : ` (비교 기간엔 방송이 없어 직전 방송일 ${md(L.o.date)}과 비교)`}. 옥션 ${usd(L.o.auction)} → ${usd(L.n.auction)}.</div>`;
+      } else if (b.kind === "prod") {
+        const p = b.data.p; h = `<div class="big ${cls(b.d)}">${sd(b.d)}</div><div class="muted">${l.name}에서 ${b.sub}</div>` + prodCard(p);
+      }
+    }
+  }
+  $("#card").innerHTML = `<div class="crumb">${crumb}</div><h3>${title}</h3>${h}`;
+}
+function select(id) { CUR = id; highlight(id); card(id); }
+// ---------------- 소재 파이프 보드
+function drawBoard() {
+  const byP = {};
+  D.cre.filter(c => Math.abs(c.dg) >= 15 || Math.abs(c.ds) >= 15).forEach(c => (byP[c.pid] = byP[c.pid] || []).push(c));
+  const rows = Object.entries(byP).map(([pid, L]) => ({p: D.prods.find(p => p.id === pid) || {name: L[0].camp, id: pid}, L: L.sort((x, y) => y.dg - x.dg), net: L.reduce((s, c) => s + c.dg, 0), sp: L.reduce((s, c) => s + c.ds, 0)}))
+    .sort((x, y) => Math.abs(y.net) + y.L.length * 5 - Math.abs(x.net) - x.L.length * 5).slice(0, 12);
+  const maxG = Math.max(1, ...D.cre.map(c => c.ga));
+  $("#board").innerHTML = rows.map((r, ri) => {
+    const n = r.L.length, step = 30, W = Math.max(400, 40 + n * step), Y = 30;
+    const zero = r.L.findIndex(c => c.dg < 0);
+    let s = `<svg width="${W}" height="62" role="img" aria-label="${r.p.name} 소재 ${n}개"><line x1="10" x2="${W - 10}" y1="${Y}" y2="${Y}" stroke="${css("--c-video")}" stroke-width="6" stroke-linecap="round" opacity=".25"/>`;
+    if (zero > 0) s += `<line x1="${20 + zero * step - step / 2}" x2="${20 + zero * step - step / 2}" y1="${Y - 18}" y2="${Y + 18}" stroke="${css("--muted")}" stroke-dasharray="2 3"/>`;
+    r.L.forEach((c, i) => {
+      const [j, k] = judge(c); const col = k === "good" ? css("--up") : k === "bad" ? css("--down") : css("--neutral");
+      const rr = 3.5 + 9 * Math.sqrt(c.ga / maxG);
+      const id = "bd-" + ri + "-" + i; NODES[id] = {type: "bead", lane: {id: "video", name: "AF 영상"}, sub: {name: r.p.name}, bead: {label: c.label, d: c.dg, kind: "creative", data: c}};
+      s += `<g class="st" tabindex="0" role="button" data-id="${id}" data-tip="${c.label} · ${md(c.posted)} 포스팅<br>광고비 ${usd(c.sb)} → ${usd(c.sa)}<br>광고 매출 ${usd(c.gb)} → ${usd(c.ga)} (${sd(c.dg)})${j ? " · " + j : ""}"><circle cx="${20 + i * step}" cy="${Y}" r="${rr}" fill="${col}" fill-opacity="${c.posted >= addD(D.A[0], -7) ? .95 : .55}" stroke="${css("--surface")}" stroke-width="1.5"/></g>`;
+    });
+    s += `<text x="12" y="${Y + 28}" font-size="10" fill="${css("--up")}">많이 오른 소재</text><text x="${W - 12}" y="${Y + 28}" font-size="10" text-anchor="end" fill="${css("--down")}">많이 빠진 소재</text></svg>`;
+    return `<div class="row"><div class="lab">${r.p.name}<small class="${cls(r.net)}">광고 매출 ${sd(r.net)} · 광고비 ${sd(r.sp)} · ${n}개</small></div><div class="lane">${s}</div></div>`;
+  }).join("") + `<p class="note">진한 구슬 = 최근 7일 포스팅된 신규 소재. 마우스를 올리면 숫자가 보입니다.</p>`;
+  $("#board").querySelectorAll("[data-tip]").forEach(el => {
+    el.addEventListener("mousemove", e => { const t = $("#tip"); t.hidden = false; t.innerHTML = el.dataset.tip; t.style.left = (e.clientX + 12) + "px"; t.style.top = (e.clientY + 12) + "px"; });
+    el.addEventListener("mouseleave", () => $("#tip").hidden = true);
+  });
+  bindSt($("#board"));
+}
+// ---------------- 라이브 파이프
+function drawLive() {
+  const L = brandFunnel(); let h = "";
+  if (L) h += `<h3 style="color:var(--c-live)">브랜드 라이브 ${L.sameAsB ? "" : `(비교 기간 휴방 → 직전 방송 ${md(L.o.date)}과 비교)`}</h3>` + stops(L.steps.map(s => ({name: s.name, v: s.v, c: s.c})).concat([{name: "방송 GMV", v: `${usd(L.o.gmv)}→${usd(L.n.gmv)}`, c: L.n.gmv - L.o.gmv, icon: "$"}]), "--c-live") + `<p class="note">옥션 GMV ${usd(L.o.auction)} → ${usd(L.n.auction)}</p>`;
+  else h += `<p class="note">두 기간 중 한쪽에 브랜드 라이브 데이터가 없어 단계 분해를 생략합니다.</p>`;
+  const C = D.creators.slice(0, 12);
+  h += `<h3 style="color:var(--c-afl);margin-top:8px">AF 라이브 크리에이터 (한 명 = 파이프 하나)</h3><div class="rows">` + C.map(c => {
+    const o = c.o, n = c.n;
+    return `<div class="row"><div class="lab">@${c.h}<small class="${cls(c.d)}">${sd(c.d)}</small></div><div class="lane">${stops([
+      {name: "방송", v: `${o.sessions}회 ${(o.minutes / 60).toFixed(1)}h → ${n.sessions}회 ${(n.minutes / 60).toFixed(1)}h`, c: null, icon: "●"},
+      {name: "시청자", v: `${o.viewers.toLocaleString()} → ${n.viewers.toLocaleString()}`, c: null, icon: "◎"},
+      {name: "판매 개수", v: `${o.items} → ${n.items}`, c: null, icon: "■"},
+      {name: "라이브 GMV", v: `${usd(o.gmv)} → ${usd(n.gmv)}`, c: c.d, icon: "$"}], "--c-afl")}</div></div>`;
+  }).join("") + `</div>`;
+  $("#livePipes").innerHTML = h;
+}
+// ---------------- 제품 파이프
+function drawProdPipes() {
+  const P = D.prods.map(p => ({p, d: p.a.gmv - p.b.gmv})).filter(x => Math.abs(x.d) >= 50).sort((x, y) => Math.abs(y.d) - Math.abs(x.d)).slice(0, 15);
+  $("#prodPipes").innerHTML = P.map(({p, d}) => {
+    const f = s => [s.imp, s.uclk / s.imp, s.orders / s.uclk, s.gmv / s.orders];
+    const c = split(f(p.b), f(p.a), p.b.gmv, p.a.gmv);
+    return `<div class="row"><div class="lab">${p.name}<small class="${cls(d)}">${sd(d)} (${usd(p.b.gmv)} → ${usd(p.a.gmv)})</small></div><div class="lane">${stops([
+      {name: "노출", v: `${Math.round(p.b.imp).toLocaleString()}→${Math.round(p.a.imp).toLocaleString()}`, c: c[0]},
+      {name: "방문률", v: p.b.imp && p.a.imp ? `${(p.b.uclk / p.b.imp * 100).toFixed(1)}%→${(p.a.uclk / p.a.imp * 100).toFixed(1)}%` : "-", c: c[1]},
+      {name: "전환율", v: p.b.uclk && p.a.uclk ? `${(p.b.orders / p.b.uclk * 100).toFixed(1)}%→${(p.a.orders / p.a.uclk * 100).toFixed(1)}%` : "-", c: c[2]},
+      {name: "객단가", v: p.b.orders && p.a.orders ? `$${(p.b.gmv / p.b.orders).toFixed(0)}→$${(p.a.gmv / p.a.orders).toFixed(0)}` : "-", c: c[3]}])}</div></div>`;
+  }).join("");
+}
+// ---------------- 투어
+function tourSteps() {
+  const st = [["root", `매출이 ${sd(D.TOT)} 움직였어요.`]];
+  const top = D.lanes[0]; st.push(["lane-" + top.id, `가장 큰 원인은 ${top.name}(${sd(top.d)})이에요.`]);
+  for (const l of D.lanes.slice(0, 3)) for (const sb of l.sub.slice(0, 1)) {
+    const b = sb.beads[0];
+    if (b) st.push([b.id, `${l.name} › ${sb.name}: ${b.label} ${sd(b.d)}`]);
+  }
+  return st.filter(([id]) => NODES[id] && $("#map").querySelector(`[data-id="${CSS.escape(id)}"]`));
+}
+function tour(i) {
+  document.querySelectorAll(".bubble").forEach(b => b.remove());
+  const T = tourSteps(); if (i < 0 || i >= T.length) { CUR = null; highlight(null); return; }
+  const [id, text] = T[i]; select(id);
+  const g = $("#map").querySelector(`[data-id="${CSS.escape(id)}"]`), box = $("#mapbox"), r = g.getBoundingClientRect(), rb = box.getBoundingClientRect();
+  const b = document.createElement("div"); b.className = "bubble";
+  b.innerHTML = `<div><b>${i + 1}/${T.length}</b> ${text}</div><div class="nav"><button type="button" data-k="p">이전</button><button type="button" data-k="e">끝내기</button><button type="button" data-k="n">${i === T.length - 1 ? "완료" : "다음"}</button></div>`;
+  box.appendChild(b);
+  b.style.left = Math.min(Math.max(8, r.right - rb.left + box.scrollLeft + 8), box.scrollWidth - 300) + "px"; b.style.top = Math.max(8, r.top - rb.top - 8) + "px";
+  b.querySelector('[data-k="p"]').onclick = () => tour(i - 1); b.querySelector('[data-k="n"]').onclick = () => tour(i === T.length - 1 ? -1 : i + 1); b.querySelector('[data-k="e"]').onclick = () => tour(-1);
+}
+$("#tourBtn").onclick = () => D && tour(0);
+// ---------------- 기간 선택
+function params() {
+  const q = new URLSearchParams(location.search);
+  const y = new Date(Date.now() - 86400000 * 2).toISOString().slice(0, 10);
+  return {a: q.get("a") || y, a2: q.get("a2") || "", b: q.get("b") || "", b2: q.get("b2") || ""};
+}
+function fill(p) { $("#a").value = p.a; $("#a2").value = p.a2 || p.a; $("#b").value = p.b || ""; $("#b2").value = p.b2 || ""; }
+document.querySelectorAll(".chip").forEach(ch => ch.onclick = () => {
+  document.querySelectorAll(".chip").forEach(x => x.setAttribute("aria-pressed", x === ch));
+  const a = $("#a").value, a2 = $("#a2").value || a, len = (Date.parse(a2) - Date.parse(a)) / 86400000 + 1;
+  if (ch.dataset.p === "prev") { $("#b").value = addD(a, -len); $("#b2").value = addD(a, -1); }
+  else { $("#b").value = addD(a, -7); $("#b2").value = addD(a2, -7); }
+});
+$("#pform").onsubmit = e => {
+  e.preventDefault();
+  const q = new URLSearchParams({a: $("#a").value}); if ($("#a2").value && $("#a2").value !== $("#a").value) q.set("a2", $("#a2").value);
+  if ($("#b").value) { q.set("b", $("#b").value); q.set("b2", $("#b2").value || $("#b").value); }
+  if (window.WHY_DATA) return; // 고정 데이터 시안에서는 동작하지 않음
+  history.replaceState(null, "", "?" + q); load();
+};
+async function load() {
+  const p = params(); fill(p);
+  if (window.WHY_DATA) { const r = window.WHY_DATA; fill({a: r.periods.a[0], a2: r.periods.a[1], b: r.periods.b[0], b2: r.periods.b[1]}); render(r); return; }
+  $("#app").innerHTML = `<div class="loading">시트에서 데이터를 불러오는 중…</div>`;
+  const q = new URLSearchParams({a: p.a}); if (p.a2) q.set("a2", p.a2); if (p.b) { q.set("b", p.b); q.set("b2", p.b2 || p.b); }
+  try { const r = await fetch("/api/why?" + q).then(x => x.json()); if (r.error) throw new Error(r.error); fill({a: r.periods.a[0], a2: r.periods.a[1], b: r.periods.b[0], b2: r.periods.b[1]}); render(r); }
+  catch (e) { $("#app").innerHTML = `<div class="loading">데이터를 불러오지 못했습니다: ${e.message}<br>날짜가 시트에 입력돼 있는지 확인하고 다시 시도해 주세요.</div>`; }
+}
+const mq = matchMedia("(prefers-color-scheme: dark)");
+const redraw = () => { if (D) { drawMap(); drawBoard(); } };
+mq.addEventListener ? mq.addEventListener("change", redraw) : mq.addListener(redraw);
+new MutationObserver(redraw).observe(document.documentElement, {attributes: true, attributeFilter: ["data-theme"]});
+load();
+</script>
+</body>
+</html>
