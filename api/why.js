@@ -61,6 +61,11 @@ module.exports = async (req, res) => {
     const b2 = dkey(q.b2) || (dkey(q.b) ? b : addDays(a, -1));
     const lo = b < a ? b : a, hi = b2 > a2 ? b2 : a2;
     const per = k => (k >= a && k <= a2 ? "a" : (k >= b && k <= b2 ? "b" : null));
+    // 그래프용 추이 창: 스토어·광고 30일, 소재·크리에이터 14일 (기준 기간 끝 기준)
+    const t30 = addDays(a2, -29), t14 = addDays(a2, -13);
+    const lo30 = t30 < lo ? t30 : lo, lo14 = t14 < lo ? t14 : lo;
+    const tDates = []; for (let k = t30; k <= a2; k = addDays(k, 1)) tDates.push(k);
+    const sDates = tDates.slice(-14);
     const days = { a: len, b: Math.round((toTs(b2) - toTs(b)) / DAY) + 1 };
 
     const ck = [a, a2, b, b2].join("|");
@@ -103,9 +108,10 @@ module.exports = async (req, res) => {
     const mv = i => (mainCols.data.valueRanges[i] && mainCols.data.valueRanges[i].values) || [];
     const av = i => (adsCols.data.valueRanges[i] && adsCols.data.valueRanges[i].values) || [];
     const prodSpan = rowSpan(mv(0), 1, lo, hi);
-    const aliveSpan = T.alive ? rowSpan(mv(2), 1, lo, hi) : null;
+    const trendSpan = rowSpan(mv(0), 1, lo30, hi);
+    const aliveSpan = T.alive ? rowSpan(mv(2), 1, lo14, hi) : null;
     const ordSpan = rowSpan(mv(3), 1, lo, hi);
-    const creSpan = rowSpan(av(0), creTail, lo, hi);
+    const creSpan = rowSpan(av(0), creTail, lo14, hi);
     const avail = { prod: !!prodSpan, alive: !!aliveSpan, orders: !!ordSpan, creatives: !!creSpan };
 
     // 3) 기간 행 본문 읽기
@@ -114,9 +120,10 @@ module.exports = async (req, res) => {
     const rangesMain = { prodH: 0, prod: prodSpan ? 1 : -1 };
     if (aliveSpan) { rangesMain.aliveH = mr.push(q1(T.alive, "A1:AI1")) - 1; rangesMain.alive = mr.push(q1(T.alive, `A${aliveSpan[0]}:AI${aliveSpan[1]}`)) - 1; }
     if (ordSpan) { rangesMain.ord = mr.push(q1(T.ord, `A${ordSpan[0]}:O${ordSpan[1]}`)) - 1; }
+    if (trendSpan) { rangesMain.trend = mr.push(q1(T.prod, `A${trendSpan[0]}:AH${trendSpan[1]}`)) - 1; }
     const [mb, ab] = await Promise.all([
       sheets.spreadsheets.values.batchGet({ spreadsheetId: MAIN, ranges: mr }),
-      creSpan ? sheets.spreadsheets.values.batchGet({ spreadsheetId: ADS, ranges: [q1(T.cre, `A${creSpan[0]}:W${creSpan[1]}`)] }) : Promise.resolve(null)
+      creSpan ? sheets.spreadsheets.values.batchGet({ spreadsheetId: ADS, ranges: [q1(T.cre, `A${creSpan[0]}:N${creSpan[1]}`)] }) : Promise.resolve(null)
     ]);
     const mbv = i => (i >= 0 && mb.data.valueRanges[i] && mb.data.valueRanges[i].values) || [];
 
@@ -140,6 +147,15 @@ module.exports = async (req, res) => {
       for (const f of Object.keys(e.a)) { const v = C[f] >= 0 ? num(r[C[f]]) : 0; e[p][f] += v; store[p][f] += v; if (f in dd) dd[f] += v; }
     }
 
+    // ── 30일 추이 (스토어·채널)
+    const ti = Object.fromEntries(tDates.map((k, i) => [k, i]));
+    const zeros = () => tDates.map(() => 0);
+    const trend = { dates: tDates, gmv: zeros(), sl: zeros(), cl: zeros(), cv: zeros(), pc: zeros(), sv: zeros(), orders: zeros(), uclk: zeros(), imp: zeros(), adSpend: zeros(), adLive: zeros(), adGmv: zeros() };
+    for (const r of mbv(rangesMain.trend === undefined ? -1 : rangesMain.trend)) {
+      const k = dkey(r[0]); const i = ti[k]; if (i === undefined || !String(r[C.id] || "").trim()) continue;
+      for (const f of ["gmv", "sl", "cl", "cv", "pc", "sv", "orders", "uclk", "imp"]) if (C[f] >= 0) trend[f][i] += num(r[C[f]]);
+    }
+
     // ── 광고: 캠페인(상품/라이브 광고비) + PID 매칭 + TROI
     const campRows = av(1), cH = campRows[0] || [];
     const cc = { date: 0, cid: colIndex(cH, "캠페인ID"), spend: colIndex(cH, "지출금액"), orders: colIndex(cH, "주문수"), gmv: colIndex(cH, "총매출(GMV)"), pid: colIndex(cH, "PRODUCT ID") };
@@ -147,9 +163,11 @@ module.exports = async (req, res) => {
     for (const r of av(2).slice(1)) if (r[1] && r[2]) pidOfCamp[String(r[1]).trim()] = String(r[2]).trim();
     const ads = { a: { spend: 0, gmv: 0, liveSpend: 0, prodSpend: 0 }, b: { spend: 0, gmv: 0, liveSpend: 0, prodSpend: 0 } }, adByPid = {};
     for (const r of campRows.slice(1)) {
-      const k = dkey(r[cc.date]); const p = k && per(k); if (!p) continue;
+      const k = dkey(r[cc.date]); if (!k) continue;
       const sp = num(r[cc.spend]), gm = num(r[cc.gmv]);
       const pid = String(r[cc.pid] || "").trim() || pidOfCamp[String(r[cc.cid] || "").trim()] || "";
+      const ii = ti[k]; if (ii !== undefined) { trend.adSpend[ii] += sp; trend.adGmv[ii] += gm; if (!pid) trend.adLive[ii] += sp; }
+      const p = per(k); if (!p) continue;
       ads[p].spend += sp; ads[p].gmv += gm; if (pid) ads[p].prodSpend += sp; else ads[p].liveSpend += sp;
       if (pid) { const e = adByPid[pid] || (adByPid[pid] = { a: { spend: 0, gmv: 0 }, b: { spend: 0, gmv: 0 } }); e[p].spend += sp; e[p].gmv += gm; }
     }
@@ -176,13 +194,16 @@ module.exports = async (req, res) => {
     // ── 소재별 광고성과
     const CR = (av(4)[0]) || [];
     const ci = { date: 0, cid: colIndex(CR, "소재ID"), camp: colIndex(CR, "캠페인명"), campId: colIndex(CR, "캠페인ID"), spend: colIndex(CR, "지출금액"), orders: colIndex(CR, "주문수"), gmv: colIndex(CR, "총매출(GMV)"), imp: colIndex(CR, "상품노출수"), clk: colIndex(CR, "상품클릭수"), v6: colIndex(CR, "6초시청률") };
-    const cre = {};
+    const cre = {}, si = Object.fromEntries(sDates.map((k, i) => [k, i]));
     for (const r of ((ab && ab.data.valueRanges[0].values) || [])) {
-      const k = dkey(r[0]); const p = k && per(k); if (!p) continue;
+      const k = dkey(r[0]); if (!k) continue;
+      const p = per(k), sx = si[k]; if (!p && sx === undefined) continue;
       const cid = String(r[ci.cid] || "").trim(); if (!/^\d{6,}$/.test(cid)) continue;
       const camp = String(r[ci.camp] || "");
       const key = cid + "|" + camp;
-      const e = cre[key] || (cre[key] = { cid, camp, pid: pidOfCamp[String(r[ci.campId] || "").trim()] || "", a: { s: 0, g: 0, o: 0, i: 0, c: 0 }, b: { s: 0, g: 0, o: 0, i: 0, c: 0 } });
+      const e = cre[key] || (cre[key] = { cid, camp, pid: pidOfCamp[String(r[ci.campId] || "").trim()] || "", a: { s: 0, g: 0, o: 0, i: 0, c: 0 }, b: { s: 0, g: 0, o: 0, i: 0, c: 0 }, ss: sDates.map(() => 0), sg: sDates.map(() => 0) });
+      if (sx !== undefined) { e.ss[sx] += num(r[ci.spend]); e.sg[sx] += num(r[ci.gmv]); }
+      if (!p) continue;
       e[p].s += num(r[ci.spend]); e[p].g += num(r[ci.gmv]); e[p].o += num(r[ci.orders]); e[p].i += num(r[ci.imp]); e[p].c += num(r[ci.clk]);
     }
     const nameOf = id => (prods[id] && prods[id].name) || "";
@@ -190,7 +211,8 @@ module.exports = async (req, res) => {
       cid: e.cid, camp: e.camp, pid: e.pid, product: nameOf(e.pid), creator: creatorOf[e.cid] || null, posted: postDate(e.cid),
       a: { spend: r2(e.a.s), gmv: r2(e.a.g), orders: e.a.o, imp: e.a.i, clk: e.a.c },
       b: { spend: r2(e.b.s), gmv: r2(e.b.g), orders: e.b.o, imp: e.b.i, clk: e.b.c },
-      afRev: vidRev[e.cid] ? { a: r2(vidRev[e.cid].a), b: r2(vidRev[e.cid].b) } : null
+      afRev: vidRev[e.cid] ? { a: r2(vidRev[e.cid].a), b: r2(vidRev[e.cid].b) } : null,
+      spark: { spend: e.ss.map(Math.round), gmv: e.sg.map(Math.round) }
     })).sort((x, y) => Math.abs(y.a.gmv - y.b.gmv) - Math.abs(x.a.gmv - x.b.gmv));
 
     // ── 브랜드 라이브 세션
@@ -208,25 +230,27 @@ module.exports = async (req, res) => {
     }
 
     // ── AF 라이브 세션 → 크리에이터
-    const afl = { a: {}, b: {} };
+    const afl = { a: {}, b: {} }, aspark = {};
     if (aliveSpan) {
       const AH = mbv(rangesMain.aliveH)[0] || [];
       const ai = n => colIndex(AH, n);
       const ac = { h: ai("Handle"), start: ai("Start time"), dur: ai("LIVE duration"), gmv: ai("LIVE-attributed GMV"), items: ai("LIVE-attributed items sold"), viewers: ai("Viewers"), clicks: ai("LIVE product clicks") };
       for (const r of mbv(rangesMain.alive)) {
-        const k = dkey(r[ac.start]); const p = k && per(k); if (!p) continue;
+        const k = dkey(r[ac.start]); if (!k) continue;
         const h = String(r[ac.h] || "").trim().toLowerCase(); if (!h) continue;
+        if (si[k] !== undefined) { const sp = aspark[h] || (aspark[h] = sDates.map(() => 0)); sp[si[k]] += num(r[ac.gmv]); }
+        const p = per(k); if (!p) continue;
         const e = afl[p][h] || (afl[p][h] = { sessions: 0, minutes: 0, gmv: 0, items: 0, viewers: 0, clicks: 0 });
         e.sessions++; e.minutes += mins(r[ac.dur]); e.gmv += num(r[ac.gmv]); e.items += num(r[ac.items]); e.viewers += num(r[ac.viewers]); e.clicks += num(r[ac.clicks]);
       }
     }
     const creators = [...new Set([...Object.keys(afl.a), ...Object.keys(afl.b)])]
-      .map(h => ({ h, a: afl.a[h] || null, b: afl.b[h] || null, products: { a: liveCP.a[h] || {}, b: liveCP.b[h] || {} } }))
+      .map(h => ({ h, a: afl.a[h] || null, b: afl.b[h] || null, products: { a: liveCP.a[h] || {}, b: liveCP.b[h] || {} }, spark: (aspark[h] || []).map(Math.round) }))
       .filter(c => (c.a && c.a.gmv > 0) || (c.b && c.b.gmv > 0));
 
     const out = {
       periods: { a: [a, a2], b: [b, b2], days }, avail,
-      store, ads, daily,
+      store, ads, daily, trend, sparkDates: sDates,
       products: Object.values(prods).map(p => ({ ...p, ads: adByPid[p.id] || null })).sort((x, y) => (y.a.gmv + y.b.gmv) - (x.a.gmv + x.b.gmv)),
       creatives, troi,
       brandLive: { a: blive.a, b: blive.b, lastBeforeA: lastPrev },
