@@ -182,7 +182,7 @@ function prep(raw) {
   const fa = norm ? 1 / dA : 1, fb = norm ? 1 / dB : 1;
   const S = {a: raw.store.a, b: raw.store.b};
   const nv = (o, side) => o * (side === "a" ? fa : fb);
-  const prods = raw.products.map(p => ({id: p.id, name: short(p.name), full: p.name, a: scale(p.a, fa), b: scale(p.b, fb), ads: p.ads}));
+  const prods = raw.products.map(p => ({id: p.id, name: short(p.name), full: p.name, a: scale(p.a, fa), b: scale(p.b, fb), ads: p.ads, live: p.live ? {a: scale(p.live.a, fa), b: scale(p.live.b, fb)} : null}));
   function scale(o, f) { const r = {}; for (const k in o) r[k] = o[k] * f; return r; }
   const st = {a: scale(S.a, fa), b: scale(S.b, fb)};
   const troi = raw.troi.filter(t => t.date >= B[0] && t.date <= A[1]).map(t => ({...t, name: TROI_MAP[t.product] || t.product}));
@@ -209,16 +209,18 @@ function render(raw) {
   const adNote = Math.abs(D.ads.a.prodSpend * D.fa - D.ads.b.prodSpend * D.fb) < D.ads.b.prodSpend * D.fb * 0.05 ? " 상품 광고비는 거의 같습니다." : ` 상품 광고비는 ${sd(D.ads.a.prodSpend * D.fa - D.ads.b.prodSpend * D.fb)} 움직였습니다.`;
   $("#app").innerHTML = `
   <div class="headline">매출 <b class="num">${usd(n.gmv)}</b>, 비교 대비 <b class="num ${cls(TOT)}">${sd(TOT)} (${spc(o.gmv, n.gmv)})</b>. 가장 크게 움직인 건 <b style="color:var(${COL[top.id]})">${top.name} ${sd(top.d)}</b>(${Math.round(top.d / TOT * 100)}%)입니다.${liveNote}${adNote}</div>
-  <div class="kgrid" id="kgrid"></div>
+  <div class="box"><div class="bar"><h2>핵심 크리에이터 TOP 50 (최근 30일 매출)</h2><div class="seg" id="tcf"><button class="chip" type="button" data-f="all" aria-pressed="true">전체</button><button class="chip" type="button" data-f="slow" aria-pressed="false">매출 둔화</button><button class="chip" type="button" data-f="stop" aria-pressed="false">포스팅 멈춤</button></div></div>
+  <p class="note" id="tcnote"></p><div class="ctable" id="top50"></div></div>
   <div class="box"><h2>스토어 파이프</h2><p class="note">매출 = 상품 노출 × 방문률 × 구매 전환율 × 객단가. 각 마디 아래 금액은 그 단계가 만든 매출 차이입니다.</p><div id="storePipe"></div></div>
   <div class="main"><div class="mapbox" id="mapbox"><div class="legend" id="legend"></div><svg id="map" role="img" aria-label="매출 원인 노선도"></svg></div><aside class="card" id="card" aria-live="polite"></aside></div>
   <div class="box"><div class="bar"><h2>광고 소재 분석</h2><div class="seg" role="tablist"><button class="chip" type="button" data-cv="prod" aria-pressed="true">제품별</button><button class="chip" type="button" data-cv="cre" aria-pressed="false">크리에이터별</button></div></div>
   <p class="note">광고 매출(GMV Max 전체 매출)과 광고비를 비교 → 기준으로 봅니다. 소재 나이: <b>신규</b> = 기준 기간 시작 7일 전 이후 포스팅, <b>최근</b> = 8~30일, <b>오래된</b> = 30일 넘음.</p><div id="cview"></div></div>
 
-  <div class="box"><h2>라이브 파이프</h2><div id="livePipes"></div></div>
+  <div class="box"><h2>브랜드 라이브</h2><div id="brandLive"></div></div>
+  <div class="box"><div class="bar"><h2>어필리에이트 라이브: 누가 무엇을 팔았나</h2><div class="seg" id="aflv"><button class="chip" type="button" data-v="cr" aria-pressed="true">크리에이터별</button><button class="chip" type="button" data-v="pr" aria-pressed="false">제품별</button></div></div><div id="aflView"></div></div>
   <div class="box"><h2>제품 파이프</h2><p class="note">제품별 매출 = 노출 × 방문률 × 전환율 × 객단가. 각 단계가 만든 금액입니다.</p><div class="rows" id="prodPipes"></div></div>
   <p class="note">데이터: 2026 US 틱톡샵 매출/지표(제품별 유입매출 RAW, 브랜드 라이브 RAW, AF LIVE RAW, 주문별 AF 매출 RAW), 틱톡샵 광고 대시보드(캠페인 광고성과, 소재별 광고성과, PID 매칭, TROI 변동 내역). 광고 매출 = GMV Max 전체 매출. 포스팅일은 영상 ID로 계산.</p>`;
-  drawKpis(); drawStorePipe(); drawMap(); drawCView(); drawLive(); drawProdPipes(); select("root");
+  drawTop50(); drawStorePipe(); drawMap(); drawCView(); drawLive(); drawProdPipes(); select("root");
 }
 function stops(items, color) {
   return `<div class="pipe" style="--pc:var(${color || "--ink"})">${items.map(x => `<div class="stop"><div class="dot ${x.c == null ? "" : x.c >= 0 ? "up" : "down"}">${x.icon || (x.c == null ? "·" : x.c >= 0 ? "+" : "−")}</div><div class="nm">${x.name}</div><div class="vv">${x.v}</div><div class="cc ${cls(x.c)}">${x.c == null ? (x.cc || "") : sd(x.c)}</div></div>`).join("")}</div>`;
@@ -560,22 +562,68 @@ function drawBoard() {
 }
 // ---------------- 라이브 파이프
 function drawLive() {
+  // 브랜드 라이브: 방송 단계 파이프 + 제품별 성과
   const L = brandFunnel(); let h = "";
-  if (L) h += `<h3 style="color:var(--c-live)">브랜드 라이브 ${L.sameAsB ? "" : `(비교 기간 휴방 → 직전 방송 ${md(L.o.date)}과 비교)`}</h3>` + stops(L.steps.map(s => ({name: s.name, v: s.v, c: s.c})).concat([{name: "방송 GMV", v: `${usd(L.o.gmv)}→${usd(L.n.gmv)}`, c: L.n.gmv - L.o.gmv, icon: "$"}]), "--c-live") + `<p class="note">옥션 GMV ${usd(L.o.auction)} → ${usd(L.n.auction)}</p>`;
-  else h += `<p class="note">두 기간 중 한쪽에 브랜드 라이브 데이터가 없어 단계 분해를 생략합니다.</p>`;
-  const C = D.creators.slice(0, 12);
-  h += `<h3 style="color:var(--c-afl);margin-top:8px">AF 라이브 크리에이터 (한 명 = 파이프 하나)</h3><div class="rows">` + C.map(c => {
-    const o = c.o, n = c.n;
-    return `<div class="row"><div class="lab">@${c.h}<small class="${cls(c.d)}">${sd(c.d)}</small></div><div class="lane">${stops([
-      {name: "방송", v: `${o.sessions}회 ${(o.minutes / 60).toFixed(1)}h → ${n.sessions}회 ${(n.minutes / 60).toFixed(1)}h`, c: null, icon: "●"},
-      {name: "시청자", v: `${o.viewers.toLocaleString()} → ${n.viewers.toLocaleString()}`, c: null, icon: "◎"},
-      {name: "판매 개수", v: `${o.items} → ${n.items}`, c: null, icon: "■"},
-      {name: "라이브 GMV", v: `${usd(o.gmv)} → ${usd(n.gmv)}`, c: c.d, icon: "$"}], "--c-afl")}</div></div>`;
-  }).join("") + `</div>`;
-  h += `<h3 style="margin-top:8px">AF 라이브 크리에이터 표 (최근 14일 라이브 매출)</h3><div class="ctable"><table><tr><th>크리에이터</th><th>14일 추이</th><th class="n">방송 (비교 → 기준)</th><th class="n">라이브 GMV</th><th class="n">증감</th></tr>${D.creators.slice(0, 20).map(c => `<tr><td>@${c.h}</td><td>${area(c.spark || [], 110, 26, {fixed: true, color: css("--c-afl")})}</td><td class="n">${c.o.sessions}회 ${(c.o.minutes / 60).toFixed(1)}h → ${c.n.sessions}회 ${(c.n.minutes / 60).toFixed(1)}h</td><td class="n">${usd(c.o.gmv)} → ${usd(c.n.gmv)}</td><td class="n"><span class="pill ${cls(c.d)}">${sd(c.d)}</span></td></tr>`).join("")}</table></div>`;
-  $("#livePipes").innerHTML = h;
+  if (L) h += `<p class="note">${L.sameAsB ? "" : `비교 기간엔 방송이 없어 직전 방송일 ${md(L.o.date)}과 비교합니다. `}방송 GMV = 방송 시간 × 시간당 노출 × 시청 진입률 × 상품 클릭률 × 구매 전환 × 객단가</p>` + stops(L.steps.map(s => ({name: s.name, v: s.v, c: s.c})).concat([{name: "방송 GMV", v: `${usd(L.o.gmv)}→${usd(L.n.gmv)}`, c: L.n.gmv - L.o.gmv, icon: "$"}]), "--c-live");
+  const P = D.prods.filter(p => p.live && (p.live.a.gmv > 0 || p.live.b.gmv > 0)).sort((x, y) => y.live.a.gmv - x.live.a.gmv).slice(0, 15);
+  const r = (v, d) => d ? (v / d * 100) : null, f1 = v => v == null ? "-" : v.toFixed(1) + "%";
+  const best = k => { let m = -1, id = null; P.forEach(p => { const v = k(p); if (v != null && v > m && p.live.a.clk >= 20) { m = v; id = p.id; } }); return id; };
+  const bCtor = best(p => r(p.live.a.orders, p.live.a.clk)), bCtr = best(p => r(p.live.a.clk, p.live.a.imp));
+  h += `<h3 style="margin-top:10px">브랜드 라이브 제품 성과 (기준 기간, 괄호는 비교 기간)</h3><div class="ctable"><table><tr><th>제품</th><th class="n">라이브 매출</th><th class="n">판매 개수</th><th class="n">노출</th><th class="n">클릭률</th><th class="n">장바구니</th><th class="n">CTOR (주문÷클릭)</th></tr>${P.map(p => {
+    const a = p.live.a, b = p.live.b;
+    return `<tr><td>${p.name}</td><td class="n">${usd(a.gmv)} <span class="note">(${usd(b.gmv)})</span> <span class="pill ${cls(a.gmv - b.gmv)}">${sd(a.gmv - b.gmv)}</span></td><td class="n">${Math.round(a.items)} <span class="note">(${Math.round(b.items)})</span></td>
+      <td class="n">${Math.round(a.imp).toLocaleString()} <span class="note">(${Math.round(b.imp).toLocaleString()})</span></td>
+      <td class="n">${f1(r(a.clk, a.imp))}${p.id === bCtr ? ' <span class="tag good">최고</span>' : ""} <span class="note">(${f1(r(b.clk, b.imp))})</span></td>
+      <td class="n">${Math.round(a.atc)} <span class="note">(${Math.round(b.atc)})</span></td>
+      <td class="n">${f1(r(a.orders, a.clk))}${p.id === bCtor ? ' <span class="tag good">최고</span>' : ""} <span class="note">(${f1(r(b.orders, b.clk))})</span></td></tr>`;
+  }).join("")}</table></div><p class="note">출처: 제품별 유입매출 RAW의 셀러 라이브 지표. '최고'는 클릭 20회 이상 제품 중 가장 높은 값입니다.</p>`;
+  $("#brandLive").innerHTML = h;
+  drawAfl();
 }
-// ---------------- 제품 파이프
+let AFV = "cr";
+function drawAfl() {
+  document.querySelectorAll("#aflv [data-v]").forEach(b => { b.setAttribute("aria-pressed", b.dataset.v === AFV); b.onclick = () => { AFV = b.dataset.v; drawAfl(); }; });
+  const pn = pid => (D.prods.find(p => p.id === pid) || {}).name || "기타 제품";
+  const C = D.creators.filter(c => c.n.gmv > 0 || c.o.gmv > 0);
+  let h = "";
+  if (AFV === "cr") {
+    h = `<div class="ctable"><table><tr><th>크리에이터</th><th class="n">방송 (비교 → 기준)</th><th class="n">라이브 매출</th><th>기준 기간 판매 제품 (매출 · 개수)</th><th>14일</th></tr>${C.sort((x, y) => y.n.gmv - x.n.gmv).slice(0, 25).map(c => {
+      const pa = Object.entries(c.prods.a || {}).sort((x, y) => y[1].pay - x[1].pay).slice(0, 4).map(([pid, v]) => `${pn(pid)} <b class="num">${usd(v.pay)}</b> · ${v.qty}개`).join("<br>") || '<span class="note">판매 없음</span>';
+      return `<tr><td>@${c.h}</td><td class="n">${c.o.sessions}회 ${(c.o.minutes / 60).toFixed(1)}h → ${c.n.sessions}회 ${(c.n.minutes / 60).toFixed(1)}h</td><td class="n">${usd(c.o.gmv)} → ${usd(c.n.gmv)}<br><span class="pill ${cls(c.d)}">${sd(c.d)}</span></td><td style="white-space:normal;min-width:260px">${pa}</td><td>${area(c.spark || [], 100, 26, {fixed: true, color: css("--c-afl")})}</td></tr>`;
+    }).join("")}</table></div>`;
+  } else {
+    const by = {};
+    C.forEach(c => { for (const side of ["a", "b"]) for (const [pid, v] of Object.entries(c.prods[side] || {})) { const e = by[pid] || (by[pid] = {a: 0, b: 0, qa: 0, cr: {}}); e[side] += v.pay; if (side === "a") { e.qa += v.qty; e.cr[c.h] = (e.cr[c.h] || 0) + v.pay; } } });
+    h = `<div class="ctable"><table><tr><th>제품</th><th class="n">AF 라이브 매출</th><th class="n">판매 개수</th><th>많이 판 크리에이터 (기준 기간)</th></tr>${Object.entries(by).sort((x, y) => y[1].a - x[1].a).slice(0, 15).map(([pid, e]) =>
+      `<tr><td>${pn(pid)}</td><td class="n">${usd(e.b)} → ${usd(e.a)}<br><span class="pill ${cls(e.a - e.b)}">${sd(e.a - e.b)}</span></td><td class="n">${e.qa}</td><td style="white-space:normal;min-width:260px">${Object.entries(e.cr).sort((x, y) => y[1] - x[1]).slice(0, 4).map(([h, v]) => `@${h} <b class="num">${usd(v)}</b>`).join(", ") || '<span class="note">-</span>'}</td></tr>`).join("")}</table></div>`;
+  }
+  $("#aflView").innerHTML = h + `<p class="note">출처: AF LIVE RAW(방송·매출) · 주문별 AF 매출 RAW(Livestream 주문의 제품·개수).</p>`;
+}
+// ---------------- 핵심 크리에이터 TOP 50
+let TCF = "all";
+function tcStatus(t, end) {
+  const daysSincePost = t.lastPost ? Math.round((Date.parse(end) - Date.parse(t.lastPost)) / 86400000) : 999;
+  const stop = daysSincePost > 14, slow = t.prev7 > 0 && t.last7 < t.prev7 * 0.7;
+  return {daysSincePost, stop, slow, label: stop ? ["포스팅 멈춤", "bad"] : slow ? ["매출 둔화", "bad"] : t.posts7 > 0 ? ["활발", "good"] : ["보통", ""]};
+}
+function drawTop50() {
+  const T = D.raw.topCreators || [], end = D.A[1], dates = D.raw.trend.dates;
+  document.querySelectorAll("#tcf [data-f]").forEach(b => { b.setAttribute("aria-pressed", b.dataset.f === TCF); b.onclick = () => { TCF = b.dataset.f; drawTop50(); }; });
+  const rows = T.map((t, i) => ({t, i, st: tcStatus(t, end)})).filter(x => TCF === "all" || (TCF === "slow" ? x.st.slow : x.st.stop));
+  const nStop = T.filter(t => tcStatus(t, end).stop).length, nSlow = T.filter(t => tcStatus(t, end).slow).length;
+  $("#tcnote").innerHTML = `${md(dates[0])} ~ ${md(end)} AF 매출 상위 50명. 포스팅 멈춤 <b class="down">${nStop}명</b>, 매출 둔화 <b class="down">${nSlow}명</b>. 포스팅 수는 매출이 난 영상의 포스팅일(영상 ID) 기준입니다. 매출이 없는 영상은 시트에 없어 세지 못합니다.`;
+  $("#top50").innerHTML = `<table><tr><th>#</th><th>크리에이터</th><th class="n">30일 매출</th><th>30일 추이</th><th class="n">최근 7일 vs 이전 7일</th><th class="n">새 영상 7일 / 30일</th><th class="n">마지막 포스팅</th><th>상태</th><th>주력 제품</th></tr>${rows.map(({t, i, st}) => {
+    const p = pct(t.prev7, t.last7);
+    return `<tr><td class="note">${i + 1}</td><td><a href="https://www.tiktok.com/@${t.h}" target="_blank" rel="noopener">@${t.h}</a></td>
+      <td class="n">${usd(t.gmv)}<br><span class="note">영상 ${usd(t.video)} · 라이브 ${usd(t.live)}</span></td>
+      <td>${area(t.spark, 120, 28, {fixed: true})}</td>
+      <td class="n">${usd(t.prev7)} → ${usd(t.last7)}<br><span class="pill ${cls(p)}">${p == null ? "신규" : (p >= 0 ? "+" : "") + p.toFixed(0) + "%"}</span></td>
+      <td class="n">${t.posts7} / ${t.posts30}</td>
+      <td class="n">${t.lastPost ? md(t.lastPost) + ` <span class="note">(${st.daysSincePost}일 전)</span>` : "-"}</td>
+      <td><span class="tag ${st.label[1]}">${st.label[0]}</span></td>
+      <td class="note" style="white-space:normal;min-width:180px">${t.topProducts.map(x => short(x.name || x.pid)).join(", ")}</td></tr>`;
+  }).join("") || '<tr><td colspan="9" class="note">해당 크리에이터가 없습니다.</td></tr>'}</table>`;
+}
 function drawProdPipes() {
   const P = D.prods.map(p => ({p, d: p.a.gmv - p.b.gmv})).filter(x => Math.abs(x.d) >= 50).sort((x, y) => Math.abs(y.d) - Math.abs(x.d)).slice(0, 15);
   $("#prodPipes").innerHTML = P.map(({p, d}) => {
@@ -639,7 +687,7 @@ async function load() {
   catch (e) { $("#app").innerHTML = `<div class="loading">데이터를 불러오지 못했습니다: ${e.message}<br>날짜가 시트에 입력돼 있는지 확인하고 다시 시도해 주세요.</div>`; }
 }
 const mq = matchMedia("(prefers-color-scheme: dark)");
-const redraw = () => { if (D) { drawKpis(); drawMap(); drawCView(); drawLive(); } };
+const redraw = () => { if (D) { drawTop50(); drawMap(); drawCView(); drawLive(); } };
 mq.addEventListener ? mq.addEventListener("change", redraw) : mq.addListener(redraw);
 new MutationObserver(redraw).observe(document.documentElement, {attributes: true, attributeFilter: ["data-theme"]});
 load();
