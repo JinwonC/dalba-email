@@ -251,11 +251,13 @@ module.exports = async (req, res) => {
     const bi = n => colIndex(BH, n);
     const bcols = { handle: bi("Handle"), title: bi("Room name"), start: bi("Start time"), dur: bi("LIVE duration"), gmv: bi("LIVE-attributed GMV"), items: bi("LIVE-attributed items sold"), sku: bi("LIVE-attributed SKU orders"), cust: bi("Attributed customers"), orders: bi("LIVE orders"), viewers: bi("Viewers"), views: bi("Views"), clicks: bi("LIVE product clicks"), impr: bi("LIVE impressions"), avgview: bi("Avg. viewing duration"), followers: bi("New followers"), auction: bi("LIVE auction-attributed GMV") };
     const blive = { a: [], b: [] };
+    const bday = { dates: tDates, minutes: zeros(), impr: zeros(), viewers: zeros(), clicks: zeros(), orders: zeros(), gmv: zeros() };
     let lastPrev = null;
     for (const r of BL.slice(1)) {
       const k = dkey(r[0]); if (!k || r.length < 8) continue;
       const s = { date: k, handle: r[bcols.handle], title: r[bcols.title], start: r[bcols.start], minutes: mins(r[bcols.dur]) };
       for (const f of ["gmv", "items", "sku", "cust", "orders", "viewers", "views", "clicks", "impr", "avgview", "followers", "auction"]) s[f] = bcols[f] >= 0 ? num(r[bcols[f]]) : 0;
+      if (ti[k] !== undefined && s.handle === "dalba_global") for (const f of ["minutes", "impr", "viewers", "clicks", "orders", "gmv"]) bday[f][ti[k]] += s[f];
       const p = per(k); if (p) blive[p].push(s);
       else if (k < a && (!lastPrev || k >= lastPrev[0].date) && s.handle === "dalba_global") { if (lastPrev && lastPrev[0].date !== k) lastPrev = null; (lastPrev = lastPrev || []).push(s); }
     }
@@ -284,7 +286,7 @@ module.exports = async (req, res) => {
       store, ads, daily, trend, sparkDates: sDates, topCreators,
       products: Object.values(prods).map(p => ({ ...p, ads: adByPid[p.id] || null })).sort((x, y) => (y.a.gmv + y.b.gmv) - (x.a.gmv + x.b.gmv)),
       creatives, troi,
-      brandLive: { a: blive.a, b: blive.b, lastBeforeA: lastPrev },
+      brandLive: { a: blive.a, b: blive.b, lastBeforeA: lastPrev, daily: bday },
       afLive: creators,
       source: { main: MAIN, ads: ADS, tabs: Object.fromEntries(Object.entries(T).map(([k, v]) => [k, v ? v.title : null])) }
     };
