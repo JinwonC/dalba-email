@@ -110,7 +110,7 @@ module.exports = async (req, res) => {
     const prodSpan = rowSpan(mv(0), 1, lo, hi);
     const trendSpan = rowSpan(mv(0), 1, lo30, hi);
     const aliveSpan = T.alive ? rowSpan(mv(2), 1, lo14, hi) : null;
-    const ordSpan = rowSpan(mv(3), 1, lo, hi);
+    const ordSpan = rowSpan(mv(3), 1, lo30, hi);
     const creSpan = rowSpan(av(0), creTail, lo14, hi);
     const avail = { prod: !!prodSpan, alive: !!aliveSpan, orders: !!ordSpan, creatives: !!creSpan };
 
@@ -137,12 +137,18 @@ module.exports = async (req, res) => {
       imp: colIndex(PH, "Product impressions"), clk: colIndex(PH, "Product clicks"), uclk: colIndex(PH, "Unique clicks"),
       slItems: colIndex(PH, "Attributed items sold")
     };
+    // 셀러(브랜드) 라이브 블록: 첫 번째 'Attributed GMV' 이후의 제품 지표
+    const b0 = colIndex(PH, "Attributed GMV");
+    const after = name => { if (b0 < 0) return -1; for (let i = b0; i < PH.length; i++) if (norm(PH[i]) === norm(name)) return i; return -1; };
+    const SLB = { gmv: b0, orders: after("Attributed orders"), items: after("Attributed items sold"), imp: after("Product impressions"), clk: after("Product clicks"), atc: after("Add-to-cart count"), uclk: after("Unique clicks") };
+    const zl = () => ({ gmv: 0, orders: 0, items: 0, imp: 0, clk: 0, atc: 0, uclk: 0 });
     const prods = {}, store = { a: z(), b: z() }, daily = {};
     function z() { return { gmv: 0, sl: 0, sv: 0, cl: 0, cv: 0, pc: 0, orders: 0, items: 0, imp: 0, clk: 0, uclk: 0 }; }
     for (const r of mbv(rangesMain.prod)) {
       const k = dkey(r[0]); const p = k && per(k); if (!p) continue;
       const id = String(r[C.id] || "").trim(); if (!id) continue;
-      const e = prods[id] || (prods[id] = { id, name: String(r[C.name] || ""), a: z(), b: z() });
+      const e = prods[id] || (prods[id] = { id, name: String(r[C.name] || ""), a: z(), b: z(), live: { a: zl(), b: zl() } });
+      for (const f in SLB) if (SLB[f] >= 0) e.live[p][f] += num(r[SLB[f]]);
       const dd = daily[k] || (daily[k] = { gmv: 0, sl: 0, cl: 0, cv: 0, sv: 0, pc: 0 });
       for (const f of Object.keys(e.a)) { const v = C[f] >= 0 ? num(r[C[f]]) : 0; e[p][f] += v; store[p][f] += v; if (f in dd) dd[f] += v; }
     }
@@ -181,15 +187,41 @@ module.exports = async (req, res) => {
     const creatorOf = {};
     for (const r of mv(4).slice(1)) { const cid = String(r[2] || "").trim(); if (cid && r[0]) creatorOf[cid] = String(r[0]).trim(); }
     const vidRev = {}, liveCP = { a: {}, b: {} };
+    const TC = {};
     for (const r of mbv(rangesMain.ord)) {
-      const k = dkey(r[0]); const p = k && per(k); if (!p) continue;
+      const k = dkey(r[0]); if (!k) continue;
       const type = String(r[13] || ""), pay = num(r[6]), qty = num(r[8]) || 1, cid = String(r[14] || "").trim(), h = String(r[12] || "").trim().toLowerCase(), pid = String(r[2] || "").trim();
+      const ii = ti[k];
+      if (ii !== undefined && h) {
+        const t = TC[h] || (TC[h] = { h, gmv: 0, video: 0, live: 0, other: 0, spark: tDates.map(() => 0), vids: {}, prods: {}, lastSale: k });
+        t.gmv += pay; t.spark[ii] += pay; if (k > t.lastSale) t.lastSale = k;
+        if (/live/i.test(type)) t.live += pay; else if (/video/i.test(type)) t.video += pay; else t.other += pay;
+        if (cid && /video/i.test(type)) t.vids[cid] = (t.vids[cid] || 0) + pay;
+        t.prods[pid] = (t.prods[pid] || 0) + pay;
+      }
+      const p = per(k); if (!p) continue;
       if (/live/i.test(type)) {
         const m = liveCP[p][h] || (liveCP[p][h] = {}); const e = m[pid] || (m[pid] = { pay: 0, qty: 0 }); e.pay += pay; e.qty += qty;
       } else if (cid) {
         const e = vidRev[cid] || (vidRev[cid] = { a: 0, b: 0, pid }); e[p] += pay;
       }
     }
+
+    const nameOf = id => (prods[id] && prods[id].name) || "";
+    // ── 최근 30일 매출 TOP 50 크리에이터 (영상을 계속 올리는지: 판매가 난 영상의 포스팅일 기준)
+    const vidsOf = {};
+    for (const r of mv(4).slice(1)) { const cid = String(r[2] || "").trim(), h = String(r[0] || "").trim().toLowerCase(); if (cid && h && /video/i.test(String(r[1] || ""))) (vidsOf[h] = vidsOf[h] || new Set()).add(cid); }
+    const end = a2, d7 = addDays(end, -6), d14 = addDays(end, -13), d30 = addDays(end, -29);
+    const topCreators = Object.values(TC).sort((x, y) => y.gmv - x.gmv).slice(0, 50).map(t => {
+      const posts = [...(vidsOf[t.h] || [])].map(postDate).filter(Boolean).filter(d => d <= end).sort();
+      const sum = (i0, i1) => t.spark.slice(i0, i1).reduce((s, v) => s + v, 0);
+      return { h: t.h, gmv: Math.round(t.gmv), video: Math.round(t.video), live: Math.round(t.live), other: Math.round(t.other),
+        last7: Math.round(sum(23, 30)), prev7: Math.round(sum(16, 23)), spark: t.spark.map(Math.round), lastSale: t.lastSale,
+        videosWithSales30: Object.keys(t.vids).length,
+        posts7: posts.filter(d => d >= d7).length, posts14: posts.filter(d => d >= d14).length, posts30: posts.filter(d => d >= d30).length,
+        lastPost: posts.length ? posts[posts.length - 1] : null, totalVideos: posts.length,
+        topProducts: Object.entries(t.prods).sort((x, y) => y[1] - x[1]).slice(0, 3).map(([pid, v]) => ({ pid, name: nameOf(pid), pay: Math.round(v) })) };
+    });
 
     // ── 소재별 광고성과
     const CR = (av(4)[0]) || [];
@@ -206,7 +238,6 @@ module.exports = async (req, res) => {
       if (!p) continue;
       e[p].s += num(r[ci.spend]); e[p].g += num(r[ci.gmv]); e[p].o += num(r[ci.orders]); e[p].i += num(r[ci.imp]); e[p].c += num(r[ci.clk]);
     }
-    const nameOf = id => (prods[id] && prods[id].name) || "";
     const creatives = Object.values(cre).filter(e => e.a.s + e.b.s + e.a.g + e.b.g > 0).map(e => ({
       cid: e.cid, camp: e.camp, pid: e.pid, product: nameOf(e.pid), creator: creatorOf[e.cid] || null, posted: postDate(e.cid),
       a: { spend: r2(e.a.s), gmv: r2(e.a.g), orders: e.a.o, imp: e.a.i, clk: e.a.c },
@@ -250,7 +281,7 @@ module.exports = async (req, res) => {
 
     const out = {
       periods: { a: [a, a2], b: [b, b2], days }, avail,
-      store, ads, daily, trend, sparkDates: sDates,
+      store, ads, daily, trend, sparkDates: sDates, topCreators,
       products: Object.values(prods).map(p => ({ ...p, ads: adByPid[p.id] || null })).sort((x, y) => (y.a.gmv + y.b.gmv) - (x.a.gmv + x.b.gmv)),
       creatives, troi,
       brandLive: { a: blive.a, b: blive.b, lastBeforeA: lastPrev },
