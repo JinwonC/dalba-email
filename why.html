@@ -566,17 +566,13 @@ function drawLive() {
   const L = brandFunnel(); let h = "";
   if (L) h += `<p class="note">${L.sameAsB ? "" : `비교 기간엔 방송이 없어 직전 방송일 ${md(L.o.date)}과 비교합니다. `}방송 GMV = 방송 시간 × 시간당 노출 × 시청 진입률 × 상품 클릭률 × 구매 전환 × 객단가</p>` + stops(L.steps.map(s => ({name: s.name, v: s.v, c: s.c})).concat([{name: "방송 GMV", v: `${usd(L.o.gmv)}→${usd(L.n.gmv)}`, c: L.n.gmv - L.o.gmv, icon: "$"}]), "--c-live");
   const P = D.prods.filter(p => p.live && (p.live.a.gmv > 0 || p.live.b.gmv > 0)).sort((x, y) => y.live.a.gmv - x.live.a.gmv).slice(0, 15);
-  const r = (v, d) => d ? (v / d * 100) : null, f1 = v => v == null ? "-" : v.toFixed(1) + "%";
-  const best = k => { let m = -1, id = null; P.forEach(p => { const v = k(p); if (v != null && v > m && p.live.a.clk >= 20) { m = v; id = p.id; } }); return id; };
-  const bCtor = best(p => r(p.live.a.orders, p.live.a.clk)), bCtr = best(p => r(p.live.a.clk, p.live.a.imp));
-  h += `<h3 style="margin-top:10px">브랜드 라이브 제품 성과 (기준 기간, 괄호는 비교 기간)</h3><div class="ctable"><table><tr><th>제품</th><th class="n">라이브 매출</th><th class="n">판매 개수</th><th class="n">노출</th><th class="n">클릭률</th><th class="n">장바구니</th><th class="n">CTOR (주문÷클릭)</th></tr>${P.map(p => {
+  const totA = P.reduce((s, p) => s + p.live.a.gmv, 0) || 1;
+  h += `<h3 style="margin-top:10px">브랜드 라이브 제품 성과 (기준 기간, 괄호는 비교 기간)</h3><div class="ctable"><table><tr><th>제품</th><th class="n">라이브 매출</th><th class="n">매출 비중</th><th class="n">주문</th><th class="n">판매 개수</th><th class="n">객단가</th></tr>${P.map(p => {
     const a = p.live.a, b = p.live.b;
-    return `<tr><td>${p.name}</td><td class="n">${usd(a.gmv)} <span class="note">(${usd(b.gmv)})</span> <span class="pill ${cls(a.gmv - b.gmv)}">${sd(a.gmv - b.gmv)}</span></td><td class="n">${Math.round(a.items)} <span class="note">(${Math.round(b.items)})</span></td>
-      <td class="n">${Math.round(a.imp).toLocaleString()} <span class="note">(${Math.round(b.imp).toLocaleString()})</span></td>
-      <td class="n">${f1(r(a.clk, a.imp))}${p.id === bCtr ? ' <span class="tag good">최고</span>' : ""} <span class="note">(${f1(r(b.clk, b.imp))})</span></td>
-      <td class="n">${Math.round(a.atc)} <span class="note">(${Math.round(b.atc)})</span></td>
-      <td class="n">${f1(r(a.orders, a.clk))}${p.id === bCtor ? ' <span class="tag good">최고</span>' : ""} <span class="note">(${f1(r(b.orders, b.clk))})</span></td></tr>`;
-  }).join("")}</table></div><p class="note">출처: 제품별 유입매출 RAW의 셀러 라이브 지표. '최고'는 클릭 20회 이상 제품 중 가장 높은 값입니다.</p>`;
+    return `<tr><td>${p.name}</td><td class="n">${usd(a.gmv)} <span class="note">(${usd(b.gmv)})</span> <span class="pill ${cls(a.gmv - b.gmv)}">${sd(a.gmv - b.gmv)}</span></td><td class="n">${(a.gmv / totA * 100).toFixed(1)}%</td>
+      <td class="n">${Math.round(a.orders)} <span class="note">(${Math.round(b.orders)})</span></td><td class="n">${Math.round(a.items)} <span class="note">(${Math.round(b.items)})</span></td>
+      <td class="n">${a.orders ? "$" + (a.gmv / a.orders).toFixed(2) : "-"} <span class="note">(${b.orders ? "$" + (b.gmv / b.orders).toFixed(2) : "-"})</span></td></tr>`;
+  }).join("")}</table></div><p class="note">출처: 제품별 유입매출 RAW의 셀러 라이브 지표. 이 내보내기에는 라이브 안 제품별 노출·클릭이 거의 잡히지 않아(주문은 있는데 클릭 0인 경우가 대부분) 제품별 CTR·CTOR은 표시하지 않습니다. 방송 전체의 클릭률·전환은 위 파이프에 있습니다.</p>`;
   $("#brandLive").innerHTML = h;
   drawAfl();
 }
