@@ -164,6 +164,20 @@ section[data-panel]{display:flex;flex-direction:column;gap:12px}
 .dlg::backdrop{background:rgba(10,12,20,.4)}
 .dlg .card{position:static;max-height:none;border:0;padding:0}
 .lc{display:block;width:100%;height:auto;touch-action:pan-y}
+.hb{display:flex;flex-direction:column;gap:6px}
+.hb .r{display:grid;grid-template-columns:150px minmax(0,1fr) 150px;gap:10px;align-items:center;font-size:13px}
+.hb .r>span:first-child{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hb .r>span:last-child{font-variant-numeric:tabular-nums;text-align:right;color:var(--muted);font-size:12.5px}
+.hb .track{display:flex;height:16px;border-radius:4px;overflow:hidden;background:var(--soft)}
+.hb .track i{display:block;height:100%;border-right:2px solid var(--surface)}
+.hb .dv{display:grid;grid-template-columns:1fr 1fr;height:16px}
+.hb .dv>div{display:flex;gap:0} .hb .dv>div:first-child{justify-content:flex-end;border-right:1px solid var(--muted)}
+.hb .dv i{display:block;height:100%}
+.hb button.r{font:inherit;color:inherit;background:none;border:0;padding:2px 0;cursor:pointer;text-align:left;width:100%}
+.hb button.r:hover{background:var(--soft);border-radius:6px}
+.lgd{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)} .lgd i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.sbar{display:inline-block;height:8px;border-radius:2px;background:var(--c-live);vertical-align:middle;margin-right:6px}
+@media (max-width:640px){.hb .r{grid-template-columns:90px minmax(0,1fr) 92px}}
 </style>
 </head>
 <body>
@@ -242,9 +256,9 @@ function render(raw) {
   $("#app").innerHTML = `
   <div class="headline">매출 <b class="num">${usd(n.gmv)}</b>, 비교 대비 <b class="num ${cls(TOT)}">${sd(TOT)} (${spc(o.gmv, n.gmv)})</b>. 가장 크게 움직인 건 <b style="color:var(${COL[top.id]})">${top.name} ${sd(top.d)}</b>(${Math.round(top.d / TOT * 100)}%)입니다.${liveNote}${adNote}</div>
   <div class="tabs" role="tablist">${[["sum", "요약"], ["todo", "해야 할 일"], ["cre", "광고 소재"], ["top", "크리에이터 TOP 30"], ["live", "라이브"]].map(([k, t]) => `<button class="tab" type="button" role="tab" data-tab="${k}" aria-selected="${k === TAB}">${t}</button>`).join("")}</div>
-  <section data-panel="sum"><div class="box"><div id="storePipe"></div></div>
+  <section data-panel="sum"><div class="box"><h2>채널별로 보면</h2><div id="wf"></div></div><div class="box"><div id="storePipe"></div></div>
     <div class="main"><div class="mapbox" id="mapbox"><div class="legend" id="legend"></div><svg id="map" role="img" aria-label="매출 원인 노선도"></svg></div><aside class="card" id="card" aria-live="polite"></aside></div></section>
-  <section data-panel="todo"><div class="box"><h2>판정 기준</h2><div class="guide" id="guide"></div><p class="note" style="margin:0">ROI = 고른 기준 기간의 매출 ÷ 광고비. 광고비 $3 미만이고 매출 $15 미만인 소재는 판정하지 않습니다. 하루치는 흔들리니 끄거나 키우기 전에 기준을 최근 7일로 잡고 다시 보세요.</p></div><div class="box" id="shift"></div><div id="todo"></div></section>
+  <section data-panel="todo"><div class="box"><h2>판정 기준</h2><div class="guide" id="guide"></div><p class="note" style="margin:0">ROI = 고른 기준 기간의 매출 ÷ 광고비. 광고비 $3 미만이고 매출 $15 미만인 소재는 판정하지 않습니다. 하루치는 흔들리니 끄거나 키우기 전에 기준을 최근 7일로 잡고 다시 보세요.</p></div><div class="box"><h2>제품별 광고비가 어디로 가나</h2><div id="spendMix"></div></div><div id="todo"></div></section>
   <section data-panel="cre"><div class="box"><div class="how"><b>이렇게 보세요</b><ol>
     <li><b>제품 카드 첫 문장</b>: 이 제품 매출이 얼마나, 주로 어떤 소재 때문에 움직였는지 한 문장으로 적혀 있습니다.</li>
     <li><b>소재 파이프</b>: 광고비 → 신규 · 최근 · 오래된 소재 → 매출. <span class="up">초록</span> 마디가 매출을 올린 묶음, <span class="down">빨강</span> 마디가 깎은 묶음입니다.</li>
@@ -258,7 +272,7 @@ function render(raw) {
   document.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { TAB = b.dataset.tab; showTab(); });
   document.querySelectorAll("[data-goto]").forEach(b => b.onclick = () => { TAB = b.dataset.goto; showTab(); window.scrollTo({top: 0, behavior: "smooth"}); });
   showTab();
-  drawTodo(); drawTop50(); drawStorePipe(); drawMap(); drawCView(); drawLive(); select("root");
+  drawTodo(); drawTop50(); drawWaterfall(); drawStorePipe(); drawMap(); drawCView(); drawLive(); select("root");
   fillHandles();
 }
 let TAB = "sum";
@@ -268,6 +282,24 @@ function showTab() {
 }
 function stops(items, color) {
   return `<div class="pipe" style="--pc:var(${color || "--ink"})">${items.map(x => `<div class="stop${x.c != null && x.c < 0 ? " neg" : ""}"><div class="dot ${x.c == null ? "" : x.c >= 0 ? "up" : "down"}">${x.icon || (x.c == null ? "·" : x.c >= 0 ? "+" : "−")}</div><div class="nm">${x.name}</div><div class="vv">${x.v}</div><div class="cc ${cls(x.c)}">${x.c == null ? (x.cc || "") : sd(x.c)}</div></div>`).join("")}</div>`;
+}
+function drawWaterfall() {
+  const ch = [...D.chans].sort((x, y) => y.d - x.d), o = D.st.b.gmv, n = D.st.a.gmv;
+  const steps = [{name: "비교 매출", v: o, total: true}, ...ch.map(c => ({name: c.name, d: c.d, id: c.id})), {name: "기준 매출", v: n, total: true}];
+  let run = o; const bars = steps.map(st => { if (st.total) return {...st, y0: 0, y1: st.v}; const b = {...st, y0: run, y1: run + st.d}; run += st.d; return b; });
+  const lo = Math.min(...bars.filter(b => !b.total).flatMap(b => [b.y0, b.y1]), n, o) * 0.9, hi = Math.max(...bars.flatMap(b => [b.y0, b.y1])) * 1.02;
+  const W = 900, H = 230, pb = 40, pt = 22, bw = W / steps.length, y = v => pt + (H - pt - pb) * (1 - (v - lo) / (hi - lo));
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;max-height:260px" role="img" aria-label="채널별 매출 증감 폭포 그래프">`;
+  bars.forEach((b, i) => {
+    const x = i * bw + bw * 0.18, w = bw * 0.64, top = y(Math.max(b.y0, b.y1)), bot = b.total ? y(lo) : y(Math.min(b.y0, b.y1)), hh = Math.max(2, bot - top);
+    const col = b.total ? css("--neutral") : css(b.d >= 0 ? "--up" : "--down");
+    s += `<g data-tip="${b.name}<br>${b.total ? usd(b.v) : sd(b.d) + " (" + usd(b.y0) + " → " + usd(b.y1) + ")"}"><rect x="${x}" y="${top}" width="${w}" height="${hh}" rx="4" fill="${col}" ${b.total ? 'fill-opacity=".55"' : ""}/>`;
+    if (i < bars.length - 1) s += `<line x1="${x + w}" x2="${x + bw}" y1="${y(b.total ? b.v : b.y1)}" y2="${y(b.total ? b.v : b.y1)}" stroke="${css("--muted")}" stroke-dasharray="2 3"/>`;
+    s += `<text x="${x + w / 2}" y="${top - 6}" text-anchor="middle" font-size="12.5" font-weight="600" class="num" fill="${b.total ? css("--ink") : col}">${b.total ? usd(b.v) : sd(b.d)}</text>`;
+    s += `<text x="${x + w / 2}" y="${H - 20}" text-anchor="middle" font-size="12" fill="${css("--ink")}">${b.name}</text>${b.total ? "" : `<text x="${x + w / 2}" y="${H - 5}" text-anchor="middle" font-size="10.5" fill="${css("--muted")}">비교 매출의 ${(b.d >= 0 ? "+" : "") + (b.d / o * 100).toFixed(1)}%</text>`}</g>`;
+  });
+  $("#wf").innerHTML = `<div style="overflow-x:auto"><div style="min-width:640px">${s}</svg></div></div><p class="note" style="margin:0">비교 매출에서 채널별로 얼마가 더해지고 빠져 기준 매출이 됐는지. 막대 아래 % = 비교 매출 대비 그 채널이 만든 증감. 막대에 마우스를 올리면 금액이 보입니다.${D.norm ? " 기간 길이가 달라 일평균입니다." : ""}</p>`;
+  bindTips($("#wf"));
 }
 function drawStorePipe() {
   const n = D.st.a, o = D.st.b;
@@ -396,7 +428,12 @@ function drawCView() {
     const rows = Object.entries(by).map(([pid, L]) => ({name: (D.prods.find(p => p.id === pid) || {}).name || L[0].camp, L, d: L.reduce((s, c) => s + c.dg, 0), s: L.reduce((s, c) => s + c.ds, 0),
       ga: L.reduce((s, c) => s + c.ga, 0), gb: L.reduce((s, c) => s + c.gb, 0), sa: L.reduce((s, c) => s + c.sa, 0), sb: L.reduce((s, c) => s + c.sb, 0)}))
       .sort((x, y) => Math.abs(y.d) - Math.abs(x.d)).slice(0, 12);
-    h = rows.map((r, ri) => {
+    const AC = {new: "--accent", mid: "--c-video", old: "--c-card"};
+    const mxd = Math.max(1, ...rows.map(r => { const sp = ageSplit(r.L); return Math.max(["new", "mid", "old"].reduce((a, k) => a + Math.max(0, sp[k].d), 0), ["new", "mid", "old"].reduce((a, k) => a + Math.max(0, -sp[k].d), 0)); }));
+    const seg = (sp, sign, name) => ["new", "mid", "old"].filter(k => sign * sp[k].d > 0).map(k => `<i data-tip="${name} · ${AGE[k]} 소재 ${sp[k].n}개<br>매출 ${sd(sp[k].d)}" style="width:${(Math.abs(sp[k].d) / mxd * 100).toFixed(1)}%;background:var(${AC[k]})"></i>`);
+    h = `<div class="box" style="padding:10px 12px"><h3>제품별 매출 증감, 어떤 소재 때문인가</h3><div class="lgd">${["new", "mid", "old"].map(k => `<span><i style="background:var(${AC[k]})"></i>${AGE[k]} 소재</span>`).join("")}<span>· 가운데 선 왼쪽 = 깎음, 오른쪽 = 올림 · 줄을 누르면 아래 카드가 열립니다</span></div>
+      <div class="hb">${rows.map((r, ri) => { const sp = ageSplit(r.L); return `<button class="r" type="button" data-pc="${ri}"><span>${r.name}</span><div class="dv"><div>${seg(sp, -1, r.name).reverse().join("")}</div><div>${seg(sp, 1, r.name).join("")}</div></div><span class="${cls(r.d)}">${sd(r.d)}</span></button>`; }).join("")}</div></div>`;
+    h += rows.map((r, ri) => {
       const up = r.L.filter(c => c.dg > 0).sort((x, y) => y.dg - x.dg).slice(0, 5), dn = r.L.filter(c => c.dg < 0).sort((x, y) => x.dg - y.dg).slice(0, 5);
       const sp = ageSplit(r.L), big = ["new", "mid", "old"].sort((x, y) => Math.abs(sp[y].d) - Math.abs(sp[x].d))[0];
       const roi = (g, s2) => s2 >= 1 ? (g / s2).toFixed(2) : "-";
@@ -406,7 +443,7 @@ function drawCView() {
       const pipe = stops([{name: "광고비", v: `${usd(r.sb)}→${usd(r.sa)}`, c: null, cc: sd(r.s), icon: "₩"},
         ...["new", "mid", "old"].map(k => ({name: `${AGE[k]} 소재 ${sp[k].n}개`, v: `광고비 ${sd(sp[k].s)}`, c: sp[k].n ? sp[k].d : null, cc: "-"})),
         {name: "매출", v: `${usd(r.gb)}→${usd(r.ga)}`, c: r.d, icon: "$"}], "--c-video");
-      return `<details class="pcard" ${ri < 1 ? "open" : ""}><summary><h3>${r.name}</h3>
+      return `<details class="pcard" id="pc-${ri}" ${ri < 1 ? "open" : ""}><summary><h3>${r.name}</h3>
         <span class="kv">매출 <b>${usd(r.gb)} → ${usd(r.ga)}</b> <span class="pill ${cls(r.d)}">${sd(r.d)}</span></span>
         <span class="kv">광고비 <b>${usd(r.sb)} → ${usd(r.sa)}</b></span>
         <span class="kv">ROI <b>${roi(r.gb, r.sb)} → ${roi(r.ga, r.sa)}</b></span></summary>
@@ -429,6 +466,8 @@ function drawCView() {
   }
   $("#cview").innerHTML = h;
   $("#cview").querySelectorAll("[data-open]").forEach(b => b.onclick = e => { e.preventDefault(); openDetail(b.dataset.open); });
+  $("#cview").querySelectorAll("[data-pc]").forEach(b => b.onclick = () => { const d = $("#pc-" + b.dataset.pc); d.open = true; d.scrollIntoView({behavior: "smooth", block: "start"}); });
+  bindTips($("#cview"));
 }
 
 // ---------------- 노선도
@@ -453,10 +492,10 @@ function laneData() {
         const ad = x.p.ads ? x.p.ads.a.spend * D.fa - x.p.ads.b.spend * D.fb : L.reduce((s, c) => s + c.ds, 0);
         const upC = [...L].sort((u, v) => v.dg - u.dg)[0], dnC = [...L].sort((u, v) => u.dg - v.dg)[0];
         const beads = !L.length ? [] : [
-          {id: "va-" + id, label: "광고비", d: ad, neutral: true, sub: "", kind: "adspend", data: {p: x.p}},
-          ...["new", "mid", "old"].map(k => ({id: "vg-" + k + id, label: AGE[k] + " 소재 " + grp(k).length, d: sumd(grp(k)), sub: "", kind: "agegrp", data: {p: x.p, L: grp(k), k}}))];
-        if (upC && upC.dg > 0) beads.push({id: "c-" + upC.cid + upC.camp, label: "▲ " + upC.label, d: upC.dg, sub: "", kind: "creative", data: upC});
-        if (dnC && dnC.dg < 0) beads.push({id: "c-" + dnC.cid + dnC.camp, label: "▼ " + dnC.label, d: dnC.dg, sub: "", kind: "creative", data: dnC});
+          {id: "va-" + id, label: "", d: ad, neutral: true, sub: "", kind: "adspend", data: {p: x.p}, col: 0},
+          ...["new", "mid", "old"].map((k, ki) => ({id: "vg-" + k + id, label: grp(k).length + "개", d: sumd(grp(k)), sub: "", kind: "agegrp", data: {p: x.p, L: grp(k), k}, col: ki + 1}))];
+        if (upC && upC.dg > 0) beads.push({id: "c-" + upC.cid + upC.camp, label: upC.label, d: upC.dg, sub: "", kind: "creative", data: upC, col: 4});
+        if (dnC && dnC.dg < 0) beads.push({id: "c-" + dnC.cid + dnC.camp, label: dnC.label, d: dnC.dg, sub: "", kind: "creative", data: dnC, col: 5});
         sub.push({id: "v-" + id, name: x.p.name, d: x.d, o: x.o, n: x.n, kind: "prodlane", prod: x.p, beads});
       }
     } else {
@@ -483,6 +522,7 @@ function drawMap() {
     const w = 3 + 14 * Math.abs(l.d) / maxL;
     const p0 = `M${rx},${ry} C${rx + 60},${ry} ${cx - 60},${cy} ${cx},${cy}`;
     s += `<path d="${p0}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linecap="round"/><path class="flow ${l.d < 0 ? "out" : ""}" d="${p0}" fill="none" stroke="${css("--surface")}" stroke-width="${Math.max(1.5, w / 4)}" stroke-dasharray="3 21"/>`;
+    if (l.id === "video") ["광고비", "신규 소재", "최근 소재", "오래된 소재", "▲ 가장 오른", "▼ 가장 빠진"].forEach((t, k) => s += `<text x="${cx + 330 + k * 84}" y="${y0 + 14}" text-anchor="middle" font-size="11" font-weight="700" fill="${css("--muted")}">${t}</text>`);
     s += `<text x="${cx - 4}" y="${y0 + 14}" font-size="14" font-weight="700" fill="${col}">${l.name} <tspan class="num" fill="${css(l.d >= 0 ? "--up" : "--down")}" font-size="13">${sd(l.d)}</tspan><tspan fill="${css("--muted")}" font-size="12"> ${usd(l.o)} → ${usd(l.n)}</tspan></text>`;
     l.sub.forEach((sb, j) => {
       const ly = y0 + headH + j * rowH + 22, sw = Math.max(2, w * 0.6);
@@ -497,7 +537,7 @@ function drawMap() {
         <text x="${cx + 108}" y="${ly + 4}" font-size="12" font-weight="600" fill="${css("--ink")}">${lab.length > 13 ? lab.slice(0, 12) + "…" : lab}</text>
         <text x="${cx + 256}" y="${ly + 4}" font-size="11.5" text-anchor="end" class="num" fill="${css(sb.d >= 0 ? "--up" : "--down")}">${dtxt}</text></g>`;
       sb.beads.forEach((b, k) => {
-        const bx = cx + 330 + k * 84, r = b.d == null ? 7 : 5 + 11 * Math.sqrt(Math.abs(b.d) / maxB);
+        const bx = cx + 330 + (b.col ?? k) * 84, r = b.d == null ? 7 : 5 + 11 * Math.sqrt(Math.abs(b.d) / maxB);
         const ring = b.d == null || b.neutral ? css("--neutral") : css(b.d >= 0 ? "--up" : "--down");
         NODES[b.id] = {type: "bead", lane: l, sub: sb, bead: b};
         const t = b.label.length > 11 ? b.label.slice(0, 10) + "…" : b.label;
@@ -589,7 +629,7 @@ function card(id, el) {
     else if (n.type === "prodlane") { const p = n.sub.prod; title = p.name; crumb += " › " + p.name; h = `<div class="big ${cls(n.sub.d)}">${sd(n.sub.d)}</div><div class="muted">${l.name}에서 ${usd(n.sub.o)} → ${usd(n.sub.n)}</div>` + prodCard(p); }
     else if (n.type === "group") { title = n.sub.name; crumb += " › " + n.sub.name; h = `<table>${n.sub.beads.map(b => `<tr><td>${b.label}<br><span class="note">${b.sub}</span></td><td class="n ${cls(b.d)}">${sd(b.d)}</td></tr>`).join("")}</table>`; }
     else {
-      const b = n.bead; crumb += " › " + n.sub.name; title = b.label;
+      const b = n.bead; crumb += " › " + n.sub.name; title = b.kind === "adspend" ? "광고비" : b.kind === "agegrp" ? `${AGE[b.data.k]} 소재 ${b.data.L.length}개` : b.label;
       if (b.kind === "creative") {
         const c = b.data, [j, k] = judge(c);
         h = `<div class="big ${cls(c.dg)}">${sd(c.dg)}</div><div class="muted">${c.name} 광고 소재${j ? ` <span class="tag ${k}">${j}</span>` : ""}</div>
@@ -671,7 +711,7 @@ function drawLive() {
   const totA = P.reduce((s, p) => s + p.live.a.gmv, 0) || 1;
   h += `<h3 style="margin-top:10px">브랜드 라이브 제품 성과 (기준 기간, 괄호는 비교 기간)</h3><div class="ctable"><table><tr><th>제품</th><th class="n">라이브 매출</th><th class="n">매출 비중</th><th class="n">주문</th><th class="n">판매 개수</th><th class="n">객단가</th></tr>${P.map(p => {
     const a = p.live.a, b = p.live.b;
-    return `<tr><td>${p.name}</td><td class="n">${usd(a.gmv)} <span class="note">(${usd(b.gmv)})</span> <span class="pill ${cls(a.gmv - b.gmv)}">${sd(a.gmv - b.gmv)}</span></td><td class="n">${(a.gmv / totA * 100).toFixed(1)}%</td>
+    return `<tr><td>${p.name}</td><td class="n">${usd(a.gmv)} <span class="note">(${usd(b.gmv)})</span> <span class="pill ${cls(a.gmv - b.gmv)}">${sd(a.gmv - b.gmv)}</span></td><td class="n"><span class="sbar" style="width:${(a.gmv / totA * 140).toFixed(0)}px"></span>${(a.gmv / totA * 100).toFixed(1)}%</td>
       <td class="n">${Math.round(a.orders)} <span class="note">(${Math.round(b.orders)})</span></td><td class="n">${Math.round(a.items)} <span class="note">(${Math.round(b.items)})</span></td>
       <td class="n">${a.orders ? "$" + (a.gmv / a.orders).toFixed(2) : "-"} <span class="note">(${b.orders ? "$" + (b.gmv / b.orders).toFixed(2) : "-"})</span></td></tr>`;
   }).join("")}</table></div><p class="note">출처: 제품별 유입매출 RAW의 셀러 라이브 지표. 이 내보내기에는 라이브 안 제품별 노출·클릭이 거의 잡히지 않아(주문은 있는데 클릭 0인 경우가 대부분) 제품별 CTR·CTOR은 표시하지 않습니다. 방송 전체의 클릭률·전환은 위 파이프에 있습니다.</p>`;
@@ -789,20 +829,16 @@ function aflSankey(C, pn) {
   Ps.forEach(p => { const n = NP[p]; s += `<rect x="${x1}" y="${n.y}" width="8" height="${Math.max(2, n.h)}" rx="2" fill="${css("--accent")}"/><text x="${x1 + 14}" y="${n.y + n.h / 2 + 4}" font-size="12" fill="${css("--ink")}">${name(p)} <tspan class="num" fill="${css("--muted")}">${usd(pv[p])}</tspan></text>`; });
   return `<div style="overflow-x:auto">${s}</svg></div><p class="note" style="margin-top:0">기준 기간 AF 라이브 매출 상위 ${Cs.length}명이 어떤 제품을 팔았는지. 선 굵기 = 판매액, 선에 마우스를 올리면 금액·개수가 보입니다.</p>`;
 }
-// 해야 할 일: KILL 검토 소재 광고비를 잘 되는 소재로 옮기면
-function drawShift(byP) {
-  const all = Object.values(byP).flat();
-  const kill = all.filter(c => grade(c) === "kill" && c.sa >= 5), bst = all.filter(boost);
-  const good = all.filter(c => (grade(c) === "good" || grade(c) === "best") && c.sa >= 1);
-  const save = kill.reduce((s, c) => s + c.sa, 0) / D.dA, killG = kill.reduce((s, c) => s + c.ga, 0) / D.dA;
-  const roi = good.reduce((s, c) => s + c.ga, 0) / Math.max(1, good.reduce((s, c) => s + c.sa, 0));
-  if (!kill.length || !(save >= 1)) { $("#shift").hidden = true; return; }
-  const gain = save * roi - killG;
-  $("#shift").innerHTML = `<h2>KILL 검토 소재의 광고비를 옮기면</h2>` + stops([
-    {name: `KILL 검토 소재 ${kill.length}개`, v: `하루 광고비 ${usd(save)}`, c: null, cc: `지금 매출 ${usd(killG)}`, icon: "✕"},
-    {name: `부스팅 권장 소재 ${bst.length}개`, v: `좋음 이상 소재 평균 ROI ${roi.toFixed(2)}`, c: null, cc: `옮기면 매출 ${usd(save * roi)}`, icon: "↗"},
-    {name: "하루 매출 차이 (최대치)", v: `${usd(killG)} → ${usd(save * roi)}`, c: gain, icon: "$"}], "--accent")
-    + `<p class="note" style="margin:0">단순 계산입니다: 아낀 광고비 × 좋음 이상 소재들의 평균 ROI − KILL 검토 소재가 지금 내는 매출. 광고비를 늘리면 ROI는 보통 조금 떨어지니 상한으로 보세요.</p>`;
+function drawSpendMix(byP) {
+  const G = [["kill", "KILL 검토", "--down"], ["warn", "주의", "--warn"], ["good", "좋음", "--up"], ["best", "아주 좋음", "--c-sv"], ["none", "판정 안 함", "--neutral"]];
+  const R = Object.entries(byP).map(([pid, L]) => { const m = {kill: 0, warn: 0, good: 0, best: 0, none: 0}; L.forEach(c => m[grade(c) || "none"] += c.sa / D.dA);
+    const t = Object.values(m).reduce((a, b) => a + b, 0), g = L.reduce((s2, c) => s2 + c.ga, 0) / D.dA;
+    return {name: (D.prods.find(p => p.id === pid) || {}).name || (L[0] && L[0].camp) || "기타", m, t, g}; }).filter(r => r.t >= 5).sort((a, b) => b.t - a.t).slice(0, 12);
+  const mx = Math.max(1, ...R.map(r => r.t));
+  $("#spendMix").innerHTML = `<div class="lgd">${G.map(([, t, c]) => `<span><i style="background:var(${c})"></i>${t}</span>`).join("")}</div><div class="hb">${R.map(r =>
+    `<div class="r"><span title="${r.name}">${r.name}</span><div class="track" style="width:${(r.t / mx * 100).toFixed(1)}%">${G.map(([k, t, c]) => r.m[k] > 0 ? `<i data-tip="${r.name} · ${t}<br>하루 광고비 ${usd(r.m[k])} (${Math.round(r.m[k] / r.t * 100)}%)" style="width:${(r.m[k] / r.t * 100).toFixed(1)}%;background:var(${c})"></i>` : "").join("")}</div><span>${usd(r.t)}/일 · <b class="${r.m.kill / r.t > 0.3 ? "down" : ""}">KILL ${Math.round(r.m.kill / r.t * 100)}%</b></span></div>`).join("")}</div>
+    <p class="note" style="margin:0">막대 길이 = 하루 광고비, 색 = 그 돈을 쓰는 소재의 판정. 빨간 부분이 길수록 그 제품에서 손볼 소재가 많습니다.</p>`;
+  bindTips($("#spendMix"));
 }
 let AFV = "cr";
 function drawAfl() {
@@ -811,10 +847,12 @@ function drawAfl() {
   const C = D.creators.filter(c => c.n.gmv > 0 || c.o.gmv > 0);
   let h = "";
   if (AFV === "cr") {
-    h = `<div class="ctable"><table><tr><th>크리에이터</th><th class="n">방송 (비교 → 기준)</th><th class="n">라이브 매출</th><th>기준 기간 판매 제품 (매출 · 개수)</th><th>14일</th></tr>${C.sort((x, y) => y.n.gmv - x.n.gmv).slice(0, 25).map(c => {
+    const rowsA = C.sort((x, y) => y.n.gmv - x.n.gmv || y.o.gmv - x.o.gmv).slice(0, 40).map(c => {
       const pa = Object.entries(c.prods.a || {}).sort((x, y) => y[1].pay - x[1].pay).slice(0, 4).map(([pid, v]) => `${pn(pid)} <b class="num">${usd(v.pay)}</b> · ${v.qty}개`).join("<br>") || '<span class="note">판매 없음</span>';
       return `<tr><td>@${c.h}</td><td class="n">${c.o.sessions}회 ${(c.o.minutes / 60).toFixed(1)}h → ${c.n.sessions}회 ${(c.n.minutes / 60).toFixed(1)}h</td><td class="n">${usd(c.o.gmv)} → ${usd(c.n.gmv)}<br><span class="pill ${cls(c.d)}">${sd(c.d)}</span></td><td style="white-space:normal;min-width:260px">${pa}</td><td>${area(c.spark || [], 100, 26, {fixed: true, color: css("--c-afl")})}</td></tr>`;
-    }).join("")}</table></div>`;
+    });
+    const m = more(rowsA, 10, 15);
+    h = `<div class="ctable" style="display:flex;flex-direction:column"><table><tr><th>크리에이터</th><th class="n">방송 (비교 → 기준)</th><th class="n">라이브 매출</th><th>기준 기간 판매 제품 (매출 · 개수)</th><th>14일</th></tr>${m.body}</table>${m.btn}</div>`;
   } else {
     const by = {};
     C.forEach(c => { for (const side of ["a", "b"]) for (const [pid, v] of Object.entries(c.prods[side] || {})) { const e = by[pid] || (by[pid] = {a: 0, b: 0, qa: 0, cr: {}}); e[side] += v.pay; if (side === "a") { e.qa += v.qty; e.cr[c.h] = (e.cr[c.h] || 0) + v.pay; } } });
@@ -822,7 +860,7 @@ function drawAfl() {
       `<tr><td>${pn(pid)}</td><td class="n">${usd(e.b)} → ${usd(e.a)}<br><span class="pill ${cls(e.a - e.b)}">${sd(e.a - e.b)}</span></td><td class="n">${e.qa}</td><td style="white-space:normal;min-width:260px">${Object.entries(e.cr).sort((x, y) => y[1] - x[1]).slice(0, 4).map(([h, v]) => `@${h} <b class="num">${usd(v)}</b>`).join(", ") || '<span class="note">-</span>'}</td></tr>`).join("")}</table></div>`;
   }
   $("#aflView").innerHTML = aflSankey(C, pn) + h + `<p class="note">출처: AF LIVE RAW(방송·매출) · 주문별 AF 매출 RAW(Livestream 주문의 제품·개수).</p>`;
-  bindTips($("#aflView"));
+  bindTips($("#aflView")); bindMore($("#aflView"));
 }
 // ---------------- 크리에이터 이름 채우기 (주문 기록이 없는 광고 소재)
 async function fillHandles() {
@@ -904,7 +942,7 @@ function drawTodo() {
       ${block("TOP 30 중 멈춘·둔화 크리에이터", "bad", x.crs, ({t, st}) => `<li><a href="https://www.tiktok.com/@${t.h}" target="_blank" rel="noopener">@${t.h}</a> <span class="note">${st.label[0]} · 최근 7일 ${usd(t.last7)} · 마지막 포스팅 ${t.lastPost ? md(t.lastPost) : "-"}</span></li>`, x.crs.map(z => "@" + z.t.h).join("\n"))}
     </div>
     ${fullTable(x, xi)}</details>`).join("") : `<p class="note">해야 할 일이 없습니다.</p>`;
-  drawShift(byP);
+  drawSpendMix(byP);
   bindCopy($("#todo")); bindMore($("#todo"));
   $("#todo").querySelectorAll("[data-open]").forEach(b => b.onclick = e => { e.preventDefault(); openDetail(b.dataset.open); });
 }
