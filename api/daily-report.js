@@ -854,7 +854,8 @@ async function fetchAdCreatives(sheets) {
     const F = (...kw) => { for (let i = 0; i < h.length; i++) if (h[i] && kw.some(k => h[i].includes(k))) return i; return -1; };
     const C = { date: F("날짜", "date"), cid: F("소재id", "videoid"), status: F("게재상태", "status"), spend: F("지출", "cost"),
       imp: F("상품노출수", "productadimpressions"), clk: F("상품클릭수", "productadclicks"),
-      ctr: F("광고클릭률"), cvr: F("광고전환율", "adconversionrate"), v2s: F("2초"), v6s: F("6초") };
+      ctr: F("광고클릭률"), cvr: F("광고전환율", "adconversionrate"), v2s: F("2초"), v6s: F("6초"),
+      gmv: F("총매출", "grossrevenue"), ord: F("주문수"), camp: F("캠페인명", "campaignname") };
     if (C.date < 0 || C.cid < 0 || C.spend < 0) return null;
     const out = {};
     for (let i = 1; i < rows.length; i++) {
@@ -864,8 +865,11 @@ async function fetchAdCreatives(sheets) {
       const sp = num(r[C.spend]);
       const c = out[cid] || (out[cid] = { first: d.key, daily: {}, status: "-", statusTs: -1, wS: 0, w: { ctr: 0, cvr: 0, v2s: 0, v6s: 0 }, imp: 0, clk: 0 });
       if (d.key < c.first) c.first = d.key;
-      const e = c.daily[d.key] || (c.daily[d.key] = { spend: 0 });
+      const e = c.daily[d.key] || (c.daily[d.key] = { spend: 0, gmv: 0, ord: 0 });
       e.spend += sp;
+      if (C.gmv >= 0) e.gmv += num(r[C.gmv]);
+      if (C.ord >= 0) e.ord += num(r[C.ord]);
+      if (C.camp >= 0 && r[C.camp]) c.camp = String(r[C.camp]).trim();
       c.imp += num(r[C.imp]); c.clk += num(r[C.clk]);
       if (sp > 0) { c.wS += sp; for (const k of ["ctr", "cvr", "v2s", "v6s"]) if (C[k] >= 0) c.w[k] += num(r[C[k]]) * sp; }
       if (C.status >= 0 && r[C.status] && d.ts >= c.statusTs) { c.status = String(r[C.status]).trim(); c.statusTs = d.ts; }
@@ -879,15 +883,16 @@ function buildCreativeTimeline(afCre, adCre, win, targetKey, topN) {
   const tTs = parseDate(targetKey).ts;
   for (const cid of ids) {
     const a = afCre[cid], ad = (adCre || {})[cid];
-    let org = 0, shop = 0, cnt = 0, spend = 0;
+    let org = 0, shop = 0, cnt = 0, spend = 0, adGmv = 0;
     const daily = win.map(k => {
       const x = (a && a.daily[k]) || { org: 0, shop: 0, cnt: 0 };
-      const y = (ad && ad.daily[k]) || { spend: 0 };
-      org += x.org; shop += x.shop; cnt += x.cnt; spend += y.spend;
-      return [k.slice(5), Math.round(x.org), Math.round(x.shop), Math.round(y.spend * 100) / 100];
+      const y = (ad && ad.daily[k]) || { spend: 0, gmv: 0, ord: 0 };
+      org += x.org; shop += x.shop; cnt += x.cnt; spend += y.spend; adGmv += y.gmv || 0;
+      // [날짜, AF 오가닉, AF 샵애즈, 광고비, 광고 총매출(GMV Max 전체 매출), 광고 주문수]
+      return [k.slice(5), Math.round(x.org), Math.round(x.shop), Math.round(y.spend * 100) / 100, Math.round((y.gmv || 0) * 100) / 100, y.ord || 0];
     });
     const rev = org + shop;
-    if (rev <= 0 && spend <= 0) continue;
+    if (rev <= 0 && spend <= 0 && adGmv <= 0) continue;
     const first = [a && a.first, ad && ad.first].filter(Boolean).sort()[0];
     const age = first ? Math.round((tTs - parseDate(first).ts) / 86400000) : null;
     const bucket = age == null ? "미상" : (age <= 7 ? "신규" : (age <= 30 ? "성장" : "롱테일"));
@@ -898,13 +903,14 @@ function buildCreativeTimeline(afCre, adCre, win, targetKey, topN) {
       first, age, bucket, status: (ad && ad.status) || null,
       org: Math.round(org), shop: Math.round(shop), rev: Math.round(rev), orders: cnt,
       spend: Math.round(spend * 100) / 100,
+      adGmv: Math.round(adGmv * 100) / 100, adRoi: spend ? +(adGmv / spend).toFixed(2) : null, campaign: (ad && ad.camp) || null,
       roi: spend ? +(rev / spend).toFixed(2) : null,
       organicShare: rev ? Math.round(org / rev * 100) : null,
       detail: ad ? { imp: Math.round(ad.imp), clk: Math.round(ad.clk), ctr: wr("ctr"), cvr: wr("cvr"), v2s: wr("v2s"), v6s: wr("v6s") } : null,
       d: daily
     });
   }
-  list.sort((x, y) => y.rev - x.rev);
+  list.sort((x, y) => Math.max(y.rev, y.adGmv) - Math.max(x.rev, x.adGmv));
   const top = list.slice(0, topN || 60);
   const series = win.map(k => {
     const o = { date: k.slice(5), n: 0, g: 0, l: 0 };
@@ -1537,8 +1543,11 @@ module.exports = async (req, res) => {
         if (!adCre) { adCre = await fetchAdCreatives(sheets); MEM[ck] = { ts: now, val: adCre }; }
         const kk = Object.keys(raw.byDate).sort();
         const ii = kk.indexOf(agg.date.key);
-        const win = kk.slice(Math.max(0, ii - 29), ii + 1);
-        out.creatives = buildCreativeTimeline(afCreativeDaily(vidByDate), adCre, win, agg.date.key, 60);
+        // ?cdays=N (기본 30일 창), ?ctop=N (기본 60개, 최대 800)
+        const cdays = Math.min(60, Math.max(1, parseInt(req.query.cdays, 10) || 30));
+        const ctop = Math.min(800, Math.max(1, parseInt(req.query.ctop, 10) || 60));
+        const win = kk.slice(Math.max(0, ii - cdays + 1), ii + 1);
+        out.creatives = buildCreativeTimeline(afCreativeDaily(vidByDate), adCre, win, agg.date.key, ctop);
       }
       res.setHeader("Cache-Control", fresh ? "no-store" : (withInsights ? "s-maxage=3600, stale-while-revalidate=86400" : "s-maxage=600, stale-while-revalidate=86400"));
       res.setHeader("Access-Control-Allow-Origin", "*");
