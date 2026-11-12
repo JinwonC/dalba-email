@@ -838,7 +838,7 @@ async function fetchAdCreatives(sheets, lookbackRows) {
   try {
     const meta = await sheets.spreadsheets.get({ spreadsheetId: sid, fields: "sheets.properties.title" });
     const titles = (meta.data.sheets || []).map(s => s.properties.title);
-    let tab = titles.find(t => t.replace(/\s/g, "") === "광고소재성과");
+    let tab = titles.find(t => ["광고소재성과", "소재별광고성과"].includes(t.replace(/\s/g, "")));
     if (!tab) {
       const hb = await sheets.spreadsheets.values.batchGet({ spreadsheetId: sid, ranges: titles.map(t => `'${t}'!A1:Z2`) });
       const i = (hb.data.valueRanges || []).findIndex(v => {
