@@ -179,7 +179,7 @@ function split(oldF, newF, oldV, newV) {
   const L = oldV === newV ? oldV : (newV - oldV) / (Math.log(newV) - Math.log(oldV));
   return oldF.map((o, i) => L * Math.log(newF[i] / o));
 }
-const SHORT = [["PRO 2X 4 Bundle","PRO 2X 4번들"],["Holiday Gift Set] White Truffle First Spray Serum PRO 2X 3 Bundle","PRO 2X 3번들 홀리데이"],["PRO2X 3 Bundle","PRO2X 3번들"],["Serum PRO 2X","PRO 2X"],["First Spray Serum Holiday Gift Set (3+2+1)","퍼스트 기프트세트"],["Tone Up Sunscreen Serum Holiday Gift Set | Tone Up Sunscreen 5EA","톤업 5번들"],["Tone Up Sunscreen Serum Holiday","톤업 홀리데이 세트"],["Authentic Face Glow Serum","퍼스트 본품"],["Age Less, Lift More","보르피린3종"],["Volufiline Plumping","볼루필린 풀세트(라이브)"],["Galvanic","갈바닉 아이크림"],["Grinding Cream","그라인딩"],["Overnight Radiance Vita Set","비타 5종"],["Affordable Vita","비타 7종(라이브)"],["Glow & Lift Routine","더블라인"],["Waterfull Tone Up Sunscreen","톤업"],["Liposome","반반패드"],["All-in-one Multi Balm","멀티밤"],["5 Solution Gift Box","5 Solution 기프트박스"],["No Cakey","No Cakey 세트(라이브)"],["Morning Radiance","Morning Radiance(라이브)"],["Night Repair","Night Repair(라이브)"],["Hair Essential Duo","헤어 듀오"],["Full Skincare Routine","풀 스킨케어 루틴"],["UV Essence","UV 에센스 선크림"],["Vita Toning Anti-Aging Spray","비타 미스트 8%"],["Double Layer Revitalizing","더블레이어 세럼"],["Double Serum & Cream","더블세럼&크림"],["Vita Toning Serum Toner","비타 토너"],["Refresh Aqua","리프레시 아쿠아"],["Cleansing Duo","클렌징 듀오"],["Daily 3 Step","비타 3단계"],["Sun Stick","선스틱"]];
+const SHORT = [["2 Bottles Set] White Truffle Waterfull Tone Up","톤업 2병 세트"],["2 Bottles Set] White Truffle First","퍼스트 2병 세트"],["PRO 2X 4 Bundle","PRO 2X 4번들"],["Holiday Gift Set] White Truffle First Spray Serum PRO 2X 3 Bundle","PRO 2X 3번들 홀리데이"],["PRO2X 3 Bundle","PRO2X 3번들"],["Serum PRO 2X","PRO 2X"],["First Spray Serum Holiday Gift Set (3+2+1)","퍼스트 기프트세트"],["Tone Up Sunscreen Serum Holiday Gift Set | Tone Up Sunscreen 5EA","톤업 5번들"],["Tone Up Sunscreen Serum Holiday","톤업 홀리데이 세트"],["Authentic Face Glow Serum","퍼스트 본품"],["Age Less, Lift More","보르피린3종"],["Volufiline Plumping","볼루필린 풀세트(라이브)"],["Galvanic","갈바닉 아이크림"],["Grinding Cream","그라인딩"],["Overnight Radiance Vita Set","비타 5종"],["Affordable Vita","비타 7종(라이브)"],["Glow & Lift Routine","더블라인"],["Waterfull Tone Up Sunscreen","톤업"],["Liposome","반반패드"],["All-in-one Multi Balm","멀티밤"],["5 Solution Gift Box","5 Solution 기프트박스"],["No Cakey","No Cakey 세트(라이브)"],["Morning Radiance","Morning Radiance(라이브)"],["Night Repair","Night Repair(라이브)"],["Hair Essential Duo","헤어 듀오"],["Full Skincare Routine","풀 스킨케어 루틴"],["UV Essence","UV 에센스 선크림"],["Vita Toning Anti-Aging Spray","비타 미스트 8%"],["Double Layer Revitalizing","더블레이어 세럼"],["Double Serum & Cream","더블세럼&크림"],["Vita Toning Serum Toner","비타 토너"],["Refresh Aqua","리프레시 아쿠아"],["Cleansing Duo","클렌징 듀오"],["Daily 3 Step","비타 3단계"],["Sun Stick","선스틱"]];
 const short = n => { for (const [k, v] of SHORT) if (String(n).toLowerCase().includes(k.toLowerCase())) return v; return String(n).replace(/\[[^\]]*\]\s*/g, "").split(/[|,–-]/)[0].trim().slice(0, 22); };
 const TROI_MAP = {"프로투엑스": "PRO 2X", "퍼스트": "퍼스트 본품", "퍼스트 3번들": "퍼스트 기프트세트", "톤업선크림 (단품)": "톤업", "비타 5종": "비타 5종", "비타라인 5종": "비타 5종", "반반패드": "반반패드", "더블라인": "더블라인", "갈바닉 아이크림": "갈바닉 아이크림", "그라인딩크림": "그라인딩", "보르피린 3종": "보르피린3종", "멀티밤": "멀티밤"};
 
@@ -406,12 +406,22 @@ function laneData() {
       sub.push({id: "live-prod", name: "라이브 판매 제품", kind: "prod", beads: by("sl").slice(0, 9).map(x => ({id: "lp-" + x.p.id, label: x.p.name, d: x.d, sub: `${usd(x.o)}→${usd(x.n)}`, kind: "prod", data: {p: x.p, key: "sl"}}))});
     } else if (ch.id === "afl") {
       const C = D.creators.filter(c => Math.abs(c.d) >= 15);
-      sub.push({id: "afl-up", name: "늘어난·새로 온 크리에이터", kind: "creator", beads: C.filter(c => c.d > 0).slice(0, 9).map(c => ({id: "cr-" + c.h, label: "@" + c.h, d: c.d, sub: c.o.gmv ? `${usd(c.o.gmv * D.fb)}→${usd(c.n.gmv * D.fa)}` : "새로 옴", kind: "creator", data: c}))});
-      sub.push({id: "afl-down", name: "줄어든·결석 크리에이터", kind: "creator", beads: C.filter(c => c.d < 0).slice(0, 9).map(c => ({id: "cr-" + c.h, label: "@" + c.h, d: c.d, sub: c.n.gmv ? `${usd(c.o.gmv * D.fb)}→${usd(c.n.gmv * D.fa)}` : "결석", kind: "creator", data: c}))});
+      sub.push({id: "afl-up", name: "늘어난·새로 온 크리에이터", kind: "creator", beads: C.filter(c => c.d > 0).slice(0, 6).map(c => ({id: "cr-" + c.h, label: "@" + c.h, d: c.d, sub: c.o.gmv ? `${usd(c.o.gmv * D.fb)}→${usd(c.n.gmv * D.fa)}` : "새로 옴", kind: "creator", data: c}))});
+      sub.push({id: "afl-down", name: "줄어든·결석 크리에이터", kind: "creator", beads: C.filter(c => c.d < 0).slice(0, 6).map(c => ({id: "cr-" + c.h, label: "@" + c.h, d: c.d, sub: c.n.gmv ? `${usd(c.o.gmv * D.fb)}→${usd(c.n.gmv * D.fa)}` : "결석", kind: "creator", data: c}))});
     } else if (ch.id === "video") {
-      for (const x of by("cv").slice(0, 5)) {
-        const cs = D.cre.filter(c => c.pid === x.p.id && Math.abs(c.dg) >= 20).sort((u, v) => Math.abs(v.dg) - Math.abs(u.dg)).slice(0, 9);
-        sub.push({id: "v-" + x.p.id, name: x.p.name, d: x.d, o: x.o, n: x.n, kind: "prodlane", prod: x.p, beads: cs.map(c => ({id: "c-" + c.cid + c.camp, label: c.label, d: c.dg, sub: `광고비 ${usd(c.sb)}→${usd(c.sa)}`, kind: "creative", data: c}))});
+      // 제품마다 같은 칸: 광고비 → 신규/최근/오래된 소재 → 가장 오른 소재 → 가장 빠진 소재
+      for (const x of by("cv").slice(0, 10)) {
+        const L = D.cre.filter(c => c.pid === x.p.id), id = x.p.id;
+        const grp = k => L.filter(c => ageOf(c) === k);
+        const sumd = A => A.reduce((s, c) => s + c.dg, 0);
+        const ad = x.p.ads ? x.p.ads.a.spend * D.fa - x.p.ads.b.spend * D.fb : L.reduce((s, c) => s + c.ds, 0);
+        const upC = [...L].sort((u, v) => v.dg - u.dg)[0], dnC = [...L].sort((u, v) => u.dg - v.dg)[0];
+        const beads = !L.length ? [] : [
+          {id: "va-" + id, label: "광고비", d: ad, neutral: true, sub: "", kind: "adspend", data: {p: x.p}},
+          ...["new", "mid", "old"].map(k => ({id: "vg-" + k + id, label: AGE[k] + " 소재 " + grp(k).length, d: sumd(grp(k)), sub: "", kind: "agegrp", data: {p: x.p, L: grp(k), k}}))];
+        if (upC && upC.dg > 0) beads.push({id: "c-" + upC.cid + upC.camp, label: "▲ " + upC.label, d: upC.dg, sub: "", kind: "creative", data: upC});
+        if (dnC && dnC.dg < 0) beads.push({id: "c-" + dnC.cid + dnC.camp, label: "▼ " + dnC.label, d: dnC.dg, sub: "", kind: "creative", data: dnC});
+        sub.push({id: "v-" + id, name: x.p.name, d: x.d, o: x.o, n: x.n, kind: "prodlane", prod: x.p, beads});
       }
     } else {
       const k = ch.key;
@@ -452,14 +462,14 @@ function drawMap() {
         <text x="${cx + 256}" y="${ly + 4}" font-size="11.5" text-anchor="end" class="num" fill="${css(sb.d >= 0 ? "--up" : "--down")}">${dtxt}</text></g>`;
       sb.beads.forEach((b, k) => {
         const bx = cx + 330 + k * 84, r = b.d == null ? 7 : 5 + 11 * Math.sqrt(Math.abs(b.d) / maxB);
-        const ring = b.d == null ? css("--neutral") : css(b.d >= 0 ? "--up" : "--down");
+        const ring = b.d == null || b.neutral ? css("--neutral") : css(b.d >= 0 ? "--up" : "--down");
         NODES[b.id] = {type: "bead", lane: l, sub: sb, bead: b};
         const t = b.label.length > 11 ? b.label.slice(0, 10) + "…" : b.label;
         s += `<g class="st" tabindex="0" role="button" data-id="${b.id}" aria-label="${b.label} ${sd(b.d)}"><circle cx="${bx}" cy="${ly}" r="${r}" fill="${css("--surface")}" stroke="${ring}" stroke-width="3.5"/>
           <text x="${bx}" y="${ly - r - 5}" text-anchor="middle" font-size="10.5" fill="${css("--ink")}">${t}</text>
           <text x="${bx}" y="${ly + r + 12}" text-anchor="middle" font-size="10.5" class="num" fill="${ring}">${b.d == null ? "" : sd(b.d)}</text></g>`;
       });
-      if (!sb.beads.length) s += `<text x="${cx + 330}" y="${ly + 4}" font-size="11" fill="${css("--muted")}">소재 변화 작음</text>`;
+      if (!sb.beads.length) s += `<text x="${cx + 330}" y="${ly + 4}" font-size="11" fill="${css("--muted")}">${sb.kind === "prodlane" ? "광고 소재 없음 (오가닉·라이브 매출)" : "변화 작음"}</text>`;
     });
     NODES["lane-" + l.id] = {type: "lane", lane: l};
   });
@@ -571,6 +581,11 @@ function card(id) {
         const L = b.data.ref;
         h = `<div class="big ${cls(b.d)}">${sd(b.d)}</div><div class="why">${b.label}: ${b.data.v}</div>
         <div class="note">브랜드 라이브 매출 ${usd(L.o.gmv)} → ${usd(L.n.gmv)}${L.sameAsB ? "" : ` (비교 기간엔 방송이 없어 직전 방송일 ${md(L.o.date)}과 비교)`}. 옥션 ${usd(L.o.auction)} → ${usd(L.n.auction)}.</div>`;
+      } else if (b.kind === "agegrp") {
+        const L = [...b.data.L].sort((x, y) => Math.abs(y.dg) - Math.abs(x.dg)).slice(0, 12);
+        h = `<div class="big ${cls(b.d)}">${sd(b.d)}</div><div class="muted">${b.data.p.name} · ${AGE[b.data.k]} 소재 ${b.data.L.length}개의 매출 증감</div>${L.length ? crRows(L) : '<p class="note">없음</p>'}`;
+      } else if (b.kind === "adspend") {
+        const p = b.data.p; h = `<div class="big num">${sd(b.d)}</div><div class="muted">${p.name} 광고비 변화</div>` + prodCard(p);
       } else if (b.kind === "prod") {
         const p = b.data.p; h = `<div class="big ${cls(b.d)}">${sd(b.d)}</div><div class="muted">${l.name}에서 ${b.sub}</div>` + prodCard(p);
       }
