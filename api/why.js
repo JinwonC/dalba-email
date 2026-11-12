@@ -93,7 +93,7 @@ module.exports = async (req, res) => {
     const q1 = (p, r) => `'${p.title}'!${r}`;
 
     // 2) 날짜 열만 먼저 읽어 기간 행 범위를 찾음 (큰 탭은 최근 행만)
-    const creTail = Math.max(2, T.cre.rowCount - 150000);
+    const creTail = Math.max(2, ((T.cre.gridProperties || {}).rowCount || 150000) - 150000);
     const [mainCols, adsCols] = await Promise.all([
       sheets.spreadsheets.values.batchGet({ spreadsheetId: MAIN, ranges: [
         q1(T.prod, "A1:A"), q1(T.blive, "A1:BH"), T.alive ? q1(T.alive, "E1:E") : q1(T.prod, "A1:A1"), q1(T.ord, "A1:A"), q1(T.ord, "M1:O")] }),
