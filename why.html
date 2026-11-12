@@ -214,7 +214,7 @@ function render(raw) {
   <div class="box"><h2>스토어 파이프</h2><p class="note">매출 = 상품 노출 × 방문률 × 구매 전환율 × 객단가. 각 마디 아래 금액은 그 단계가 만든 매출 차이입니다.</p><div id="storePipe"></div></div>
   <div class="main"><div class="mapbox" id="mapbox"><div class="legend" id="legend"></div><svg id="map" role="img" aria-label="매출 원인 노선도"></svg></div><aside class="card" id="card" aria-live="polite"></aside></div>
   <div class="box"><div class="bar"><h2>광고 소재 분석</h2><div class="seg" role="tablist"><button class="chip" type="button" data-cv="prod" aria-pressed="true">제품별</button><button class="chip" type="button" data-cv="cre" aria-pressed="false">크리에이터별</button></div></div>
-  <p class="note">광고 매출(GMV Max 전체 매출)과 광고비를 비교 → 기준으로 봅니다. 소재 나이: <b>신규</b> = 기준 기간 시작 7일 전 이후 포스팅, <b>최근</b> = 8~30일, <b>오래된</b> = 30일 넘음.</p><div id="cview"></div></div>
+  <p class="note">광고 매출(GMV Max 전체 매출)과 광고비를 비교 → 기준으로 봅니다. 소재 나이: <b>신규</b> = 기준 기간 시작 7일 전 이후 포스팅, <b>최근</b> = 8~30일, <b>오래된</b> = 30일 넘음. 소재 판정: ROI 1.0 미만(또는 지출만) <b>KILL 검토</b>, 1.0~1.5 <b>주의</b>, 1.5~3.0 <b>좋음</b>, 3.0 이상(또는 지출 없이 매출) <b>아주 좋음</b>. 성과가 좋은데 일평균 광고비가 $20 미만이면 <b>부스팅 권장</b>.</p><div id="cview"></div></div>
 
   <div class="box"><h2>브랜드 라이브</h2><div id="brandLive"></div></div>
   <div class="box"><div class="bar"><h2>어필리에이트 라이브: 누가 무엇을 팔았나</h2><div class="seg" id="aflv"><button class="chip" type="button" data-v="cr" aria-pressed="true">크리에이터별</button><button class="chip" type="button" data-v="pr" aria-pressed="false">제품별</button></div></div><div id="aflView"></div></div>
@@ -310,6 +310,38 @@ const crHead = (who) => `<tr><th>${who}</th><th>14일</th><th class="n">광고�
 function ageBoxes(sp) {
   return `<div class="agebar">${["new", "mid", "old"].map(k => `<div class="age"><div class="t">${AGE[k]} 소재 ${sp[k].n}개</div><div class="v ${cls(sp[k].d)}">${sd(sp[k].d)}</div><div class="s">광고비 ${sd(sp[k].s)}</div></div>`).join("")}</div>`;
 }
+// 소재 판정 (기준 기간 ROI = 광고 매출 ÷ 광고비)
+const GRADE = [
+  {k: "kill", t: "KILL 검토", c: "bad", d: "ROI 1.0 미만 또는 지출만 있음"},
+  {k: "warn", t: "주의", c: "bad", d: "ROI 1.0~1.5"},
+  {k: "good", t: "좋음", c: "good", d: "ROI 1.5~3.0"},
+  {k: "best", t: "아주 좋음", c: "good", d: "ROI 3.0 이상 또는 지출 없이 매출"}];
+function grade(c) {
+  const sp = c.sa, g = c.ga;
+  if (sp < 3 && g < 15) return null; // 기준 기간에 거의 움직임 없는 소재
+  if (sp < 1 && g > 0) return "best";
+  const roi = g / sp;
+  if (roi < 1) return "kill"; if (roi < 1.5) return "warn"; if (roi < 3) return "good"; return "best";
+}
+// 부스팅 권장: 성과 좋은데 광고비가 적거나 없는 소재 (일평균 광고비 $20 미만)
+const boost = c => { const gr = grade(c); return (gr === "good" || gr === "best") && c.sa / D.dA < 20; };
+function gradeBlock(L, pref) {
+  const G = {}; L.forEach(c => { const g = grade(c); if (g) (G[g] = G[g] || []).push(c); });
+  const sum = (A, k) => (A || []).reduce((s, c) => s + c[k], 0);
+  const chips = GRADE.map(g => `<div class="age"><div class="t"><span class="tag ${g.c}">${g.t}</span> ${(G[g.k] || []).length}개</div><div class="s">광고비 ${usd(sum(G[g.k], "sa"))} · 광고 매출 ${usd(sum(G[g.k], "ga"))}</div><div class="s">${g.d}</div></div>`).join("");
+  const nb = L.filter(boost).length;
+  const rows = GRADE.flatMap(g => (G[g.k] || []).sort((x, y) => g.k === "kill" || g.k === "warn" ? y.sa - x.sa : y.ga - x.ga).map(c => ({c, g})));
+  const line = ({c, g}, i) => { const id = pref + i; NODES[id] = {type: "bead", lane: {id: "video", name: "AF 영상"}, sub: {name: c.name}, bead: {label: c.label, d: c.dg, kind: "creative", data: c}};
+    const a = ageOf(c);
+    return `<tr><td><span class="tag ${g.c}">${g.t}</span>${boost(c) ? ' <span class="tag new">부스팅 권장</span>' : ""}</td>
+      <td><a href="${vlink(c.cid, c.creator)}" target="_blank" rel="noopener">${c.label}</a><span class="agetag ${a === "new" ? "new" : ""}">${AGE[a]} ${md(c.posted)}</span></td>
+      <td>${area(c.spark.gmv, 64, 20, {fixed: true})}</td><td class="n">${usd(c.sa)}</td><td class="n">${usd(c.ga)}</td><td class="n">${c.sa >= 1 ? (c.ga / c.sa).toFixed(2) : "지출 없음"}</td>
+      <td><button class="chip" type="button" data-open="${id}">상세</button></td></tr>`; };
+  const head = `<tr><th>판정</th><th>소재</th><th>14일</th><th class="n">광고비</th><th class="n">광고 매출</th><th class="n">ROI</th><th></th></tr>`;
+  return `<h4 style="margin:4px 0">소재 판정 (기준 기간)${nb ? ` · <span style="color:var(--accent)">부스팅 권장 ${nb}개</span>` : ""}</h4><div class="agebar">${chips}</div>
+    <table class="mini">${head}${rows.slice(0, 10).map(line).join("")}</table>
+    ${rows.length > 10 ? `<details><summary class="note" style="cursor:pointer">나머지 ${rows.length - 10}개 보기</summary><table class="mini">${head}${rows.slice(10).map((r, i) => line(r, i + 10)).join("")}</table></details>` : ""}`;
+}
 function drawCView() {
   document.querySelectorAll("[data-cv]").forEach(b => { b.setAttribute("aria-pressed", b.dataset.cv === CV); b.onclick = () => { CV = b.dataset.cv; drawCView(); }; });
   const all = D.cre.filter(c => Math.abs(c.dg) >= 5 || Math.abs(c.ds) >= 5);
@@ -328,7 +360,8 @@ function drawCView() {
         <span class="kv">ROI <b>${r.sb ? (r.gb / r.sb).toFixed(2) : "-"} → ${r.sa ? (r.ga / r.sa).toFixed(2) : "-"}</b></span></summary>
         <div class="why">가장 크게 움직인 건 <b>${AGE[big]} 소재(${sd(sp[big].d)})</b>입니다.</div>${ageBoxes(sp)}
         <div class="two"><div><h4 class="up">오른 소재</h4><table class="mini">${crHead("소재")}${up.map((c, i) => crLine(c, i, "pu" + ri + "-")).join("") || '<tr><td class="note">없음</td></tr>'}</table></div>
-        <div><h4 class="down">떨어진 소재</h4><table class="mini">${crHead("소재")}${dn.map((c, i) => crLine(c, i, "pd" + ri + "-")).join("") || '<tr><td class="note">없음</td></tr>'}</table></div></div></details>`;
+        <div><h4 class="down">떨어진 소재</h4><table class="mini">${crHead("소재")}${dn.map((c, i) => crLine(c, i, "pd" + ri + "-")).join("") || '<tr><td class="note">없음</td></tr>'}</table></div></div>
+        ${gradeBlock(D.cre.filter(c => c.pid === r.L[0].pid), "pg" + ri + "-")}</details>`;
     }).join("");
   } else {
     const by = {}; all.forEach(c => { const k = c.creator || "(크리에이터 미확인)"; (by[k] = by[k] || []).push(c); });
