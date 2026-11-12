@@ -5,6 +5,9 @@ const MEM = globalThis.__handleCache || (globalThis.__handleCache = {});
 
 async function lookup(id) {
   if (id in MEM) return MEM[id];
+  return (await once(id)) || (await once(id));
+}
+async function once(id) {
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), 8000);
   try {
