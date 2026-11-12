@@ -831,8 +831,8 @@ function drawTodo() {
         <td>${area(c.spark.gmv, 64, 20, {fixed: true})}</td><td class="n">${usd(c.sa)}</td><td class="n">${usd(c.ga)}</td><td class="n">${c.sa >= 1 ? (c.ga / c.sa).toFixed(2) : "지출 없음"}</td>
         <td><button class="chip" type="button" data-open="${id}">상세</button></td></tr>`;
     });
-    const m = more(rows, 0, 15);
-    return `<div style="display:flex;flex-direction:column"><table class="mini"><tr><th>판정</th><th>소재</th><th>14일 매출</th><th class="n">광고비</th><th class="n">매출</th><th class="n">ROI</th><th></th></tr>${m.body}</table>${m.btn.replace(/더보기 \(/, "광고 소재 전체 보기 (")}</div>`;
+    const m = more([`<tr><th>판정</th><th>소재</th><th>14일 매출</th><th class="n">광고비</th><th class="n">매출</th><th class="n">ROI</th><th></th></tr>`, ...rows], 0, 21);
+    return `<div style="display:flex;flex-direction:column"><table class="mini">${m.body}</table>${m.btn.replace(/더보기 \(\d+개 남음\)/, `광고 소재 ${rows.length}개 전체 보기 (20개씩)`)}</div>`;
   };
   $("#todo").innerHTML = items.length ? items.map((x, xi) => `<details class="pcard box" ${xi < 3 ? "open" : ""}><summary><h3>${x.name}</h3>
     <span class="kv"><span class="tag bad">KILL 검토</span> <b>${x.kill.length}</b>${x.save >= 1 ? ` (끄면 하루 ${usd(x.save)} 절감)` : ""}</span><span class="kv"><span class="tag new">부스팅 권장</span> <b>${x.bst.length}</b></span><span class="kv"><span class="tag warn">주의</span> <b>${x.warn.length}</b></span><span class="kv">광고 소재 <b>${x.active.length}</b>개</span></summary>
