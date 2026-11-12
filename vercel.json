@@ -17,6 +17,9 @@
     },
     "api/why.js": {
       "maxDuration": 60
+    },
+    "api/handles.js": {
+      "maxDuration": 30
     }
   }
 }
