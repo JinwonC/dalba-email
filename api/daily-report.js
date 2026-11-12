@@ -833,7 +833,8 @@ function afCreativeDaily(vidByDate) {
 }
 async function fetchAdCreatives(sheets, lookbackRows) {
   const sid = process.env.ADS_SHEET_ID;
-  if (!sid) return null;
+  MEM.adCreErr = null;
+  if (!sid) { MEM.adCreErr = "ADS_SHEET_ID 없음"; return null; }
   try {
     const meta = await sheets.spreadsheets.get({ spreadsheetId: sid, fields: "sheets.properties.title" });
     const titles = (meta.data.sheets || []).map(s => s.properties.title);
@@ -846,21 +847,21 @@ async function fetchAdCreatives(sheets, lookbackRows) {
       });
       if (i >= 0) tab = titles[i];
     }
-    if (!tab) return null;
+    if (!tab) { MEM.adCreErr = "소재 탭을 찾지 못함"; return null; }
     // 소재별 탭은 수십만 행이라 전체를 읽으면 응답 한도를 넘음 → 헤더 + 최근 행(기본 9만 행 ≈ 2개월)만 읽음
     const gm = await sheets.spreadsheets.get({ spreadsheetId: sid, ranges: [`'${tab}'!A1`], fields: "sheets.properties.gridProperties.rowCount" });
     const rowCount = (((gm.data.sheets || [])[0] || {}).properties || {}).gridProperties ? gm.data.sheets[0].properties.gridProperties.rowCount : 0;
     const start = Math.max(2, rowCount - (lookbackRows || 90000));
     const rb = await sheets.spreadsheets.values.batchGet({ spreadsheetId: sid, ranges: [`'${tab}'!A1:W1`, `'${tab}'!A${start}:W${rowCount || ""}`] });
     const rows = [((rb.data.valueRanges[0] || {}).values || [[]])[0], ...((rb.data.valueRanges[1] || {}).values || [])];
-    if (rows.length < 2) return null;
+    if (rows.length < 2) { MEM.adCreErr = "소재 탭 행 없음 (rowCount " + rowCount + ")"; return null; }
     const h = (rows[0] || []).map(x => String(x || "").toLowerCase().replace(/\s+/g, ""));
     const F = (...kw) => { for (let i = 0; i < h.length; i++) if (h[i] && kw.some(k => h[i].includes(k))) return i; return -1; };
     const C = { date: F("날짜", "date"), cid: F("소재id", "videoid"), status: F("게재상태", "status"), spend: F("지출", "cost"),
       imp: F("상품노출수", "productadimpressions"), clk: F("상품클릭수", "productadclicks"),
       ctr: F("광고클릭률"), cvr: F("광고전환율", "adconversionrate"), v2s: F("2초"), v6s: F("6초"),
       gmv: F("총매출", "grossrevenue"), ord: F("주문수"), camp: F("캠페인명", "campaignname") };
-    if (C.date < 0 || C.cid < 0 || C.spend < 0) return null;
+    if (C.date < 0 || C.cid < 0 || C.spend < 0) { MEM.adCreErr = "소재 탭 헤더 인식 실패: " + h.join("|").slice(0, 200); return null; }
     const out = {};
     for (let i = 1; i < rows.length; i++) {
       const r = rows[i]; if (!r) continue;
@@ -879,7 +880,7 @@ async function fetchAdCreatives(sheets, lookbackRows) {
       if (C.status >= 0 && r[C.status] && d.ts >= c.statusTs) { c.status = String(r[C.status]).trim(); c.statusTs = d.ts; }
     }
     return out;
-  } catch (e) { return null; }
+  } catch (e) { MEM.adCreErr = String((e && e.message) || e).slice(0, 300); return null; }
 }
 function buildCreativeTimeline(afCre, adCre, win, targetKey, topN) {
   const list = [];
@@ -1552,6 +1553,7 @@ module.exports = async (req, res) => {
         const ctop = Math.min(800, Math.max(1, parseInt(req.query.ctop, 10) || 60));
         const win = kk.slice(Math.max(0, ii - cdays + 1), ii + 1);
         out.creatives = buildCreativeTimeline(afCreativeDaily(vidByDate), adCre, win, agg.date.key, ctop);
+        if (!adCre && MEM.adCreErr) out.creatives.adError = MEM.adCreErr;
       }
       res.setHeader("Cache-Control", fresh ? "no-store" : (withInsights ? "s-maxage=3600, stale-while-revalidate=86400" : "s-maxage=600, stale-while-revalidate=86400"));
       res.setHeader("Access-Control-Allow-Origin", "*");
