@@ -121,7 +121,8 @@ a{color:var(--c-video)}
 .age{flex:1 1 150px;border-radius:10px;padding:8px 10px;background:var(--soft);min-width:0}
 .age .t{font-size:12px;color:var(--muted)} .age .v{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}
 .age .s{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
-.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:12px}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr));gap:12px}
+.two>div{overflow-x:auto;min-width:0}
 .two h4{margin:0 0 4px;font-size:13px}
 .mini{width:100%;border-collapse:collapse;font-size:12.5px}
 .mini td,.mini th{padding:5px 4px;border-bottom:1px solid var(--line);white-space:nowrap;text-align:left}
@@ -129,7 +130,7 @@ a{color:var(--c-video)}
 .mini td.n,.mini th.n{text-align:right;font-variant-numeric:tabular-nums}
 .agetag{font-size:10.5px;padding:0 5px;border-radius:5px;margin-left:4px;background:var(--soft);color:var(--muted)}
 .agetag.new{background:var(--accent-fill);color:var(--accent)}
-.roll{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px}
+.roll{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:10px}
 .roll .grp{border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0}
 .roll h4{margin:0 0 6px;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:8px}
 .roll ul{list-style:none;margin:0;padding:0;font-size:13px;display:flex;flex-direction:column;gap:4px}
@@ -180,7 +181,10 @@ section[data-panel]{display:flex;flex-direction:column;gap:12px}
 .plist summary:hover{background:var(--soft)}
 .plist .nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .plist .rt{font-size:12.5px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
-.plist .in{padding:4px 4px 16px;display:flex;flex-direction:column;gap:10px}
+.plist .in{padding:4px 4px 16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.plist .in>div:last-child{overflow-x:auto}
+.mhint{display:none;font-size:12px;color:var(--muted);padding:0 8px}
+@media (max-width:700px){.mhint{display:block}}
 @media (max-width:700px){.plist summary{grid-template-columns:90px minmax(0,1fr) 14px}.plist .rt{grid-column:1/-1;text-align:left}}
 .hb .dv{display:grid;grid-template-columns:1fr 1fr;height:16px}
 .hb .dv>div{display:flex;gap:0} .hb .dv>div:first-child{justify-content:flex-end;border-right:1px solid var(--muted)}
@@ -270,7 +274,7 @@ function render(raw) {
   <div class="headline">매출 <b class="num">${usd(n.gmv)}</b>, 비교 대비 <b class="num ${cls(TOT)}">${sd(TOT)} (${spc(o.gmv, n.gmv)})</b>. 가장 크게 움직인 건 <b style="color:var(${COL[top.id]})">${top.name} ${sd(top.d)}</b>(${Math.round(top.d / TOT * 100)}%)입니다.${liveNote}${adNote}</div>
   <div class="tabs" role="tablist">${[["sum", "요약"], ["cre", "광고 소재"], ["top", "크리에이터 TOP 30"], ["live", "라이브"]].map(([k, t]) => `<button class="tab" type="button" role="tab" data-tab="${k}" aria-selected="${k === TAB}">${t}</button>`).join("")}</div>
   <section data-panel="sum"><div class="box"><h3>채널별 증감</h3><div id="wf"></div></div>
-    <div class="main"><div class="mapbox" id="mapbox"><div class="legend" id="legend"></div><svg id="map" role="img" aria-label="매출 원인 노선도"></svg></div><aside class="card" id="card" aria-live="polite"></aside></div></section>
+    <div class="main"><div class="mapbox" id="mapbox"><div class="legend" id="legend"></div><div class="mhint">← 옆으로 밀어서 보기 →</div><svg id="map" role="img" aria-label="매출 원인 노선도"></svg></div><aside class="card" id="card" aria-live="polite"></aside></div></section>
   <section data-panel="cre"><div class="box"><div class="bar"><div class="lgd" id="lgd"></div><div class="seg"><button class="chip" type="button" data-cv="prod" aria-pressed="true">제품별</button><button class="chip" type="button" data-cv="cre" aria-pressed="false">크리에이터별</button></div></div><div id="cview"></div></div></section>
   <section data-panel="top"><div class="box"><div class="bar"><p class="note" id="tcnote" style="margin:0"></p><div class="seg" id="tcf"><button class="chip" type="button" data-f="all" aria-pressed="true">전체</button><button class="chip" type="button" data-f="slow" aria-pressed="false">매출 둔화</button><button class="chip" type="button" data-f="stop" aria-pressed="false">포스팅·라이브 멈춤</button></div></div><div class="ctable" id="top50"></div><div class="seg" id="tcpg" style="justify-content:center"></div></div></section>
   <section data-panel="live"><div class="box"><h2>브랜드 라이브</h2><div id="brandLive"></div></div>
@@ -292,6 +296,11 @@ function stops(items, color) {
 }
 function drawWaterfall() {
   const ch = [...D.chans].sort((x, y) => y.d - x.d), o = D.st.b.gmv, n = D.st.a.gmv;
+  if (innerWidth < 700) {
+    const mx = Math.max(1, ...ch.map(c => Math.abs(c.d)));
+    $("#wf").innerHTML = `<div class="hb">${ch.map(c => `<div class="r" style="grid-template-columns:84px minmax(0,1fr) 70px"><span>${c.name}</span><div class="dv" style="display:grid;grid-template-columns:1fr 1fr;height:14px"><div style="display:flex;justify-content:flex-end;border-right:1px solid var(--muted)">${c.d < 0 ? `<i style="width:${(-c.d / mx * 100).toFixed(1)}%;background:var(--down);border-radius:3px 0 0 3px"></i>` : ""}</div><div style="display:flex">${c.d > 0 ? `<i style="width:${(c.d / mx * 100).toFixed(1)}%;background:var(--up);border-radius:0 3px 3px 0"></i>` : ""}</div></div><span class="${cls(c.d)}" style="color:var(--${c.d >= 0 ? "up" : "down"})">${sd(c.d)}</span></div>`).join("")}</div><p class="note" style="margin:0">${usd(o)} → ${usd(n)}</p>`;
+    return;
+  }
   const steps = [{name: "비교 매출", v: o, total: true}, ...ch.map(c => ({name: c.name, d: c.d, id: c.id})), {name: "기준 매출", v: n, total: true}];
   let run = o; const bars = steps.map(st => { if (st.total) return {...st, y0: 0, y1: st.v}; const b = {...st, y0: run, y1: run + st.d}; run += st.d; return b; });
   const lo = Math.min(...bars.filter(b => !b.total).flatMap(b => [b.y0, b.y1]), n, o) * 0.9, hi = Math.max(...bars.flatMap(b => [b.y0, b.y1])) * 1.02;
@@ -1018,7 +1027,8 @@ async function load() {
   catch (e) { $("#app").innerHTML = `<div class="loading">데이터를 불러오지 못했습니다: ${e.message}<br>날짜가 시트에 입력돼 있는지 확인하고 다시 시도해 주세요.</div>`; }
 }
 const mq = matchMedia("(prefers-color-scheme: dark)");
-const redraw = () => { if (D) { drawTop50(); drawMap(); drawCView(); drawLive(); } };
+let WIDE = innerWidth >= 700; addEventListener("resize", () => { const w = innerWidth >= 700; if (D && w !== WIDE) { WIDE = w; drawWaterfall(); } });
+const redraw = () => { if (D) { drawWaterfall(); drawTop50(); drawMap(); drawCView(); drawLive(); } };
 mq.addEventListener ? mq.addEventListener("change", redraw) : mq.addListener(redraw);
 new MutationObserver(redraw).observe(document.documentElement, {attributes: true, attributeFilter: ["data-theme"]});
 load();
