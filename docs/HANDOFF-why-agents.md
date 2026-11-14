@@ -36,7 +36,13 @@ d'Alba US 틱톡샵 매출이 왜 움직였는지 보여주는 웹페이지(`why
 - 기준일을 **전날, 지난주 같은 요일**과 비교. 결과(JSON): headline, verdict, why[], video, price, ads, live, actions[], watch
 - 소재 판정: ROI<1 또는 지출만 → KILL 검토, 1~1.5 주의, 1.5~3 좋음, ≥3 또는 지출 없이 매출 → 아주 좋음, 좋음 이상 & 일 광고비<$20 → 부스팅 권장. 광고비<$3 & 매출<$15는 판정 안 함
 
-## 지금 막힌 것
+## 예약 작업 방식 (2026-11-14 전환)
+- API 키 없이 Claude Code(Max 요금제)가 분석을 쓰고 사이트에 올린다. Vercel의 `/api/agents?cron=1` cron은 뺐다.
+- `GET /api/agents?a=날짜&brief=1` → 11명에게 줄 데이터(`agents[].brief`) + 규칙(`system`) + 결과 모양(`schema`). `ready=false`면 그날 시트가 아직 비어 있다.
+- `POST /api/agents?a=날짜&save=1`, 헤더 `x-agent-token` = Vercel `AGENT_SAVE_TOKEN`, 본문 `{"results": {"grinding": {...}, ...}}`. 카드 위 숫자(kpi)는 서버가 다시 계산한다.
+- 토큰 값은 이 PC의 `~/.dalba/agent-token`에만 있다(저장소에 없음).
+
+## 지금 막힌 것 (API 방식일 때)
 - **Vercel에 `ANTHROPIC_API_KEY`가 없다.** 그래서 에이전트가 실행되지 않는다 (데일리 리포트 AI 한줄평도 꺼져 있었을 것).
   - Max 요금제는 claude.ai/Claude Code 사용분이라 **API 호출 비용은 포함되지 않는다.** API 키는 console.anthropic.com에서 따로 만들고 크레딧 충전이 필요.
   - 대안: API 키 없이 Max 요금제 안에서 돌리려면, Claude Code **예약 작업**이 매일 `/api/why` 데이터를 읽어 11개 분석을 쓰고, 결과를 사이트에 저장하는 엔드포인트(예: `POST /api/agents?save=1`, 비밀번호 필요)로 올리는 방식으로 바꾸면 된다. (아직 구현 안 함)

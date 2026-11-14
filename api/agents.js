@@ -5,7 +5,8 @@
 // 에이전트 하나 = Claude 호출 하나. 페이지가 11개를 동시에 호출해 각각 별도 함수로 돈다.
 // 데이터는 /api/why (원본 시트 + 광고 시트)를 전날·지난주 같은 요일과 비교해 두 번 읽는다.
 // 결과는 Vercel Blob(agents/날짜/에이전트.json)에 저장해 다시 열 때 비용이 들지 않게 한다.
-// 환경변수: ANTHROPIC_API_KEY (필수), DASHBOARD_PASSWORD (설정돼 있으면 실행 시 필요)
+// 환경변수: ANTHROPIC_API_KEY (API로 직접 실행할 때), DASHBOARD_PASSWORD (설정돼 있으면 실행 시 필요)
+// AGENT_SAVE_TOKEN (예약 작업이 결과를 올릴 때). 지금은 API 키 없이 예약 작업 방식으로 돈다.
 const SDK = require("@anthropic-ai/sdk");
 const Anthropic = SDK.Anthropic || SDK.default || SDK;
 const APIError = SDK.APIError;
@@ -176,16 +177,66 @@ async function runAgent(ag, brief) {
   return { result: JSON.parse(txt), usage: { input: res.usage.input_tokens, output: res.usage.output_tokens, cacheRead: res.usage.cache_read_input_tokens || 0 }, model: res.model };
 }
 
+// 카드 위에 보이는 숫자 [전날, 기준일]
+function kpiOf(ag, d1) {
+  const P = !ag.live && d1.products.find(p => p.id === ag.pid);
+  return ag.live
+    ? { 매출: [R(d1.store.b.sl + d1.store.b.cl), R(d1.store.a.sl + d1.store.a.cl)], 브랜드라이브: [R(d1.store.b.sl), R(d1.store.a.sl)], AF라이브: [R(d1.store.b.cl), R(d1.store.a.cl)] }
+    : P ? { 매출: [R(P.b.gmv), R(P.a.gmv)], 광고비: P.ads ? [R(P.ads.b.spend), R(P.ads.a.spend)] : null, ROI: P.ads ? [roi(P.ads.b.gmv, P.ads.b.spend), roi(P.ads.a.gmv, P.ads.a.spend)] : null, 판매가: P.price ? [P.price.b && P.price.b.avg, P.price.a && P.price.a.avg] : null } : null;
+}
+
+// 결과 모양 검사 (예약 작업이 올린 결과)
+function checkResult(r) {
+  if (!r || typeof r !== "object") return "결과가 객체가 아닙니다";
+  for (const k of SCHEMA.required) if (!(k in r)) return `${k} 항목이 없습니다`;
+  if (!["up", "down", "flat"].includes(r.verdict)) return "verdict는 up/down/flat 중 하나";
+  if (!Array.isArray(r.why) || !Array.isArray(r.actions)) return "why·actions는 배열";
+  const out = {};
+  for (const k of SCHEMA.required) out[k] = r[k];
+  out.why = r.why.slice(0, 4).map(w => ({ factor: String(w.factor || ""), impact: String(w.impact || ""), detail: String(w.detail || "") }));
+  out.actions = r.actions.slice(0, 3).map(String);
+  for (const k of ["headline", "video", "price", "ads", "live", "watch"]) out[k] = String(r[k] || "");
+  return out;
+}
+
+// 예약 작업(Claude Code) 방식: 분석용 데이터를 내주고, 쓴 결과를 받아 저장한다.
+//   GET  /api/agents?a=날짜&brief=1           → 11명 각각에게 줄 데이터 + 규칙(SYSTEM)·결과 모양(SCHEMA)
+//   POST /api/agents?a=날짜&save=1  (헤더 x-agent-token = AGENT_SAVE_TOKEN)
+//        본문 { results: { 에이전트키: {headline, verdict, why, ...} } }
+async function briefs(req, res, a) {
+  const base = baseOf(req);
+  const [d1, d7] = await Promise.all([why(base, a, addD(a, -1)), why(base, a, addD(a, -7))]);
+  const ready = d1.store.a.gmv > 0;
+  res.status(200).json({ date: a, ready, system: SYSTEM, schema: SCHEMA,
+    agents: ready ? AGENTS.map(g => ({ key: g.key, name: g.name, brief: g.live ? liveBrief(d1, d7) : productBrief(g, d1, d7) })) : [] });
+}
+async function saveAll(req, res, a) {
+  const tok = process.env.AGENT_SAVE_TOKEN;
+  if (!tok || req.headers["x-agent-token"] !== tok) { res.status(401).json({ error: "x-agent-token이 맞지 않습니다" }); return; }
+  if (!blobReady()) { res.status(500).json({ error: "Blob 저장소가 연결되지 않았습니다" }); return; }
+  let body = req.body;
+  if (typeof body === "string") { try { body = JSON.parse(body); } catch (e) { body = null; } }
+  const results = body && body.results;
+  if (!results || typeof results !== "object") { res.status(400).json({ error: "본문에 results가 필요합니다" }); return; }
+  const d1 = await why(baseOf(req), a, addD(a, -1));
+  const out = [];
+  for (const [key, r] of Object.entries(results)) {
+    const ag = AGENTS.find(g => g.key === key);
+    if (!ag) { out.push({ agent: key, error: "없는 에이전트" }); continue; }
+    const c = checkResult(r);
+    if (typeof c === "string") { out.push({ agent: key, error: c }); continue; }
+    const obj = { date: a, agent: ag.key, name: ag.name, kpi: kpiOf(ag, d1), result: c, model: "예약 작업", at: new Date().toISOString() };
+    try { await save(a, ag.key, obj); out.push({ agent: key, ok: true }); } catch (e) { out.push({ agent: key, error: errMsg(e) }); }
+  }
+  res.status(200).json({ date: a, saved: out });
+}
+
 // 에이전트 하나 실행 → 저장
 async function analyze(ag, a, d1, d7) {
   const brief = ag.live ? liveBrief(d1, d7) : productBrief(ag, d1, d7);
   const t0 = Date.now();
   const out = await runAgent(ag, brief);
-  const P = !ag.live && d1.products.find(p => p.id === ag.pid);
-  const kpi = ag.live
-    ? { 매출: [R(d1.store.b.sl + d1.store.b.cl), R(d1.store.a.sl + d1.store.a.cl)], 브랜드라이브: [R(d1.store.b.sl), R(d1.store.a.sl)], AF라이브: [R(d1.store.b.cl), R(d1.store.a.cl)] }
-    : P ? { 매출: [R(P.b.gmv), R(P.a.gmv)], 광고비: P.ads ? [R(P.ads.b.spend), R(P.ads.a.spend)] : null, ROI: P.ads ? [roi(P.ads.b.gmv, P.ads.b.spend), roi(P.ads.a.gmv, P.ads.a.spend)] : null, 판매가: P.price ? [P.price.b && P.price.b.avg, P.price.a && P.price.a.avg] : null } : null;
-  const obj = { date: a, agent: ag.key, name: ag.name, kpi, ...out, ms: Date.now() - t0, at: new Date().toISOString() };
+  const obj = { date: a, agent: ag.key, name: ag.name, kpi: kpiOf(ag, d1), ...out, ms: Date.now() - t0, at: new Date().toISOString() };
   await save(a, ag.key, obj).catch(() => {});
   return obj;
 }
@@ -220,6 +271,8 @@ module.exports = async (req, res) => {
   if (q.cron) { await cron(req, res); return; }
   const a = String(q.a || "");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(a)) { res.status(400).json({ error: "a=YYYY-MM-DD 날짜가 필요합니다" }); return; }
+  if (q.brief && req.method === "GET") { try { await briefs(req, res, a); } catch (e) { res.status(500).json({ error: errMsg(e) }); } return; }
+  if (q.save && req.method === "POST") { try { await saveAll(req, res, a); } catch (e) { res.status(500).json({ error: errMsg(e) }); } return; }
   if (req.method === "GET") {
     const saved = await Promise.all(AGENTS.map(g => load(a, g.key)));
     res.status(200).json({ date: a, agents: AGENTS.map((g, i) => ({ key: g.key, name: g.name, saved: saved[i] })), storage: blobReady() });
