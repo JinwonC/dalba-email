@@ -186,7 +186,7 @@ module.exports = async (req, res) => {
     // ── 주문별 AF: 영상 ID → 크리에이터(전체 탭), 기간 내 영상·라이브 매출
     const creatorOf = {};
     for (const r of mv(4).slice(1)) { const cid = String(r[2] || "").trim(); if (cid && r[0]) creatorOf[cid] = String(r[0]).trim(); }
-    const vidRev = {}, liveCP = { a: {}, b: {} };
+    const vidRev = {}, liveCP = { a: {}, b: {} }, price = { a: {}, b: {} };
     const TC = {};
     for (const r of mbv(rangesMain.ord)) {
       const k = dkey(r[0]); if (!k) continue;
@@ -200,6 +200,9 @@ module.exports = async (req, res) => {
         t.prods[pid] = (t.prods[pid] || 0) + pay;
       }
       const p = per(k); if (!p) continue;
+      // 가격: 주문 줄의 Price(판매가, 수량 합계 기준) → 개당 판매가 분포
+      const pr = num(r[5]);
+      if (pid && pr > 0) { const e = price[p][pid] || (price[p][pid] = { sum: 0, qty: 0, pts: {} }); e.sum += pr; e.qty += qty; const u = (pr / qty).toFixed(2); e.pts[u] = (e.pts[u] || 0) + qty; }
       if (/live/i.test(type)) {
         const m = liveCP[p][h] || (liveCP[p][h] = {}); const e = m[pid] || (m[pid] = { pay: 0, qty: 0 }); e.pay += pay; e.qty += qty;
       } else if (cid) {
@@ -207,6 +210,7 @@ module.exports = async (req, res) => {
       }
     }
 
+    const priceOf = e => e && e.qty ? { avg: +(e.sum / e.qty).toFixed(2), qty: e.qty, points: Object.entries(e.pts).sort((x, y) => y[1] - x[1]).slice(0, 4).map(([u, q]) => ({ price: +u, qty: q })) } : null;
     const nameOf = id => (prods[id] && prods[id].name) || "";
     // ── 최근 30일 매출 TOP 50 크리에이터 (영상을 계속 올리는지: 판매가 난 영상의 포스팅일 기준)
     const vidsOf = {};
@@ -284,7 +288,7 @@ module.exports = async (req, res) => {
     const out = {
       periods: { a: [a, a2], b: [b, b2], days }, avail,
       store, ads, daily, trend, sparkDates: sDates, topCreators,
-      products: Object.values(prods).map(p => ({ ...p, ads: adByPid[p.id] || null })).sort((x, y) => (y.a.gmv + y.b.gmv) - (x.a.gmv + x.b.gmv)),
+      products: Object.values(prods).map(p => ({ ...p, ads: adByPid[p.id] || null, price: { a: priceOf(price.a[p.id]), b: priceOf(price.b[p.id]) } })).sort((x, y) => (y.a.gmv + y.b.gmv) - (x.a.gmv + x.b.gmv)),
       creatives, troi,
       brandLive: { a: blive.a, b: blive.b, lastBeforeA: lastPrev, daily: bday },
       afLive: creators,

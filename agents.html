@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>제품 에이전트</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+/* 매출 원인 지도와 같은 토큰. 제품 에이전트 10명 + 라이브 에이전트 1명의 카드 그리드. */
+:root{
+  --bg:#f7f7f9; --surface:#ffffff; --ink:#1d1f2e; --muted:#8a8fa3; --line:#ececf2; --soft:#f4f3fb;
+  --accent:#7c6cf2; --accent-fill:#ede9fe; --up:#16a05d; --up-bg:#e7f6ee; --down:#e0483e; --down-bg:#fdeceb; --warn:#b87300;
+  --f-body:"Inter","IBM Plex Sans KR",system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121319; --surface:#1b1d26; --ink:#eceef5; --muted:#9499ad; --line:#2a2d3a; --soft:#23253a;
+  --accent:#9d90ff; --accent-fill:#2c2850; --up:#3fcf8a; --up-bg:#16362a; --down:#ff7a6e; --down-bg:#3d1e1d; --warn:#f0b44a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121319; --surface:#1b1d26; --ink:#eceef5; --muted:#9499ad; --line:#2a2d3a; --soft:#23253a;
+  --accent:#9d90ff; --accent-fill:#2c2850; --up:#3fcf8a; --up-bg:#16362a; --down:#ff7a6e; --down-bg:#3d1e1d; --warn:#f0b44a; color-scheme:dark}
+*{box-sizing:border-box} [hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.55;
+  padding:20px max(16px,env(safe-area-inset-right,0px)) 56px max(16px,env(safe-area-inset-left,0px))}
+.wrap{max-width:1440px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+h1{font-size:22px;margin:0} h2{font-size:16px;margin:0}
+.note{font-size:12px;color:var(--muted)}
+.bar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+.ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.ctl input{font:inherit;font-size:13px;border:1px solid var(--line);border-radius:6px;padding:4px 6px;background:var(--bg);color:var(--ink)}
+.btn{font:inherit;font-weight:600;border:0;border-radius:8px;padding:8px 14px;background:var(--accent);color:#fff;cursor:pointer}
+.btn.ghost{background:var(--surface);color:var(--ink);border:1px solid var(--line)}
+.btn:disabled{opacity:.5;cursor:default}
+button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+a{color:var(--accent)}
+.status{font-size:13px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(380px,100%),1fr));gap:12px;align-items:start}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.card.live{border-color:var(--accent)}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.top h2{display:flex;align-items:center;gap:8px}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:1px 8px;border-radius:6px;font-variant-numeric:tabular-nums}
+.pill.up{background:var(--up-bg);color:var(--up)} .pill.down{background:var(--down-bg);color:var(--down)} .pill.flat{background:var(--soft);color:var(--muted)}
+.kpi{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.kpi b{color:var(--ink);font-weight:600}
+.head{font-size:15px;font-weight:600;line-height:1.5}
+.why{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
+.why li{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;font-size:13px}
+.why .imp{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.why .f{font-weight:600}
+.why .d{grid-column:2;color:var(--muted)}
+.rows{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.rows div{display:grid;grid-template-columns:52px 1fr;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}
+.rows dt{font-weight:600;color:var(--muted);font-size:12px;padding-top:1px}
+.rows dd{margin:0;overflow-wrap:anywhere}
+.act{background:var(--soft);border-radius:8px;padding:8px 12px;font-size:13px}
+.act b{font-size:12px;color:var(--accent)}
+.act ol{margin:4px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:3px;overflow-wrap:anywhere}
+.watch{font-size:12.5px;color:var(--warn)}
+.wait{color:var(--muted);font-size:13px;padding:18px 0;text-align:center}
+.err{color:var(--down);font-size:13px}
+.spin{display:inline-block;width:12px;height:12px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp 0.8s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.spin{animation:none}}
+.foot{font-size:11.5px;color:var(--muted);display:flex;justify-content:space-between;gap:8px}
+.foot button{font:inherit;font-size:11.5px;background:none;border:0;color:var(--accent);cursor:pointer;padding:0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="bar">
+    <div><div class="note">d'Alba US TikTok Shop · <a href="/why.html">매출 원인 지도</a></div><h1>제품 에이전트 데일리 분석</h1></div>
+    <div class="ctl">
+      <label class="note" for="d">기준일</label><input id="d" type="date">
+      <button class="btn" id="run" type="button">분석하기</button>
+      <button class="btn ghost" id="rerun" type="button">다시 분석</button>
+    </div>
+  </div>
+  <p class="status" id="status" aria-live="polite"></p>
+  <div class="grid" id="grid"></div>
+  <p class="note">에이전트마다 그날 데이터를 전날·지난주 같은 요일과 비교해 분석합니다. 한 번 분석한 날짜는 저장돼 다시 열면 바로 보입니다. 가격 = AF 주문의 개당 판매가.</p>
+</div>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const usd = v => v == null ? "-" : (v < 0 ? "-$" : "$") + Math.abs(Math.round(v)).toLocaleString("en-US");
+const sd = v => (v >= 0 ? "+" : "-") + "$" + Math.abs(Math.round(v)).toLocaleString("en-US");
+const md = k => (+k.slice(5, 7)) + "/" + (+k.slice(8));
+let AG = [], STATE = {};
+
+function pwHeader() { try { return localStorage.getItem("dashPw") || ""; } catch (e) { return ""; } }
+function kpiLine(k) {
+  if (!k) return "";
+  const pair = (t, v, f) => v && v[1] != null ? `<span>${t} <b>${f(v[1])}</b>${v[0] != null ? ` (전날 ${f(v[0])})` : ""}</span>` : "";
+  const m = k.매출;
+  return `<div class="kpi">${m ? `<span>매출 <b>${usd(m[1])}</b> <span class="pill ${m[1] - m[0] > 0 ? "up" : m[1] - m[0] < 0 ? "down" : "flat"}">${sd(m[1] - m[0])}</span></span>` : ""}
+    ${pair("광고비", k.광고비, usd)}${pair("ROI", k.ROI, v => v == null ? "-" : v.toFixed(2))}${pair("판매가", k.판매가, v => v == null ? "-" : "$" + v.toFixed(2))}
+    ${pair("브랜드", k.브랜드라이브, usd)}${pair("AF", k.AF라이브, usd)}</div>`;
+}
+function card(ag) {
+  const s = STATE[ag.key] || {};
+  let body;
+  if (s.loading) body = `<div class="wait"><span class="spin"></span>분석 중…</div>`;
+  else if (s.error) body = `<p class="err">${esc(s.error)}</p>`;
+  else if (s.data) {
+    const r = s.data.result, v = r.verdict;
+    body = `${kpiLine(s.data.kpi)}<div class="head">${esc(r.headline)}</div>
+      ${r.why && r.why.length ? `<ul class="why">${r.why.map(w => `<li><span class="imp ${/^\+/.test(w.impact) ? "" : ""}" style="color:var(--${/^\s*[-−]/.test(w.impact) ? "down" : /^\s*\+/.test(w.impact) ? "up" : "ink"})">${esc(w.impact)}</span><span class="f">${esc(w.factor)}</span><span class="d">${esc(w.detail)}</span></li>`).join("")}</ul>` : ""}
+      <dl class="rows">${[["영상", r.video], ["가격", r.price], ["광고비", r.ads], ["라이브", r.live]].filter(x => x[1]).map(([t, x]) => `<div><dt>${t}</dt><dd>${esc(x)}</dd></div>`).join("")}</dl>
+      ${r.actions && r.actions.length ? `<div class="act"><b>오늘 할 일</b><ol>${r.actions.map(x => `<li>${esc(x)}</li>`).join("")}</ol></div>` : ""}
+      ${r.watch ? `<div class="watch">주의: ${esc(r.watch)}</div>` : ""}
+      <div class="foot"><span>${new Date(s.data.at).toLocaleString("ko-KR", {month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit"})} 분석</span><button type="button" data-re="${ag.key}">이 제품만 다시</button></div>`;
+  } else body = `<div class="wait">아직 분석 전입니다</div>`;
+  const v = s.data && s.data.result.verdict;
+  return `<article class="card ${ag.key === "live" ? "live" : ""}" id="c-${ag.key}"><div class="top"><h2>${esc(ag.name)}${ag.key === "live" ? "" : ""}</h2>${v ? `<span class="pill ${v}">${v === "up" ? "상승" : v === "down" ? "하락" : "보합"}</span>` : ""}</div>${body}</article>`;
+}
+function draw() {
+  $("#grid").innerHTML = AG.map(card).join("");
+  document.querySelectorAll("[data-re]").forEach(b => b.onclick = () => runOne(AG.find(a => a.key === b.dataset.re), true));
+  const done = AG.filter(a => STATE[a.key] && STATE[a.key].data).length, busy = AG.filter(a => STATE[a.key] && STATE[a.key].loading).length;
+  $("#status").textContent = busy ? `분석 중… ${done}/${AG.length} 완료` : done ? `${md($("#d").value)} 분석 ${done}/${AG.length}` : "";
+  $("#run").disabled = $("#rerun").disabled = busy > 0;
+}
+async function runOne(ag, force) {
+  STATE[ag.key] = {loading: true}; draw();
+  for (let tryPw = 0; tryPw < 2; tryPw++) {
+    try {
+      const r = await fetch(`/api/agents?a=${$("#d").value}&agent=${ag.key}${force ? "&force=1" : ""}`, {method: "POST", headers: {"x-dash-pw": pwHeader()}});
+      const j = await r.json();
+      if (r.status === 401 && tryPw === 0) {
+        const pw = prompt("분석 실행 비밀번호를 입력하세요 (대시보드 비밀번호)");
+        if (!pw) { STATE[ag.key] = {error: "비밀번호가 없어 실행하지 않았습니다"}; break; }
+        try { localStorage.setItem("dashPw", pw); } catch (e) {}
+        continue;
+      }
+      STATE[ag.key] = j.error ? {error: j.error} : {data: j};
+      break;
+    } catch (e) { STATE[ag.key] = {error: "연결 오류: " + e.message}; break; }
+  }
+  draw();
+}
+let PWASKED = null;
+async function runAll(force) {
+  const todo = AG.filter(a => force || !(STATE[a.key] && STATE[a.key].data));
+  if (!todo.length) { $("#status").textContent = "이미 모두 분석했습니다. 새로 하려면 '다시 분석'을 누르세요."; return; }
+  // 비밀번호가 필요하면 첫 에이전트에서 물어본 뒤 나머지를 동시에 실행
+  await runOne(todo[0], force);
+  await Promise.all(todo.slice(1).map(a => runOne(a, force)));
+}
+async function loadSaved() {
+  STATE = {}; $("#status").textContent = "불러오는 중…";
+  try {
+    const j = await fetch(`/api/agents?a=${$("#d").value}`).then(r => r.json());
+    AG = j.agents || [];
+    for (const a of AG) if (a.saved) STATE[a.key] = {data: a.saved};
+  } catch (e) { $("#status").textContent = "불러오지 못했습니다: " + e.message; }
+  draw();
+}
+const q = new URLSearchParams(location.search);
+$("#d").value = q.get("a") || new Date(Date.now() - 86400000 * 2).toISOString().slice(0, 10);
+$("#d").onchange = () => { history.replaceState(null, "", "?a=" + $("#d").value); loadSaved(); };
+$("#run").onclick = () => runAll(false);
+$("#rerun").onclick = () => runAll(true);
+loadSaved();
+</script>
+</body>
+</html>

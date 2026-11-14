@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "dependencies": {
-    "googleapis": "^144.0.0",
-    "@vercel/blob": "^2.8.0"
+    "@anthropic-ai/sdk": "^1.8.0",
+    "@vercel/blob": "^2.8.0",
+    "googleapis": "^144.0.0"
   }
 }

@@ -20,6 +20,9 @@
     },
     "api/handles.js": {
       "maxDuration": 30
+    },
+    "api/agents.js": {
+      "maxDuration": 300
     }
   }
 }
