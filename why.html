@@ -165,6 +165,33 @@ section[data-panel]{display:flex;flex-direction:column;gap:12px}
 .dlg::backdrop{background:rgba(10,12,20,.4)}
 .dlg .card{position:static;max-height:none;border:0;padding:0}
 .lc{display:block;width:100%;height:auto;touch-action:pan-y}
+.aggrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(380px,100%),1fr));gap:12px;align-items:start}
+.agc{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.agc.live{border-color:var(--accent)}
+.agc .t{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.agc .t h3{font-size:16px}
+.agc .kpi{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.agc .kpi b{color:var(--ink);font-weight:600}
+.agc .hd{font-size:15px;font-weight:600;line-height:1.5}
+.agc .wy{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
+.agc .wy li{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;font-size:13px}
+.agc .wy .im{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.agc .wy .f{font-weight:600} .agc .wy .d{grid-column:2;color:var(--muted)}
+.agc dl{margin:0;display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.agc dl div{display:grid;grid-template-columns:52px 1fr;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}
+.agc dt{font-weight:600;color:var(--muted);font-size:12px;padding-top:1px} .agc dd{margin:0;overflow-wrap:anywhere}
+.agc .ac{background:var(--soft);border-radius:8px;padding:8px 12px;font-size:13px}
+.agc .ac b{font-size:12px;color:var(--accent)}
+.agc .ac ol{margin:4px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:3px;overflow-wrap:anywhere}
+.agc .wt{font-size:12.5px;color:var(--warn)}
+.agc .wait{color:var(--muted);font-size:13px;padding:14px 0;text-align:center}
+.agc .er{color:var(--down);font-size:13px}
+.agc .ft{font-size:11.5px;color:var(--muted);display:flex;justify-content:space-between;gap:8px}
+.agc .ft button{font:inherit;font-size:11.5px;background:none;border:0;color:var(--accent);cursor:pointer;padding:0}
+.spin{display:inline-block;width:12px;height:12px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.spin{animation:none}}
+.btn:disabled{opacity:.5;cursor:default}
 .vid{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--muted);user-select:all;margin-left:4px}
 .hb{display:flex;flex-direction:column;gap:6px}
 .hb .r{display:grid;grid-template-columns:150px minmax(0,1fr) 150px;gap:10px;align-items:center;font-size:13px}
@@ -199,7 +226,7 @@ section[data-panel]{display:flex;flex-direction:column;gap:12px}
 <body>
 <div class="wrap">
   <div class="bar">
-    <div><div class="note">d'Alba US TikTok Shop · <a href="/agents.html">제품 에이전트 분석</a></div><h1>매출 원인 지도</h1></div>
+    <div><div class="note">d'Alba US TikTok Shop</div><h1>매출 원인 지도</h1></div>
     <form class="period" id="pform" aria-label="기간 선택">
       <label for="a">기준</label><input id="a" type="date"><span class="note">~</span><input id="a2" type="date">
       <label for="b">비교</label><input id="b" type="date"><span class="note">~</span><input id="b2" type="date">
@@ -272,7 +299,8 @@ function render(raw) {
   const adNote = Math.abs(D.ads.a.prodSpend * D.fa - D.ads.b.prodSpend * D.fb) < D.ads.b.prodSpend * D.fb * 0.05 ? " 상품 광고비는 거의 같습니다." : ` 상품 광고비는 ${sd(D.ads.a.prodSpend * D.fa - D.ads.b.prodSpend * D.fb)} 움직였습니다.`;
   $("#app").innerHTML = `
   <div class="headline">매출 <b class="num">${usd(n.gmv)}</b>, 비교 대비 <b class="num ${cls(TOT)}">${sd(TOT)} (${spc(o.gmv, n.gmv)})</b>. 가장 크게 움직인 건 <b style="color:var(${COL[top.id]})">${top.name} ${sd(top.d)}</b>(${Math.round(top.d / TOT * 100)}%)입니다.${liveNote}${adNote}</div>
-  <div class="tabs" role="tablist">${[["sum", "요약"], ["cre", "광고 소재"], ["top", "크리에이터 TOP 30"], ["live", "라이브"]].map(([k, t]) => `<button class="tab" type="button" role="tab" data-tab="${k}" aria-selected="${k === TAB}">${t}</button>`).join("")}</div>
+  <div class="tabs" role="tablist">${[["ag", "에이전트 리포트"], ["sum", "요약"], ["cre", "광고 소재"], ["top", "크리에이터 TOP 30"], ["live", "라이브"]].map(([k, t]) => `<button class="tab" type="button" role="tab" data-tab="${k}" aria-selected="${k === TAB}">${t}</button>`).join("")}</div>
+  <section data-panel="ag"><div class="box"><div class="bar"><div><h3 id="agTitle">에이전트 데일리 리포트</h3><p class="note" id="agNote" style="margin:2px 0 0"></p></div><div class="seg"><button class="btn" id="agRun" type="button">분석하기</button><button class="btn ghost" id="agRe" type="button">다시 분석</button></div></div></div><div class="aggrid" id="agGrid"></div></section>
   <section data-panel="sum"><div class="box"><h3>채널별 증감</h3><div id="wf"></div></div>
     <div class="main"><div class="mapbox" id="mapbox"><div class="legend" id="legend"></div><div class="mhint">← 옆으로 밀어서 보기 →</div><svg id="map" role="img" aria-label="매출 원인 노선도"></svg></div><aside class="card" id="card" aria-live="polite"></aside></div></section>
   <section data-panel="cre"><div class="box"><div class="bar"><div class="lgd" id="lgd"></div><div class="seg"><button class="chip" type="button" data-cv="prod" aria-pressed="true">제품별</button><button class="chip" type="button" data-cv="cre" aria-pressed="false">크리에이터별</button></div></div><div id="cview"></div></div></section>
@@ -283,10 +311,10 @@ function render(raw) {
   document.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { TAB = b.dataset.tab; showTab(); });
   document.querySelectorAll("[data-goto]").forEach(b => b.onclick = () => { TAB = b.dataset.goto; showTab(); window.scrollTo({top: 0, behavior: "smooth"}); });
   showTab();
-  drawTop50(); drawWaterfall(); drawMap(); drawCView(); drawLive(); select("root");
+  drawTop50(); drawWaterfall(); drawMap(); drawCView(); drawLive(); select("root"); loadAgents();
   fillHandles();
 }
-let TAB = "sum";
+let TAB = new URLSearchParams(location.search).get("tab") || "ag";
 function showTab() {
   document.querySelectorAll("[data-tab]").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === TAB));
   document.querySelectorAll("[data-panel]").forEach(p => p.hidden = p.dataset.panel !== TAB);
@@ -975,6 +1003,72 @@ function drawProdPipes() {
       {name: "전환율", v: p.b.uclk && p.a.uclk ? `${(p.b.orders / p.b.uclk * 100).toFixed(1)}%→${(p.a.orders / p.a.uclk * 100).toFixed(1)}%` : "-", c: c[2]},
       {name: "객단가", v: p.b.orders && p.a.orders ? `$${(p.b.gmv / p.b.orders).toFixed(0)}→$${(p.a.gmv / p.a.orders).toFixed(0)}` : "-", c: c[3]}])}</div></div>`;
   }).join("");
+}
+// ---------------- 에이전트 리포트 (제품 10명 + 라이브 1명, /api/agents)
+let AGL = [], AGS = {}, AGD = "";
+const esc = x => String(x == null ? "" : x).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+function agKpi(k) {
+  if (!k) return "";
+  const pair = (t, v, f) => v && v[1] != null ? `<span>${t} <b>${f(v[1])}</b>${v[0] != null ? ` (전날 ${f(v[0])})` : ""}</span>` : "";
+  const m = k.매출;
+  return `<div class="kpi">${m ? `<span>매출 <b>${usd(m[1])}</b> <span class="pill ${cls(m[1] - m[0])}">${sd(m[1] - m[0])}</span></span>` : ""}${pair("광고비", k.광고비, usd)}${pair("ROI", k.ROI, v => v == null ? "-" : v.toFixed(2))}${pair("판매가", k.판매가, v => v == null ? "-" : "$" + v.toFixed(2))}${pair("브랜드", k.브랜드라이브, usd)}${pair("AF", k.AF라이브, usd)}</div>`;
+}
+function agCard(ag) {
+  const s = AGS[ag.key] || {};
+  let b;
+  if (s.loading) b = `<div class="wait"><span class="spin"></span>분석 중…</div>`;
+  else if (s.error) b = `<p class="er">${esc(s.error)}</p>`;
+  else if (s.data) {
+    const r = s.data.result;
+    b = `${agKpi(s.data.kpi)}<div class="hd">${esc(r.headline)}</div>
+      ${r.why && r.why.length ? `<ul class="wy">${r.why.map(w => `<li><span class="im" style="color:var(--${/^\s*[-−]/.test(w.impact) ? "down" : /^\s*\+/.test(w.impact) ? "up" : "ink"})">${esc(w.impact)}</span><span class="f">${esc(w.factor)}</span><span class="d">${esc(w.detail)}</span></li>`).join("")}</ul>` : ""}
+      <dl>${[["영상", r.video], ["가격", r.price], ["광고비", r.ads], ["라이브", r.live]].filter(x => x[1]).map(([t, x]) => `<div><dt>${t}</dt><dd>${esc(x)}</dd></div>`).join("")}</dl>
+      ${r.actions && r.actions.length ? `<div class="ac"><b>오늘 할 일</b><ol>${r.actions.map(x => `<li>${esc(x)}</li>`).join("")}</ol></div>` : ""}
+      ${r.watch ? `<div class="wt">주의: ${esc(r.watch)}</div>` : ""}
+      <div class="ft"><span>${new Date(s.data.at).toLocaleString("ko-KR", {month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit"})} 분석</span><button type="button" data-agre="${ag.key}">이 제품만 다시</button></div>`;
+  } else b = `<div class="wait">아직 분석 전입니다</div>`;
+  const v = s.data && s.data.result.verdict;
+  return `<article class="agc ${ag.key === "live" ? "live" : ""}"><div class="t"><h3>${esc(ag.name)}</h3>${v ? `<span class="pill ${v === "up" ? "up" : v === "down" ? "down" : "muted"}">${v === "up" ? "상승" : v === "down" ? "하락" : "보합"}</span>` : ""}</div>${b}</article>`;
+}
+function drawAgents() {
+  $("#agGrid").innerHTML = AGL.map(agCard).join("");
+  $("#agGrid").querySelectorAll("[data-agre]").forEach(b => b.onclick = () => agRunOne(AGL.find(a => a.key === b.dataset.agre), true));
+  const done = AGL.filter(a => AGS[a.key] && AGS[a.key].data).length, busy = AGL.filter(a => AGS[a.key] && AGS[a.key].loading).length;
+  $("#agTitle").textContent = `${md(AGD)}(${DOW(AGD)}) 에이전트 데일리 리포트`;
+  $("#agNote").textContent = busy ? `분석 중… ${done}/${AGL.length} 완료` : `제품 10명 + 라이브 1명이 그날을 전날·지난주 같은 요일과 비교해 분석합니다. 매일 오후 1시쯤 시트에 들어온 최신 날짜를 자동 분석합니다.${D.A[0] !== D.A[1] ? " 기간을 고르면 마지막 날 리포트를 보여줍니다." : ""} (${done}/${AGL.length})`;
+  $("#agRun").disabled = $("#agRe").disabled = busy > 0;
+}
+async function agRunOne(ag, force) {
+  AGS[ag.key] = {loading: true}; drawAgents();
+  for (let t = 0; t < 2; t++) {
+    try {
+      let pw = ""; try { pw = localStorage.getItem("dashPw") || ""; } catch (e) {}
+      const r = await fetch(`/api/agents?a=${AGD}&agent=${ag.key}${force ? "&force=1" : ""}`, {method: "POST", headers: {"x-dash-pw": pw}});
+      const j = await r.json();
+      if (r.status === 401 && t === 0) {
+        const p = prompt("분석 실행 비밀번호를 입력하세요 (대시보드 비밀번호)");
+        if (!p) { AGS[ag.key] = {error: "비밀번호가 없어 실행하지 않았습니다"}; break; }
+        try { localStorage.setItem("dashPw", p); } catch (e) {}
+        continue;
+      }
+      AGS[ag.key] = j.error ? {error: j.error} : {data: j}; break;
+    } catch (e) { AGS[ag.key] = {error: "연결 오류: " + e.message}; break; }
+  }
+  drawAgents();
+}
+async function agRunAll(force) {
+  const todo = AGL.filter(a => force || !(AGS[a.key] && AGS[a.key].data));
+  if (!todo.length) { $("#agNote").textContent = "이미 모두 분석했습니다. 새로 하려면 '다시 분석'을 누르세요."; return; }
+  await agRunOne(todo[0], force);
+  await Promise.all(todo.slice(1).map(a => agRunOne(a, force)));
+}
+async function loadAgents() {
+  AGD = D.A[1]; AGS = {};
+  $("#agRun").onclick = () => agRunAll(false); $("#agRe").onclick = () => agRunAll(true);
+  if (window.WHY_DATA) { $("#agNote").textContent = "시안에서는 에이전트 리포트를 불러올 수 없습니다. 사이트에서 확인하세요."; $("#agRun").disabled = $("#agRe").disabled = true; return; }
+  try { const j = await fetch(`/api/agents?a=${AGD}`).then(r => r.json()); AGL = j.agents || []; for (const a of AGL) if (a.saved) AGS[a.key] = {data: a.saved}; }
+  catch (e) { $("#agNote").textContent = "리포트를 불러오지 못했습니다: " + e.message; }
+  drawAgents();
 }
 // ---------------- 투어
 function tourSteps() {
