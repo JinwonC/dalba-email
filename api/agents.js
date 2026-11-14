@@ -176,10 +176,49 @@ async function runAgent(ag, brief) {
   return { result: JSON.parse(txt), usage: { input: res.usage.input_tokens, output: res.usage.output_tokens, cacheRead: res.usage.cache_read_input_tokens || 0 }, model: res.model };
 }
 
+// 에이전트 하나 실행 → 저장
+async function analyze(ag, a, d1, d7) {
+  const brief = ag.live ? liveBrief(d1, d7) : productBrief(ag, d1, d7);
+  const t0 = Date.now();
+  const out = await runAgent(ag, brief);
+  const P = !ag.live && d1.products.find(p => p.id === ag.pid);
+  const kpi = ag.live
+    ? { 매출: [R(d1.store.b.sl + d1.store.b.cl), R(d1.store.a.sl + d1.store.a.cl)], 브랜드라이브: [R(d1.store.b.sl), R(d1.store.a.sl)], AF라이브: [R(d1.store.b.cl), R(d1.store.a.cl)] }
+    : P ? { 매출: [R(P.b.gmv), R(P.a.gmv)], 광고비: P.ads ? [R(P.ads.b.spend), R(P.ads.a.spend)] : null, ROI: P.ads ? [roi(P.ads.b.gmv, P.ads.b.spend), roi(P.ads.a.gmv, P.ads.a.spend)] : null, 판매가: P.price ? [P.price.b && P.price.b.avg, P.price.a && P.price.a.avg] : null } : null;
+  const obj = { date: a, agent: ag.key, name: ag.name, kpi, ...out, ms: Date.now() - t0, at: new Date().toISOString() };
+  await save(a, ag.key, obj).catch(() => {});
+  return obj;
+}
+const baseOf = req => `https://${req.headers["x-forwarded-host"] || req.headers.host}`;
+const errMsg = e => (APIError && e instanceof APIError ? `Claude API 오류 ${e.status}: ${e.message}` : String((e && e.message) || e));
+
+// 매일 자동 실행 (Vercel cron): 시트에 매출이 들어온 가장 최근 날짜를 찾아, 아직 분석 안 된 에이전트를 모두 돌린다.
+async function cron(req, res) {
+  const secret = process.env.CRON_SECRET;
+  const auth = String(req.headers.authorization || "");
+  const ua = String(req.headers["user-agent"] || "");
+  if (secret ? auth !== `Bearer ${secret}` : !/^vercel-cron/i.test(ua)) { res.status(401).json({ error: "cron 전용" }); return; }
+  const base = baseOf(req);
+  const today = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10); // 한국 날짜
+  let a = null, d1 = null;
+  for (const n of [1, 2, 3, 4]) {
+    const k = addD(today, -n);
+    try { const d = await why(base, k, addD(k, -1)); if (d.store.a.gmv > 0) { a = k; d1 = d; break; } } catch (e) {}
+  }
+  if (!a) { res.status(200).json({ ok: false, note: "최근 4일 안에 매출 데이터가 있는 날짜가 없습니다" }); return; }
+  const saved = await Promise.all(AGENTS.map(g => load(a, g.key)));
+  const todo = AGENTS.filter((g, i) => !saved[i]);
+  if (!todo.length) { res.status(200).json({ ok: true, date: a, note: "이미 모두 분석됨" }); return; }
+  const d7 = await why(base, a, addD(a, -7));
+  const out = await Promise.all(todo.map(g => analyze(g, a, d1, d7).then(() => ({ agent: g.key, ok: true }), e => ({ agent: g.key, error: errMsg(e) }))));
+  res.status(200).json({ ok: true, date: a, ran: out });
+}
+
 module.exports = async (req, res) => {
   const q = req.query || {};
-  const a = String(q.a || "");
   res.setHeader("Cache-Control", "no-store");
+  if (q.cron) { await cron(req, res); return; }
+  const a = String(q.a || "");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(a)) { res.status(400).json({ error: "a=YYYY-MM-DD 날짜가 필요합니다" }); return; }
   if (req.method === "GET") {
     const saved = await Promise.all(AGENTS.map(g => load(a, g.key)));
@@ -193,23 +232,12 @@ module.exports = async (req, res) => {
   if (pw && (req.headers["x-dash-pw"] || q.pw) !== pw) { res.status(401).json({ error: "비밀번호가 필요합니다" }); return; }
   if (!process.env.ANTHROPIC_API_KEY) { res.status(500).json({ error: "ANTHROPIC_API_KEY가 설정되지 않았습니다" }); return; }
   try {
-    const base = `https://${req.headers["x-forwarded-host"] || req.headers.host}`;
+    const base = baseOf(req);
     const [d1, d7] = await Promise.all([why(base, a, addD(a, -1)), why(base, a, addD(a, -7))]);
     if (!(d1.store.a.gmv > 0)) { res.status(409).json({ error: `${a} 매출 데이터가 아직 시트에 없습니다. 시트가 채워진 날짜를 고르세요.` }); return; }
-    const brief = ag.live ? liveBrief(d1, d7) : productBrief(ag, d1, d7);
-    const t0 = Date.now();
-    const out = await runAgent(ag, brief);
-    const P = !ag.live && d1.products.find(p => p.id === ag.pid);
-    const kpi = ag.live
-      ? { 매출: [R(d1.store.b.sl + d1.store.b.cl), R(d1.store.a.sl + d1.store.a.cl)], 브랜드라이브: [R(d1.store.b.sl), R(d1.store.a.sl)], AF라이브: [R(d1.store.b.cl), R(d1.store.a.cl)] }
-      : P ? { 매출: [R(P.b.gmv), R(P.a.gmv)], 광고비: P.ads ? [R(P.ads.b.spend), R(P.ads.a.spend)] : null, ROI: P.ads ? [roi(P.ads.b.gmv, P.ads.b.spend), roi(P.ads.a.gmv, P.ads.a.spend)] : null, 판매가: P.price ? [P.price.b && P.price.b.avg, P.price.a && P.price.a.avg] : null } : null;
-    const obj = { date: a, agent: ag.key, name: ag.name, kpi, ...out, ms: Date.now() - t0, at: new Date().toISOString() };
-    await save(a, ag.key, obj).catch(() => {});
-    res.status(200).json(obj);
+    res.status(200).json(await analyze(ag, a, d1, d7));
   } catch (e) {
-    const msg = APIError && e instanceof APIError ? `Claude API 오류 ${e.status}: ${e.message}` : String(e.message || e);
-    res.status(500).json({ error: msg });
+    res.status(500).json({ error: errMsg(e) });
   }
 };
-
 module.exports._test = { productBrief, liveBrief, AGENTS };
