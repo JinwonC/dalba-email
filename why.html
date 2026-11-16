@@ -1006,6 +1006,47 @@ const TODO = {
   kill: ["KILL 검토", "끄기", "최근 7일 내내 쓴 돈보다 못 번 소재. 7일 광고비 많은 순서.", c => c.s7, "7일 광고비"],
   boost: ["부스팅 권장", "키우기", "7일 꾸준히 잘 파는데 광고비가 적은 소재 (ROI 2 이상, 하루 $20 미만). 7일 매출 큰 순서.", c => c.g7, "7일 매출"],
   watch: ["확인 필요", "끄지 말고 원인 보기", "평소엔 괜찮은데 기준일 매출이 절반 아래로 떨어진 소재. 많이 빠진 순서.", c => -c.dg, "매출 감소"]};
+// 증분 ROAS = 매출 증감 ÷ 광고비 증감. 광고비 변화가 작으면(< $20) 계산하지 않는다.
+// 색: 초록 = 잘한 움직임, 주황 = 애매, 빨강 = 손해 (광고비를 늘렸으면 2 이상이 좋고, 줄였으면 잃은 매출이 적을수록 좋다)
+function incr(dS, dG) {
+  if (Math.abs(dS) < 20) return {t: "-", c: "muted", why: "광고비 변화가 $20 미만이라 계산하지 않음"};
+  const r = dG / dS;
+  if (dS > 0 && dG < 0) return {t: "매출↓", c: "down", why: "광고비를 늘렸는데 매출이 줄었음"};
+  if (dS < 0 && dG >= 0) return {t: "매출↑", c: "up", why: "광고비를 줄였는데 매출은 늘었음"};
+  if (dS > 0) return {t: r.toFixed(2), c: r >= 2 ? "up" : r >= 1 ? "warnc" : "down", why: `광고비 $1 더 쓸 때마다 매출 $${r.toFixed(2)} 늘었음`};
+  return {t: r.toFixed(2), c: r <= 1 ? "up" : r <= 2 ? "warnc" : "down", why: `광고비 $1 줄일 때마다 매출 $${r.toFixed(2)} 줄었음`};
+}
+// 최근 14일 일별 증감 그림: ROI 선 + 전날 대비 광고비·매출 증감 막대 + 증분 ROAS + 목표 ROI 변경
+function incrChart(L, name) {
+  const DT = D.raw.sparkDates || [], n = DT.length; if (n < 3) return "";
+  const S = DT.map((_, i) => L.reduce((x, c) => x + (c.spark.spend[i] || 0), 0)), G = DT.map((_, i) => L.reduce((x, c) => x + (c.spark.gmv[i] || 0), 0));
+  const TR = (D.raw.troi || []).map(t => ({...t, name: TROI_MAP[t.product] || t.product})).filter(t => !name || t.name === name);
+  const days = []; for (let i = 1; i < n; i++) days.push({k: DT[i], s: S[i], g: G[i], dS: S[i] - S[i - 1], dG: G[i] - G[i - 1], roi: S[i] >= 1 ? G[i] / S[i] : null, tr: TR.filter(t => t.date === DT[i])});
+  const W = 980, X0 = 78, cw = (W - X0 - 6) / days.length, cx = i => X0 + cw * i + cw / 2, H = 318;
+  const ink = css("--ink"), mu = css("--muted"), ln = css("--line"), col = {up: css("--up"), down: css("--down"), warnc: css("--warn"), muted: mu};
+  const rs = days.map(d => d.roi).filter(v => v != null), rlo = Math.min(...rs, 0), rhi = Math.max(...rs, 1), ry = v => 92 - (v - rlo) / (rhi - rlo || 1) * 44;
+  const mxd = Math.max(1, ...days.flatMap(d => [Math.abs(d.dS), Math.abs(d.dG)])), Z = 158, by = v => v / mxd * 54;
+  const lab = (y, t) => `<text x="0" y="${y}" font-size="11" fill="${mu}">${t}</text>`;
+  let h = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="min-width:760px;display:block;direction:ltr" role="img" aria-label="최근 14일 일별 광고비·매출 증감과 증분 ROAS">`;
+  days.forEach((d, i) => { const base = d.k >= D.A[0] && d.k <= D.A[1], cmp = d.k >= D.B[0] && d.k <= D.B[1];
+    if (base || cmp) h += `<rect x="${X0 + cw * i + 2}" y="2" width="${cw - 4}" height="${H - 4}" rx="8" fill="${base ? css("--accent-fill") : "none"}" stroke="${base ? "none" : ln}" stroke-width="1.5" stroke-dasharray="${base ? "" : "4 3"}"/>`;
+    h += `<text x="${cx(i)}" y="16" text-anchor="middle" font-size="11" fill="${base ? ink : mu}" font-weight="${base ? 700 : 400}">${md(d.k)}(${DOW(d.k)})</text>`; });
+  h += lab(74, "ROI") + lab(Z + 4, "전날 대비") + lab(246, "광고비 증감") + lab(264, "매출 증감") + lab(287, "증분 ROAS") + lab(308, "목표 ROI 변경");
+  h += `<line x1="${X0}" x2="${W - 6}" y1="${Z}" y2="${Z}" stroke="${ln}"/>`;
+  const pts = days.map((d, i) => d.roi == null ? null : [cx(i), ry(d.roi)]).filter(Boolean);
+  if (pts.length > 1) h += `<polyline points="${pts.map(p => p.join(",")).join(" ")}" fill="none" stroke="${css("--accent")}" stroke-width="2" stroke-linejoin="round"/>`;
+  days.forEach((d, i) => { const x = cx(i), q = incr(d.dS, d.dG);
+    if (d.roi != null) h += `<circle cx="${x}" cy="${ry(d.roi)}" r="3" fill="${css("--accent")}"/><text x="${x}" y="${ry(d.roi) - 7}" text-anchor="middle" font-size="10.5" class="num" fill="${ink}">${d.roi.toFixed(2)}</text>`;
+    const b = (v, dx, c) => { const hh = Math.abs(by(v)); return `<rect x="${x + dx}" y="${v >= 0 ? Z - hh : Z}" width="16" height="${Math.max(1, hh)}" rx="2" fill="${c}"/>`; };
+    h += b(d.dS, -18, css("--neutral")) + b(d.dG, 2, d.dG >= 0 ? col.up : col.down);
+    h += `<text x="${x}" y="246" text-anchor="middle" font-size="10.5" class="num" fill="${mu}">${sd(d.dS)}</text><text x="${x}" y="264" text-anchor="middle" font-size="10.5" class="num" fill="${Math.abs(d.dG) < 0.5 ? mu : d.dG > 0 ? col.up : col.down}">${sd(d.dG)}</text>
+      <text x="${x}" y="287" text-anchor="middle" font-size="12.5" font-weight="700" class="num" fill="${col[q.c]}">${q.t}</text>`;
+    if (d.tr.length) h += `<line x1="${x}" x2="${x}" y1="26" y2="226" stroke="${css("--warn")}" stroke-width="1.2" stroke-dasharray="3 3"/><text x="${x}" y="308" text-anchor="middle" font-size="10.5" font-weight="700" class="num" fill="${css("--warn")}">${name || d.tr.length === 1 ? d.tr.map(t => `${t.from}→${t.to}`).join(" ") : d.tr.length + "건"}</text>`;
+    h += `<rect x="${X0 + cw * i}" y="0" width="${cw}" height="${H}" fill="transparent" data-tip="<b>${md(d.k)}(${DOW(d.k)})</b><br>광고비 ${usd(d.s)} (${sd(d.dS)}) · 매출 ${usd(d.g)} (${sd(d.dG)})<br>ROI ${d.roi == null ? "-" : d.roi.toFixed(2)} · 증분 ROAS ${q.t}<br>${q.why}${d.tr.length ? "<br>목표 ROI 변경: " + d.tr.map(t => `${name ? "" : t.name + " "}${t.from} → ${t.to}`).join(", ") : ""}"/>`; });
+  return `<div><div class="bar" style="align-items:baseline"><h4 style="margin:0;font-size:14px">최근 14일 일별 증감 <span class="note" style="font-weight:400">· 전날 대비</span></h4><div class="lgd"><span><i style="background:var(--neutral)"></i>광고비 증감</span><span><i style="background:var(--up)"></i><i style="background:var(--down)"></i>매출 증감</span><span><i style="background:var(--accent);height:3px;width:14px;vertical-align:middle"></i>ROI</span><span><i style="background:var(--accent-fill)"></i>기준일</span></div></div>
+    <div style="overflow-x:auto;margin-top:6px;direction:rtl">${h}</svg></div>
+    <p class="note" style="margin:4px 0 0">증분 ROAS = 매출 증감 ÷ 광고비 증감. 광고비를 늘린 날은 2 이상이면 초록, 줄인 날은 잃은 매출이 적을수록 초록입니다. 광고비 변화가 $20 미만인 날은 계산하지 않습니다.</p></div>`;
+}
 function todoCard(kind, list, pref, showProd) {
   const [title, verb, desc, val, unit] = TODO[kind];
   const sum = list.reduce((s2, c) => s2 + val(c), 0), top = list.slice(0, 10);
@@ -1036,8 +1077,10 @@ function drawAdTop() {
       <div><div class="t">광고비${per}</div><div class="v">${usd(sa)}</div><div class="s">비교 ${usd(sb)} · ${sd(sa - sb)}</div></div>
       <div><div class="t">광고 매출${per}</div><div class="v">${usd(ga)}</div><div class="s">비교 ${usd(gb)} · <span class="${cls(dG)}">${sd(dG)}</span></div></div>
       <div><div class="t">ROI (매출 ÷ 광고비)</div><div class="v">${r1.toFixed(2)}</div><div class="s">비교 ${r0.toFixed(2)} · 최근 7일 ${r7.toFixed(2)}</div></div>
+      ${(() => { const q = incr(sa - sb, dG); return `<div data-tip="${q.why}"><div class="t">증분 ROAS (비교 대비)</div><div class="v ${q.c === "up" || q.c === "down" ? q.c : ""}"${q.c === "warnc" ? ' style="color:var(--warn)"' : ""}>${q.t}</div><div class="s">광고비 ${sd(sa - sb)} · 매출 ${sd(dG)}</div></div>`; })()}
       <div class="leak"><div class="t">7일 내내 손해인 소재</div><div class="v">${usd(k7)}</div><div class="s">7일 광고비 · 소재 ${kill.length}개 · 기준일 ${usd(M.kill.s)}</div></div>
     </div>
+    ${incrChart(L, name)}
     <div><div class="t note">기준일 광고비가 어떤 소재에 쓰였나 (판정은 최근 7일 ROI)</div>
       <div class="mix">${GC.map(([k, t, c]) => M[k].s > 0 ? `<i data-tip="${t}<br>광고비 ${usd(M[k].s)} (${Math.round(M[k].s / sa * 100)}%) · 소재 ${M[k].n}개" style="width:${(M[k].s / sa * 100).toFixed(1)}%;background:var(${c})"></i>` : "").join("")}</div>
       <div class="mixl">${GC.map(([k, t, c, d]) => `<div><i style="background:var(${c})"></i><b>${t}</b> <b class="num">${usd(M[k].s)}</b> <span class="note">${sa ? Math.round(M[k].s / sa * 100) : 0}% · ${M[k].n}개</span><small>${d}</small></div>`).join("")}</div>
