@@ -61,11 +61,19 @@ const R = v => Math.round(v || 0);
 const r2 = v => v == null || !isFinite(v) ? null : Math.round(v * 100) / 100;
 const pct = (x, y) => (y ? r2(x / y * 100) : null);
 const roi = (g, s) => (s >= 1 ? r2(g / s) : null);
-function grade(sa, ga) {
-  if (sa < 3 && ga < 15) return null;
-  if (sa < 1 && ga > 0) return "아주 좋음";
-  const x = ga / sa; return x < 1 ? "KILL 검토" : x < 1.5 ? "주의" : x < 3 ? "좋음" : "아주 좋음";
+// 소재 판정: 기준일까지 최근 7일 ROI (why.html과 같은 규칙). 하루치는 흔들려서 쓰지 않는다.
+const sum7 = A => (A || []).slice(-7).reduce((x, y) => x + y, 0);
+const w7 = c => ({ s: sum7(c.spark && c.spark.spend), g: sum7(c.spark && c.spark.gmv), n: ((c.spark && c.spark.gmv) || []).slice(-7).filter(v => v > 0).length });
+function grade(c) {
+  const { s, g } = w7(c);
+  if (s < 3 && g < 15) return null;
+  if (s < 1) return "아주 좋음";
+  const x = g / s;
+  if (x < 1) return s >= 30 ? "KILL 검토" : null;
+  return x < 2 ? "주의" : x < 3 ? "좋음" : "아주 좋음";
 }
+const isBoost = c => { const w = w7(c); return ["좋음", "아주 좋음"].includes(grade(c)) && w.s / 7 < 20 && w.n >= 3 && w.g >= 50; };
+const isWatch = c => grade(c) !== "KILL 검토" && c.a.gmv - c.b.gmv <= -100 && c.a.gmv < c.b.gmv * 0.5;
 function ageOf(posted, a) { if (!posted) return "오래된"; const d = (Date.parse(a) - Date.parse(posted)) / 86400000; return d <= 7 ? "신규" : d <= 30 ? "최근" : "오래된"; }
 function funnel(s) {
   return { 매출: R(s.gmv), 상품노출: R(s.imp), 방문: R(s.uclk), "방문률%": pct(s.uclk, s.imp), 주문: R(s.orders), "전환율%": pct(s.orders, s.uclk), 판매개수: R(s.items), 객단가: r2(s.orders ? s.gmv / s.orders : null) };
@@ -79,13 +87,14 @@ function productBrief(ag, d1, d7) {
   const ads = side => (side ? { 광고비: R(side.spend), 광고매출: R(side.gmv), ROI: roi(side.gmv, side.spend) } : null);
   const C = d1.creatives.filter(c => c.pid === ag.pid);
   const C7 = Object.fromEntries(d7.creatives.filter(c => c.pid === ag.pid).map(c => [c.cid + c.camp, c]));
-  const line = c => ({ 영상ID: c.cid, 크리에이터: c.creator ? "@" + c.creator : "미확인", 포스팅: c.posted, 나이: ageOf(c.posted, a), 광고비: [R(c.b.spend), R(c.a.spend)], 매출: [R(c.b.gmv), R(c.a.gmv)], 지난주같은요일매출: C7[c.cid + c.camp] ? R(C7[c.cid + c.camp].b.gmv) : null, 판정: grade(c.a.spend, c.a.gmv) });
+  const line = c => ({ 영상ID: c.cid, 크리에이터: c.creator ? "@" + c.creator : "미확인", 포스팅: c.posted, 나이: ageOf(c.posted, a), 광고비: [R(c.b.spend), R(c.a.spend)], 매출: [R(c.b.gmv), R(c.a.gmv)], 지난주같은요일매출: C7[c.cid + c.camp] ? R(C7[c.cid + c.camp].b.gmv) : null, "최근7일": { 광고비: R(w7(c).s), 매출: R(w7(c).g), ROI: roi(w7(c).g, w7(c).s), 판매일수: w7(c).n }, 판정: grade(c) });
   const age = {};
   for (const c of C) { const k = ageOf(c.posted, a); const e = age[k] || (age[k] = { 소재수: 0, 광고비: [0, 0], 매출: [0, 0] }); e.소재수++; e.광고비[0] += c.b.spend; e.광고비[1] += c.a.spend; e.매출[0] += c.b.gmv; e.매출[1] += c.a.gmv; }
   for (const k in age) { age[k].광고비 = age[k].광고비.map(R); age[k].매출 = age[k].매출.map(R); }
   const dg = c => c.a.gmv - c.b.gmv;
-  const kill = C.filter(c => grade(c.a.spend, c.a.gmv) === "KILL 검토" && c.a.spend >= 5).sort((x, y) => y.a.spend - x.a.spend);
-  const boost = C.filter(c => ["좋음", "아주 좋음"].includes(grade(c.a.spend, c.a.gmv)) && c.a.spend < 20).sort((x, y) => y.a.gmv - x.a.gmv);
+  const kill = C.filter(c => grade(c) === "KILL 검토").sort((x, y) => w7(y).s - w7(x).s);
+  const boost = C.filter(isBoost).sort((x, y) => w7(y).g - w7(x).g);
+  const watchL = C.filter(isWatch).sort((x, y) => dg(x) - dg(y));
   const creators = (d1.topCreators || []).filter(t => t.topProducts[0] && t.topProducts[0].pid === ag.pid).map(t => ({ 크리에이터: "@" + t.h, "30일매출": t.gmv, 최근7일: t.last7, 이전7일: t.prev7, "새영상7일": t.posts7, 마지막포스팅: t.lastPost }));
   const lv = P.live ? { 매출: [R(P.live.b.gmv), R(P.live.a.gmv)], 주문: [R(P.live.b.orders), R(P.live.a.orders)] } : null;
   const afl = d1.afLive.map(c => ({ h: c.h, b: (c.products.b || {})[ag.pid], a: (c.products.a || {})[ag.pid] })).filter(x => x.a || x.b).map(x => ({ 크리에이터: "@" + x.h, 매출: [R(x.b && x.b.pay), R(x.a && x.a.pay)] }));
@@ -100,8 +109,9 @@ function productBrief(ag, d1, d7) {
     "매출이 가장 오른 소재": C.filter(c => dg(c) > 0).sort((x, y) => dg(y) - dg(x)).slice(0, 6).map(line),
     "매출이 가장 빠진 소재": C.filter(c => dg(c) < 0).sort((x, y) => dg(x) - dg(y)).slice(0, 6).map(line),
     "새로 올라온 소재 (최근 7일 포스팅)": C.filter(c => ageOf(c.posted, a) === "신규").sort((x, y) => y.a.gmv - x.a.gmv).slice(0, 8).map(line),
-    "KILL 검토 (기준일 ROI<1, 광고비≥$5)": { 개수: kill.length, 하루광고비합: R(kill.reduce((s, c) => s + c.a.spend, 0)), 상위: kill.slice(0, 5).map(line) },
-    "부스팅 권장 (좋음 이상, 광고비<$20)": { 개수: boost.length, 상위: boost.slice(0, 5).map(line) },
+    "KILL 검토 (최근 7일 ROI<1, 7일 광고비≥$30)": { 개수: kill.length, "7일광고비합": R(kill.reduce((s, c) => s + w7(c).s, 0)), 상위: kill.slice(0, 5).map(line) },
+    "부스팅 권장 (7일 ROI≥2, 하루 평균 광고비<$20, 7일 중 3일 이상 판매)": { 개수: boost.length, 상위: boost.slice(0, 5).map(line) },
+    "확인 필요 (끌 소재는 아닌데 기준일 매출이 절반 아래로 급락)": { 개수: watchL.length, 상위: watchL.slice(0, 5).map(line) },
     "이 제품이 주력인 TOP 크리에이터": creators.slice(0, 10),
     "브랜드 라이브에서 이 제품 [전날, 기준일]": lv,
     "AF 라이브에서 이 제품을 판 크리에이터 [전날, 기준일]": afl.slice(0, 8)
@@ -140,6 +150,7 @@ const SYSTEM = `너는 d'Alba US 틱톡샵의 데일리 분석 에이전트다. 
 - [전날, 기준일] 배열은 첫 값이 전날, 둘째 값이 기준일이다.
 - 원인은 숫자로 확인되는 것만 단정한다. 추정이면 "추정"이라고 쓴다.
 - 하루치는 흔들린다. 전날만 보고 판단하지 말고 지난주 같은 요일과 함께 본다.
+- 소재 판정은 최근 7일 ROI 기준이다. KILL 검토 = 7일 ROI 1 미만이고 7일 광고비 $30 이상, 주의 = 1~2, 좋음 = 2~3, 아주 좋음 = 3 이상. 기준일 하루만 나쁜 소재는 끄라고 하지 말고 "확인 필요"로 쓴다.
 - 광고 매출(GMV Max)은 해당 제품 전체 매출과 거의 같게 잡히는 지표다. ROI = 광고 매출 ÷ 광고비.
 - 소재는 크리에이터 이름과 영상ID를 함께 적는다.
 - 가격은 AF 주문의 개당 판매가 분포(points: 가격별 판매 개수)다. 가격대 비중이 바뀌었으면 할인·번들·쿠폰 변화로 본다.
