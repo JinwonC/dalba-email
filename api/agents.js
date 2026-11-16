@@ -286,7 +286,7 @@ module.exports = async (req, res) => {
   if (q.save && req.method === "POST") { try { await saveAll(req, res, a); } catch (e) { res.status(500).json({ error: errMsg(e) }); } return; }
   if (req.method === "GET") {
     const saved = await Promise.all(AGENTS.map(g => load(a, g.key)));
-    res.status(200).json({ date: a, agents: AGENTS.map((g, i) => ({ key: g.key, name: g.name, saved: saved[i] })), storage: blobReady() });
+    res.status(200).json({ date: a, agents: AGENTS.map((g, i) => ({ key: g.key, name: g.name, saved: saved[i] })), storage: blobReady(), canRun: !!process.env.ANTHROPIC_API_KEY });
     return;
   }
   const ag = AGENTS.find(g => g.key === q.agent);
