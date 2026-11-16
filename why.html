@@ -210,9 +210,59 @@ section[data-panel]{display:flex;flex-direction:column;gap:12px}
 .plist .rt{font-size:12.5px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
 .plist .in{padding:4px 4px 16px;display:flex;flex-direction:column;gap:10px;min-width:0}
 .plist .in>div:last-child{overflow-x:auto}
+/* 광고 소재 탭: 결론 숫자 → 오늘 할 일 → 제품별 목록 */
+.adk{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(150px,100%),1fr));gap:10px}
+.adk>div{background:var(--soft);border-radius:12px;padding:12px 14px;min-width:0}
+.adk .t{font-size:12.5px;color:var(--muted)}
+.adk .v{font-size:clamp(20px,5.5vw,25px);font-weight:700;font-variant-numeric:tabular-nums;line-height:1.3}
+.adk .s{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.adk .leak{background:var(--down-bg)} .adk .leak .v{color:var(--down)}
+.mix{display:flex;height:28px;border-radius:8px;overflow:hidden;gap:2px;margin-top:4px}
+.mix i{display:block;height:100%;min-width:3px}
+.mixl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(190px,100%),1fr));gap:6px 10px;margin-top:8px;font-size:13px}
+.mixl>div{min-width:0;padding:0 4px}
+.mixl i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px}
+.mixl b{font-variant-numeric:tabular-nums}
+.mixl small{display:block;font-size:12px;color:var(--muted);padding-left:16px}
+.todo{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(430px,100%),1fr));gap:12px}
+.tcard{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;min-width:0;display:flex;flex-direction:column;gap:6px}
+.tcard.kill{border-top:4px solid var(--down)} .tcard.boost{border-top:4px solid var(--c-video)}
+.tcard h4{margin:0;font-size:15px;display:flex;justify-content:space-between;gap:8px;align-items:center}
+.tcard h4 em{font-style:normal;font-weight:500;color:var(--muted);font-size:13px;margin-left:6px}
+.tcard .d{font-size:12.5px;color:var(--muted);margin:0}
+.crows{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.crow{display:grid;grid-template-columns:minmax(0,1fr) auto 78px auto;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+.crow:last-child{border-bottom:0}
+.crow .who{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap} .crow .who a{font-weight:600}
+.crow .sub{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.crow .sub .vid{margin-left:0;font-size:10.5px}
+.crow .nums{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted);font-size:12.5px} .crow .nums b{color:var(--ink);font-size:13.5px}
+.rchip{display:inline-block;min-width:72px;text-align:center;font-size:12px;font-weight:700;padding:3px 6px;border-radius:7px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.rchip.kill{background:var(--down-bg);color:var(--down)} .rchip.warn{background:var(--soft);color:var(--warn)} .rchip.good,.rchip.best{background:var(--up-bg);color:var(--up)} .rchip.none{background:var(--soft);color:var(--muted)}
+.rchip.up{background:var(--up-bg);color:var(--up)} .rchip.down{background:var(--down-bg);color:var(--down)} .rchip.muted{background:var(--soft);color:var(--muted)}
+.plist summary.prow,.phead{display:grid;grid-template-columns:128px 74px minmax(80px,1fr) 118px 84px 168px 14px;gap:12px;align-items:center}
+.phead{padding:6px 4px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--line)}
+.phead .n,.prow .n{text-align:right;font-variant-numeric:tabular-nums}
+.plist summary.prow{padding:12px 4px;font-size:13.5px}
+.prow .sp{font-weight:600}
+.prow .roi small{color:var(--muted);font-size:11.5px;margin-left:4px;font-variant-numeric:tabular-nums}
+.prow .pact{font-size:12.5px;color:var(--muted);white-space:nowrap}
+.prow .pact b.k{color:var(--down)} .prow .pact b.b{color:var(--c-video)}
+.plist .track{height:16px;border-radius:5px;background:none}
+.plist .sec{font-size:13.5px;margin:6px 0 0}
+@media (max-width:820px){
+  .phead{display:none}
+  .plist summary.prow{grid-template-columns:minmax(0,1fr) auto auto 14px;gap:6px 10px}
+  .prow .nm{grid-column:1} .prow .sp{grid-column:2;grid-row:1} .prow .roi{grid-column:3;grid-row:1} .prow .roi small{display:none}
+  .prow .bar2{grid-column:1/-1;grid-row:2} .prow .dl{grid-column:1;grid-row:3;text-align:left} .prow .pact{grid-column:2/-1;grid-row:3;text-align:right}
+  .plist summary.prow::after{grid-column:4;grid-row:1}
+}
+@media (max-width:520px){
+  .crow{grid-template-columns:minmax(0,1fr) auto auto;gap:4px 8px}
+  .crow .who{grid-column:1/-1} .crow .nums{grid-column:1;text-align:left}
+}
 .mhint{display:none;font-size:12px;color:var(--muted);padding:0 8px}
 @media (max-width:700px){.mhint{display:block}}
-@media (max-width:700px){.plist summary{grid-template-columns:90px minmax(0,1fr) 14px}.plist .rt{grid-column:1/-1;text-align:left}}
 .hb .dv{display:grid;grid-template-columns:1fr 1fr;height:16px}
 .hb .dv>div{display:flex;gap:0} .hb .dv>div:first-child{justify-content:flex-end;border-right:1px solid var(--muted)}
 .hb .dv i,.dv i{display:block;height:100%}
@@ -303,7 +353,7 @@ function render(raw) {
   <section data-panel="ag"><div class="box"><div class="bar"><div><h3 id="agTitle">에이전트 데일리 리포트</h3><p class="note" id="agNote" style="margin:2px 0 0"></p></div><div class="seg"><button class="btn" id="agRun" type="button">분석하기</button><button class="btn ghost" id="agRe" type="button">다시 분석</button></div></div></div><div class="aggrid" id="agGrid"></div></section>
   <section data-panel="sum"><div class="box"><h3>채널별 증감</h3><div id="wf"></div></div>
     <div class="main"><div class="mapbox" id="mapbox"><div class="legend" id="legend"></div><div class="mhint">← 옆으로 밀어서 보기 →</div><svg id="map" role="img" aria-label="매출 원인 노선도"></svg></div><aside class="card" id="card" aria-live="polite"></aside></div></section>
-  <section data-panel="cre"><div class="box"><div class="bar"><div class="lgd" id="lgd"></div><div class="seg"><button class="chip" type="button" data-cv="prod" aria-pressed="true">제품별</button><button class="chip" type="button" data-cv="cre" aria-pressed="false">크리에이터별</button></div></div><div id="cview"></div></div></section>
+  <section data-panel="cre"><div id="adtop"></div><div class="box"><div class="bar"><div><h3 id="lgd"></h3><p class="note" id="lgdNote" style="margin:2px 0 0"></p></div><div class="seg"><button class="chip" type="button" data-cv="prod" aria-pressed="true">제품별</button><button class="chip" type="button" data-cv="cre" aria-pressed="false">크리에이터별</button></div></div><div id="cview"></div></div></section>
   <section data-panel="top"><div class="box"><div class="bar"><p class="note" id="tcnote" style="margin:0"></p><div class="seg" id="tcf"><button class="chip" type="button" data-f="all" aria-pressed="true">전체</button><button class="chip" type="button" data-f="slow" aria-pressed="false">매출 둔화</button><button class="chip" type="button" data-f="stop" aria-pressed="false">포스팅·라이브 멈춤</button></div></div><div class="ctable" id="top50"></div><div class="seg" id="tcpg" style="justify-content:center"></div></div></section>
   <section data-panel="live"><div class="box"><h2>브랜드 라이브</h2><div id="brandLive"></div></div>
     <div class="box"><div class="bar"><h2>어필리에이트 라이브: 누가 무엇을 팔았나</h2><div class="seg" id="aflv"><button class="chip" type="button" data-v="cr" aria-pressed="true">크리에이터별</button><button class="chip" type="button" data-v="pr" aria-pressed="false">제품별</button></div></div><div id="aflView"></div></div></section>
@@ -465,8 +515,9 @@ function gradeBlock(L, pref) {
 }
 function drawCView() {
   document.querySelectorAll("[data-cv]").forEach(b => { b.setAttribute("aria-pressed", b.dataset.cv === CV); b.onclick = () => { CV = b.dataset.cv; drawCView(); }; });
+  drawAdTop();
   if (CV === "prod") { drawAds(); return; }
-  $("#lgd").innerHTML = "";
+  $("#lgd").textContent = "크리에이터별 광고 성과"; $("#lgdNote").textContent = "매출이 크게 움직인 순서. 줄을 누르면 영상별로 펼쳐집니다.";
   const all = D.cre.filter(c => Math.abs(c.dg) >= 5 || Math.abs(c.ds) >= 5);
   let h = "";
   {
@@ -899,37 +950,77 @@ function bindMore(root) {
     if (L.length > st) b.textContent = `더보기 (${L.length - st}개 남음)`; else b.remove();
   });
 }
-const GUIDE = [
-  ["KILL 검토", "bad", "ROI 1.0 미만, 또는 광고비만 쓰고 매출 없음", "광고 끄기 검토 (광고비 $5 이상만 목록에 올림)"],
-  ["주의", "warn", "ROI 1.0 ~ 1.5", "며칠 더 지켜보기"],
-  ["좋음", "good", "ROI 1.5 ~ 3.0", "유지"],
-  ["아주 좋음", "good", "ROI 3.0 이상, 또는 광고비 없이 매출", "유지 · 확대"],
-  ["부스팅 권장", "new", "좋음 이상인데 일평균 광고비 $20 미만", "광고비 올리기 · 부스팅"]];
-const GC = [["kill", "KILL 검토", "--down", "ROI 1 미만"], ["warn", "주의", "--warn", "ROI 1~1.5"], ["good", "좋음", "--up", "ROI 1.5~3"], ["best", "아주 좋음", "--c-sv", "ROI 3 이상"], ["none", "판정 안 함", "--neutral", "거의 안 씀"]];
+// 광고 소재 탭. 색은 3가지만: 빨강 = 손해(ROI 1 미만) · 주황 = 주의(1~1.5) · 초록 = 이익(1.5 이상)
+const GC = [["kill", "KILL 검토", "--down", "ROI 1 미만 · 쓴 돈보다 못 벎"], ["warn", "주의", "--warn", "ROI 1~1.5 · 지켜보기"], ["good", "좋음 이상", "--up", "ROI 1.5 이상 · 유지·확대"], ["none", "판정 안 함", "--neutral", "광고비 $3 미만"]];
+const gk = c => { const g = grade(c); return g === "best" ? "good" : g || "none"; };
+const roiTxt = (g, s2) => s2 >= 1 ? (g / s2).toFixed(2) : "-";
+const roiGrade = (g, s2) => s2 < 1 ? "none" : g / s2 < 1 ? "kill" : g / s2 < 1.5 ? "warn" : "good";
+// 소재 한 줄. mode "roi": 광고비·매출·ROI / "delta": 매출 변화
+function crow(c, id, mode, showProd) {
+  NODES[id] = {type: "bead", lane: {id: "video", name: "AF 영상"}, sub: {name: c.name}, bead: {label: c.label, d: c.dg, kind: "creative", data: c}};
+  const a = ageOf(c), g = grade(c) || "none";
+  const chip = mode === "delta" ? `<span class="rchip ${cls(c.dg)}">${sd(c.dg)}</span>` : `<span class="rchip ${g}">${c.sa >= 1 ? "ROI " + (c.ga / c.sa).toFixed(2) : c.ga > 0 ? "광고비 없음" : "-"}</span>`;
+  const nums = mode === "delta" ? `매출 ${usd(c.gb)} → <b>${usd(c.ga)}</b>` : `광고비 <b>${usd(c.sa)}</b> · 매출 <b>${usd(c.ga)}</b>`;
+  return `<li class="crow"><div class="who"><a href="${vlink(c.cid, c.creator)}" target="_blank" rel="noopener">${c.label}</a><span class="agetag ${a === "new" ? "new" : ""}">${AGE[a]} ${md(c.posted)}</span>
+    <div class="sub">${showProd && c.name ? c.name + " · " : ""}${vid(c)}</div></div><div class="nums">${nums}</div>${chip}<button class="chip" type="button" data-open="${id}">상세</button></li>`;
+}
+function todoCard(kind, list, pref, showProd, first) {
+  const K = kind === "kill";
+  const title = K ? "KILL 검토" : "부스팅 권장", desc = K ? "광고비를 썼는데 그만큼 못 판 소재 (ROI 1 미만). 광고비 많이 쓴 순서." : "잘 파는데 광고비가 적은 소재 (ROI 1.5 이상, 하루 $20 미만). 매출 큰 순서.";
+  const sum = list.reduce((s2, c) => s2 + (K ? c.sa : c.ga), 0);
+  const m = more(list.map((c, i) => crow(c, pref + i, "roi", showProd)), first, 10);
+  return `<div class="tcard ${K ? "kill" : "boost"}"><h4><span>${title}<em>${list.length}개 · ${K ? "광고비" : "매출"} ${usd(sum)}</em></span>${list.length ? copyBtn(list.map(c => c.cid).join("\n"), "ID 복사") : ""}</h4>
+    <p class="d">${desc}</p>${list.length ? `<ul class="crows">${m.body}</ul>${m.btn}` : `<p class="note" style="margin:0">해당 소재가 없습니다.</p>`}</div>`;
+}
+function drawAdTop() {
+  const L = D.cre, sum = (A, k) => A.reduce((s2, c) => s2 + c[k], 0);
+  const sa = sum(L, "sa"), sb = sum(L, "sb"), ga = sum(L, "ga"), gb = sum(L, "gb");
+  const M = {kill: {s: 0, n: 0}, warn: {s: 0, n: 0}, good: {s: 0, n: 0}, none: {s: 0, n: 0}};
+  L.forEach(c => { if (c.sa < 0.5 && c.ga < 1) return; const e = M[gk(c)]; e.s += c.sa; e.n++; });
+  const kill = L.filter(c => grade(c) === "kill" && c.sa >= 5).sort((x, y) => y.sa - x.sa), bst = L.filter(boost).sort((x, y) => y.ga - x.ga);
+  const byP = {}; L.forEach(c => { if (grade(c) === "kill") byP[c.name] = (byP[c.name] || 0) + c.sa; });
+  const worst = Object.entries(byP).sort((x, y) => y[1] - x[1])[0];
+  const per = D.norm ? " (하루 평균)" : "", lp = sa ? Math.round(M.kill.s / sa * 100) : 0;
+  const r1 = sa >= 1 ? ga / sa : 0, r0 = sb >= 1 ? gb / sb : 0;
+  $("#adtop").innerHTML = `<div class="box" style="display:flex;flex-direction:column;gap:12px">
+    <div class="say" style="font-size:15px">광고비 <b class="num">${usd(sa)}</b> 중 <b class="num down">${usd(M.kill.s)} (${lp}%)</b>가 쓴 돈보다 못 번 소재에 들어갔습니다.${worst ? ` 가장 많이 새는 제품은 <b>${worst[0]}</b> (${usd(worst[1])})입니다.` : ""}</div>
+    <div class="adk">
+      <div><div class="t">광고비${per}</div><div class="v">${usd(sa)}</div><div class="s">비교 ${usd(sb)} · ${sd(sa - sb)}</div></div>
+      <div><div class="t">광고 매출${per}</div><div class="v">${usd(ga)}</div><div class="s">비교 ${usd(gb)} · <span class="${cls(ga - gb)}">${sd(ga - gb)}</span></div></div>
+      <div><div class="t">ROI (매출 ÷ 광고비)</div><div class="v">${r1.toFixed(2)}</div><div class="s">비교 ${r0.toFixed(2)} · <span class="${cls(r1 - r0 > 0.005 ? 1 : r1 - r0 < -0.005 ? -1 : 0)}">${(r1 - r0 >= 0 ? "+" : "") + (r1 - r0).toFixed(2)}</span></div></div>
+      <div class="leak"><div class="t">새는 광고비 (ROI 1 미만)</div><div class="v">${usd(M.kill.s)}</div><div class="s">광고비의 ${lp}% · 소재 ${M.kill.n}개</div></div>
+    </div>
+    <div><div class="t note">광고비가 어떤 소재에 쓰였나</div>
+      <div class="mix">${GC.map(([k, t, c]) => M[k].s > 0 ? `<i data-tip="${t}<br>광고비 ${usd(M[k].s)} (${Math.round(M[k].s / sa * 100)}%) · 소재 ${M[k].n}개" style="width:${(M[k].s / sa * 100).toFixed(1)}%;background:var(${c})"></i>` : "").join("")}</div>
+      <div class="mixl">${GC.map(([k, t, c, d]) => `<div><i style="background:var(${c})"></i><b>${t}</b> <b class="num">${usd(M[k].s)}</b> <span class="note">${sa ? Math.round(M[k].s / sa * 100) : 0}% · ${M[k].n}개</span><small>${d}</small></div>`).join("")}</div>
+    </div></div>
+    <div class="todo" style="margin-top:12px">${todoCard("kill", kill, "ak-", true, 5)}${todoCard("boost", bst, "ab-", true, 5)}</div>`;
+  const T = $("#adtop"); bindCopy(T); bindMore(T); bindTips(T);
+  T.querySelectorAll("[data-open]").forEach(b => b.onclick = () => openDetail(b.dataset.open));
+}
 function drawAds() {
-  $("#lgd").innerHTML = GC.map(([, t, c, r]) => `<span><i style="background:var(${c})"></i>${t} <span style="opacity:.75">${r}</span></span>`).join("") + `<span><span class="tag new" style="margin:0">부스팅 권장</span> 좋음 이상 · 하루 광고비 $20 미만</span>`;
+  $("#lgd").textContent = "제품별 광고 성과"; $("#lgdNote").textContent = "광고비 많이 쓴 순서. 막대의 빨간 부분이 새는 광고비입니다. 줄을 누르면 끌 소재·키울 소재가 열립니다.";
   const byP = {}; D.cre.forEach(c => (byP[c.pid] = byP[c.pid] || []).push(c));
   const T30 = (D.raw.topCreators || []).slice(0, 30), end = D.A[1];
   const ORD = {kill: 0, warn: 1, good: 2, best: 3};
   const items = Object.entries(byP).map(([pid, L]) => {
     const name = (D.prods.find(p => p.id === pid) || {}).name || (L[0] && L[0].camp) || "기타";
-    const m = {kill: 0, warn: 0, good: 0, best: 0, none: 0}; L.forEach(c => m[grade(c) || "none"] += c.sa / D.dA);
+    const m = {kill: 0, warn: 0, good: 0, none: 0}; L.forEach(c => m[gk(c)] += c.sa);
     const kill = L.filter(c => grade(c) === "kill" && c.sa >= 5).sort((x, y) => y.sa - x.sa);
     const warn = L.filter(c => grade(c) === "warn").sort((x, y) => y.sa - x.sa);
     const bst = L.filter(boost).sort((x, y) => y.ga - x.ga);
     const crs = T30.filter(t => t.topProducts[0] && t.topProducts[0].pid === pid).map(t => ({t, st: tcStatus(t, end)})).filter(x => x.st.stop || x.st.slow);
     const active = L.filter(c => c.sa >= 0.5 || c.ga >= 1).sort((x, y) => { const gx = grade(x), gy = grade(y); return (gx ? ORD[gx] : 9) - (gy ? ORD[gy] : 9) || y.sa - x.sa; });
-    const t = Object.values(m).reduce((a, b) => a + b, 0);
-    const d = L.reduce((s2, c) => s2 + c.dg, 0), sp = ageSplit(L), big = ["new", "mid", "old"].sort((u, v) => Math.abs(sp[v].d) - Math.abs(sp[u].d))[0];
-    const sum = k => L.reduce((s2, c) => s2 + c[k], 0), roi = (g, s2) => s2 >= 1 ? (g / s2).toFixed(2) : "-";
-    const say = `매출 ${usd(sum("gb"))} → ${usd(sum("ga"))} <b class="${cls(d)}">${sd(d)}</b>${Math.abs(sp[big].d) >= 1 ? `, 주로 <b>${AGE[big]} 소재</b>(${sp[big].n}개)에서 <b class="${cls(sp[big].d)}">${sd(sp[big].d)}</b>` : ""}. 광고비 ${usd(sum("sb"))} → ${usd(sum("sa"))}, ROI ${roi(sum("gb"), sum("sb"))} → ${roi(sum("ga"), sum("sa"))}.`;
+    const sum = k => L.reduce((s2, c) => s2 + c[k], 0), t = sum("sa");
+    const d = sum("dg"), sp = ageSplit(L), big = ["new", "mid", "old"].sort((u, v) => Math.abs(sp[v].d) - Math.abs(sp[u].d))[0];
+    const say = `매출 ${usd(sum("gb"))} → ${usd(sum("ga"))} <b class="${cls(d)}">${sd(d)}</b>${Math.abs(sp[big].d) >= 1 ? `, 주로 <b>${AGE[big]} 소재</b>(${sp[big].n}개)에서 <b class="${cls(sp[big].d)}">${sd(sp[big].d)}</b>` : ""}. 광고비 ${usd(sum("sb"))} → ${usd(t)}, 그중 <b class="down">${usd(m.kill)}</b>가 ROI 1 미만 소재에 쓰였습니다.`;
     const up = L.filter(c => c.dg >= 5).sort((u, v) => v.dg - u.dg).slice(0, 5), dn = L.filter(c => c.dg <= -5).sort((u, v) => u.dg - v.dg).slice(0, 5);
-    return {pid, name, m, t, kill, warn, bst, crs, active, d, say, up, dn};
+    return {pid, name, m, t, kill, warn, bst, crs, active, d, say, up, dn, ga: sum("ga"), gb: sum("gb"), sb: sum("sb")};
   }).filter(x => x.t >= 5).sort((x, y) => y.t - x.t).slice(0, 14);
   const mx = Math.max(1, ...items.map(x => x.t));
   const vline = c => `<li><a href="${vlink(c.cid, c.creator)}" target="_blank" rel="noopener">${c.label}</a>${vid(c)} <span class="note">광고비 ${usd(c.sa)} · 매출 ${usd(c.ga)} · ROI ${c.sa >= 1 ? (c.ga / c.sa).toFixed(2) : "지출 없음"}</span></li>`;
-  const block = (title, cls2, list, render, copyText) => { if (!list.length) return ""; const m = more(list.map(render), 5, 10);
-    return `<div class="grp"><h4><span><span class="tag ${cls2}">${title}</span> ${list.length}</span>${copyText ? copyBtn(copyText, "ID 복사") : ""}</h4><ul>${m.body}</ul>${m.btn}</div>`; };
+  const block = (title, cls2, list, render) => { if (!list.length) return ""; const m = more(list.map(render), 5, 10);
+    return `<div class="grp"><h4><span><span class="tag ${cls2}">${title}</span> ${list.length}</span></h4><ul>${m.body}</ul>${m.btn}</div>`; };
   const fullTable = (x, xi) => {
     const rows = x.active.map((c, i) => {
       const id = "td-" + xi + "-" + i; NODES[id] = {type: "bead", lane: {id: "video", name: "AF 영상"}, sub: {name: c.name}, bead: {label: c.label, d: c.dg, kind: "creative", data: c}};
@@ -942,18 +1033,21 @@ function drawAds() {
     const m = more([`<tr><th>판정</th><th>소재</th><th class="n">광고비</th><th class="n">매출</th><th class="n">ROI</th><th></th></tr>`, ...rows], 0, 21);
     return `<div style="display:flex;flex-direction:column"><table class="mini">${m.body}</table>${m.btn.replace(/더보기 \(\d+개 남음\)/, `광고 소재 ${rows.length}개 전체 보기`)}</div>`;
   };
-  $("#cview").innerHTML = `<p class="note" style="margin:0">막대 = 하루 광고비를 그 돈을 쓰는 소재의 판정 색으로 나눈 것. 줄을 누르면 매출을 올린·깎은 소재와 끄거나 키울 소재가 열립니다.</p><div class="plist">` + (items.length ? items.map((x, xi) => `<details><summary>
+  const dlist = (L, pref) => L.length ? `<ul class="crows">${L.map((c, i) => crow(c, pref + i, "delta")).join("")}</ul>` : `<p class="note" style="margin:0">없음</p>`;
+  $("#cview").innerHTML = `<div class="plist"><div class="phead"><span>제품</span><span class="n">광고비</span><span>어디에 쓰였나</span><span>ROI (비교)</span><span class="n">매출 변화</span><span class="n">할 일</span><span></span></div>` + (items.length ? items.map((x, xi) => `<details><summary class="prow">
       <span class="nm" title="${x.name}">${x.name}</span>
-      <div class="track" style="width:${Math.max(4, x.t / mx * 100).toFixed(1)}%">${GC.map(([k, t, c]) => x.m[k] > 0 ? `<i data-tip="${x.name} · ${t}<br>하루 광고비 ${usd(x.m[k])} (${Math.round(x.m[k] / x.t * 100)}%)" style="width:${(x.m[k] / x.t * 100).toFixed(1)}%;background:var(${c})"></i>` : "").join("")}</div>
-      <span class="rt">매출 <b class="${cls(x.d)}">${sd(x.d)}</b> · <b class="${x.kill.length ? "down" : ""}">KILL ${x.kill.length}</b> · <b style="color:var(--c-video)">부스팅 ${x.bst.length}</b></span></summary>
+      <span class="n sp">${usd(x.t)}</span>
+      <div class="bar2"><div class="track" style="width:${Math.max(4, x.t / mx * 100).toFixed(1)}%">${GC.map(([k, t, c]) => x.m[k] > 0 ? `<i data-tip="${x.name} · ${t}<br>광고비 ${usd(x.m[k])} (${Math.round(x.m[k] / x.t * 100)}%)" style="width:${(x.m[k] / x.t * 100).toFixed(1)}%;background:var(${c})"></i>` : "").join("")}</div></div>
+      <span class="roi"><span class="rchip ${roiGrade(x.ga, x.t)}">ROI ${roiTxt(x.ga, x.t)}</span><small>${roiTxt(x.gb, x.sb)}</small></span>
+      <span class="n dl"><b class="${cls(x.d)}">${sd(x.d)}</b></span>
+      <span class="n pact"><b class="k">KILL ${x.kill.length}</b> · <b class="b">부스팅 ${x.bst.length}</b></span></summary>
     <div class="in"><div class="say">${x.say}</div>
-      <div class="two"><div><h4 class="up">매출 올린 소재</h4><table class="mini">${crHead("소재")}${x.up.map((c, i) => crLine(c, i, "pu" + xi + "-")).join("") || '<tr><td class="note">없음</td></tr>'}</table></div>
-      <div><h4 class="down">매출 깎은 소재</h4><table class="mini">${crHead("소재")}${x.dn.map((c, i) => crLine(c, i, "pd" + xi + "-")).join("") || '<tr><td class="note">없음</td></tr>'}</table></div></div>
+      <div class="todo">${todoCard("kill", x.kill, "pk" + xi + "-", false, 5)}${todoCard("boost", x.bst, "pb" + xi + "-", false, 5)}</div>
+      <h4 class="sec">매출이 크게 움직인 소재 (비교 → 기준)</h4>
+      <div class="todo"><div class="tcard"><h4 class="up">매출 올린 소재</h4>${dlist(x.up, "pu" + xi + "-")}</div><div class="tcard"><h4 class="down">매출 깎은 소재</h4>${dlist(x.dn, "pd" + xi + "-")}</div></div>
       <div class="roll">
-      ${block("KILL 검토", "bad", x.kill, vline, x.kill.map(c => c.cid).join("\n"))}
-      ${block("부스팅 권장", "new", x.bst, vline, x.bst.map(c => c.cid).join("\n"))}
-      ${block("주의", "warn", x.warn, vline, "")}
-      ${block("멈춘·둔화 TOP 30 크리에이터", "bad", x.crs, ({t, st}) => `<li><a href="https://www.tiktok.com/@${t.h}" target="_blank" rel="noopener">@${t.h}</a> <span class="note">${st.label[0]} · 마지막 포스팅 ${t.lastPost ? md(t.lastPost) : "-"}</span></li>`, "")}
+      ${block("주의", "warn", x.warn, vline)}
+      ${block("멈춘·둔화 TOP 30 크리에이터", "bad", x.crs, ({t, st}) => `<li><a href="https://www.tiktok.com/@${t.h}" target="_blank" rel="noopener">@${t.h}</a> <span class="note">${st.label[0]} · 마지막 포스팅 ${t.lastPost ? md(t.lastPost) : "-"}</span></li>`)}
     </div>${fullTable(x, xi)}</div></details>`).join("") : `<p class="note">광고 소재가 없습니다.</p>`) + `</div>`;
   bindCopy($("#cview")); bindMore($("#cview")); bindTips($("#cview"));
   $("#cview").querySelectorAll("[data-open]").forEach(b => b.onclick = e => { e.preventDefault(); openDetail(b.dataset.open); });
