@@ -227,11 +227,12 @@ section[data-panel]{display:flex;flex-direction:column;gap:12px}
 .todo{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(330px,100%),1fr));gap:12px}
 .tcard{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;min-width:0;display:flex;flex-direction:column;gap:6px}
 .tcard.kill{border-top:4px solid var(--down)} .tcard.boost{border-top:4px solid var(--c-video)} .tcard.watch{border-top:4px solid var(--warn)}
-.tcard h4{margin:0;font-size:15px;display:flex;justify-content:space-between;gap:8px;align-items:center}
+.tcard h4{margin:0;font-size:15px;display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 8px;align-items:center} .tcard h4 .chip,.crow .chip{white-space:nowrap}
+@media (max-width:520px){.crow{grid-template-columns:auto auto 1fr;gap:6px 8px} .crow .who{grid-column:1/-1} .crow .sub{white-space:normal} .crow>.chip:last-child{justify-self:start}}
 .tcard h4 em{font-style:normal;font-weight:500;color:var(--muted);font-size:13px;margin-left:6px}
 .tcard .d{font-size:12.5px;color:var(--muted);margin:0}
 .crows{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
-.crow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+.crow{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
 .crow:last-child{border-bottom:0}
 .crow .who{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap} .crow .who a{font-weight:600}
 .crow .sub{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -473,7 +474,7 @@ function crLine(c, i, pref) {
   return `<tr><td><a href="${vlink(c.cid, c.creator)}" target="_blank" rel="noopener">${c.label}</a>${vid(c)}<br><span class="agetag ${a === "new" ? "new" : ""}" style="margin-left:0">${AGE[a]} ${md(c.posted)}</span>${gr ? ` <span class="tag ${gr.c}">${gr.t}</span>` : ""}</td>
     <td>${area(c.spark.gmv, 64, 20, {fixed: true})}</td>
     <td class="n">${usd(c.sb)} → ${usd(c.sa)}</td><td class="n">${usd(c.gb)} → ${usd(c.ga)}</td>
-    <td class="n"><span class="pill ${cls(c.dg)}">${sd(c.dg)}</span></td><td><button class="chip" type="button" data-open="${id}">상세</button></td></tr>`;
+    <td class="n"><span class="pill ${cls(c.dg)}">${sd(c.dg)}</span></td><td>${idBtn(c)} <button class="chip" type="button" data-open="${id}">상세</button></td></tr>`;
 }
 const crHead = (who) => `<tr><th>${who}</th><th>14일</th><th class="n">광고비</th><th class="n">매출</th><th class="n">증감</th><th></th></tr>`;
 function ageBoxes(sp) {
@@ -536,7 +537,7 @@ function drawCView() {
   }
   $("#cview").innerHTML = h;
   $("#cview").querySelectorAll("[data-open]").forEach(b => b.onclick = e => { e.preventDefault(); openDetail(b.dataset.open); });
-  bindTips($("#cview"));
+  bindTips($("#cview")); bindCopy($("#cview"));
 }
 
 // ---------------- 노선도
@@ -930,12 +931,13 @@ async function fillHandles() {
   if (n) drawCView();
 }
 // ---------------- 제품별 해야 할 일
-function copyBtn(text, label) { return `<button class="chip" type="button" data-copy="${encodeURIComponent(text)}">${label || "복사"}</button>`; }
+function copyBtn(text, label, title) { return `<button class="chip" type="button" data-copy="${encodeURIComponent(text)}" data-label="${label || "복사"}"${title ? ` title="${title}"` : ""}>${label || "복사"}</button>`; }
+const idBtn = c => copyBtn(c.cid, "ID 복사", "영상 ID " + c.cid + " 복사");
 function bindCopy(root) {
   root.querySelectorAll("[data-copy]").forEach(b => b.onclick = async () => {
     const t = decodeURIComponent(b.dataset.copy);
     try { await navigator.clipboard.writeText(t); b.textContent = "복사됨"; } catch (e) { const ta = document.createElement("textarea"); ta.value = t; document.body.appendChild(ta); ta.select(); try { document.execCommand("copy"); b.textContent = "복사됨"; } catch (e2) { b.textContent = "복사 실패"; } ta.remove(); }
-    setTimeout(() => b.textContent = "복사", 1500);
+    setTimeout(() => b.textContent = b.dataset.label || "복사", 1500);
   });
 }
 // '더보기': 처음 first개만 보이고 버튼을 누를 때마다 step개씩 더
@@ -974,7 +976,7 @@ function crow(c, id, mode, showProd) {
   const chip = mode === "delta" ? `<span class="rchip ${cls(c.dg)}">${sd(c.dg)}</span>` : `<span class="rchip ${g}">${c.s7 >= 1 ? "ROI " + (c.g7 / c.s7).toFixed(2) : "광고비 없음"}</span>`;
   const nums = mode === "delta" ? `매출 ${usd(c.gb)} → <b>${usd(c.ga)}</b> · ${c.s7 >= 1 ? "7일 ROI " + roiTxt(c.g7, c.s7) : "광고비 없음"}` : `7일 광고비 <b>${usd(c.s7)}</b> · 매출 <b>${usd(c.g7)}</b>`;
   return `<li class="crow"><div class="who"><a href="${vlink(c.cid, c.creator)}" target="_blank" rel="noopener">${c.label}</a><span class="agetag ${a === "new" ? "new" : ""}">${AGE[a]} ${md(c.posted)}</span>
-    <div class="sub">${showProd && c.name ? c.name + " · " : ""}${nums}</div></div>${chip}<button class="chip" type="button" data-open="${id}">상세</button></li>`;
+    <div class="sub">${showProd && c.name ? c.name + " · " : ""}${nums}</div></div>${chip}${idBtn(c)}<button class="chip" type="button" data-open="${id}">상세</button></li>`;
 }
 const TODO = {
   kill: ["KILL 검토", "끄기", "최근 7일 내내 쓴 돈보다 못 번 소재. 7일 광고비 많은 순서.", c => c.s7, "7일 광고비"],
@@ -984,7 +986,7 @@ function todoCard(kind, list, pref, showProd) {
   const [title, verb, desc, val, unit] = TODO[kind];
   const sum = list.reduce((s2, c) => s2 + val(c), 0), top = list.slice(0, 10);
   const m = more(top.map((c, i) => crow(c, pref + i, kind === "watch" ? "delta" : "roi", showProd)), 5, 5);
-  return `<div class="tcard ${kind}"><h4><span>${title}<em>${list.length}개 · ${unit} ${usd(sum)}</em></span>${list.length && kind !== "watch" ? copyBtn(list.map(c => c.cid).join("\n"), "ID 복사") : ""}</h4>
+  return `<div class="tcard ${kind}"><h4><span>${title}<em>${list.length}개 · ${unit} ${usd(sum)}</em></span>${list.length && kind !== "watch" ? copyBtn(list.map(c => c.cid).join("\n"), `ID ${list.length}개 모두 복사`) : ""}</h4>
     <p class="d"><b>${verb}.</b> ${desc}${list.length > 10 ? " 상위 10개만 표시." : ""}</p>${list.length ? `<ul class="crows">${m.body}</ul>${m.btn}` : `<p class="note" style="margin:0">해당 소재가 없습니다.</p>`}</div>`;
 }
 function drawAdTop() {
@@ -1053,7 +1055,7 @@ function drawAdProd() {
     return `<tr><td>${gr ? `<span class="tag ${gr.c}">${gr.t}</span>` : '<span class="note">-</span>'}${boost(c) ? ' <span class="tag new">부스팅 권장</span>' : ""}</td>
       <td><a href="${vlink(c.cid, c.creator)}" target="_blank" rel="noopener">${c.label}</a>${vid(c)}</td>
       <td class="n">${usd(c.s7)}</td><td class="n">${usd(c.g7)}</td><td class="n">${roiTxt(c.g7, c.s7)}</td><td class="n">${usd(c.sa)}</td><td class="n">${usd(c.ga)}</td>
-      <td><button class="chip" type="button" data-open="${id}">상세</button></td></tr>`;
+      <td>${idBtn(c)} <button class="chip" type="button" data-open="${id}">상세</button></td></tr>`;
   });
   const m = more([`<tr><th>판정</th><th>소재 · 영상 ID</th><th class="n">7일 광고비</th><th class="n">7일 매출</th><th class="n">7일 ROI</th><th class="n">기준일 광고비</th><th class="n">기준일 매출</th><th></th></tr>`, ...rows], 0, 21);
   $("#cview").innerHTML = `<div style="display:flex;flex-direction:column;gap:12px">
@@ -1062,7 +1064,7 @@ function drawAdProd() {
     <div class="roll">${block("주의", "warn", warn, c => `<li><a href="${vlink(c.cid, c.creator)}" target="_blank" rel="noopener">${c.label}</a> <span class="note">7일 광고비 ${usd(c.s7)} · 매출 ${usd(c.g7)} · ROI ${roiTxt(c.g7, c.s7)}</span></li>`)}
       ${block("멈춘·둔화 TOP 30 크리에이터", "bad", crs, ({t, st}) => `<li><a href="https://www.tiktok.com/@${t.h}" target="_blank" rel="noopener">@${t.h}</a> <span class="note">${st.label[0]} · 마지막 포스팅 ${t.lastPost ? md(t.lastPost) : "-"}</span></li>`)}</div>
     <div style="display:flex;flex-direction:column;overflow-x:auto"><table class="mini">${m.body}</table>${m.btn.replace(/더보기 \(\d+개 남음\)/, `광고 소재 ${rows.length}개 전체 보기`)}</div></div>`;
-  const V = $("#cview"); bindMore(V); bindTips(V);
+  const V = $("#cview"); bindCopy(V); bindMore(V); bindTips(V);
   V.querySelectorAll("[data-open]").forEach(b => b.onclick = e => { e.preventDefault(); openDetail(b.dataset.open); });
 }
 // ---------------- 핵심 크리에이터 TOP 50
