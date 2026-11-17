@@ -72,7 +72,20 @@ function grade(c) {
   if (x < 1) return s >= 30 ? "KILL 검토" : null;
   return x < 2 ? "주의" : x < 3 ? "좋음" : "아주 좋음";
 }
-const isBoost = c => { const w = w7(c); return ["좋음", "아주 좋음"].includes(grade(c)) && w.s / 7 < 20 && w.n >= 3 && w.g >= 50; };
+// 부스팅 권장: 잘 파는데 광고비가 안 붙는 소재 (why.html과 같은 규칙). on = 지금 부스트 중인 소재 ID
+const isBoost = (c, on) => { const w = w7(c); return w.s / 7 < 10 && w.n >= 3 && w.g >= 100 && (w.s < 1 || w.g / w.s >= 5) && !(on && on.has(c.cid)); };
+// Creative Boost 진행 중인 소재의 최근 3일 성과와 판정 (종료: ROI 2.5 미만 / 증액 후보: 5 이상 / 유지)
+function boostBrief(d1, pid) {
+  const a = d1.periods.a[1], latest = {}, first = {};
+  for (const b of d1.boosts || []) { if (b.pid !== pid) continue; if (!first[b.cid] || b.start < first[b.cid]) first[b.cid] = b.start;
+    if (b.start <= a && a < b.end && (!latest[b.cid] || b.start >= latest[b.cid].start)) latest[b.cid] = b; }
+  const L = Object.values(latest).map(b => { const s = b.spark ? b.spark.spend.slice(-3).reduce((x, y) => x + y, 0) : 0, g = b.spark ? b.spark.gmv.slice(-3).reduce((x, y) => x + y, 0) : 0, x = roi(g, s);
+    return { 영상ID: b.cid, 크리에이터: b.creator ? "@" + b.creator : "미확인", 일예산: b.budget, 종료일: b.end, "최근3일": { 광고비: R(s), 매출: R(g), ROI: x }, 판정: s < 15 || first[b.cid] === a ? "판단 이름" : x < 2.5 ? "종료" : x >= 5 ? "증액 후보" : "유지" }; });
+  const n = k => L.filter(x => x.판정 === k).length;
+  return { 진행중: L.length, 일예산합: L.reduce((s, x) => s + x.일예산, 0), 종료: n("종료"), 유지: n("유지"), 증액후보: n("증액 후보"),
+    "종료 대상 상위": L.filter(x => x.판정 === "종료").sort((x, y) => y.최근3일.광고비 - x.최근3일.광고비).slice(0, 5),
+    "증액 후보 상위": L.filter(x => x.판정 === "증액 후보").sort((x, y) => y.최근3일.매출 - x.최근3일.매출).slice(0, 5) };
+}
 const isWatch = c => grade(c) !== "KILL 검토" && c.a.gmv - c.b.gmv <= -100 && c.a.gmv < c.b.gmv * 0.5;
 function ageOf(posted, a) { if (!posted) return "오래된"; const d = (Date.parse(a) - Date.parse(posted)) / 86400000; return d <= 7 ? "신규" : d <= 30 ? "최근" : "오래된"; }
 function funnel(s) {
@@ -93,7 +106,8 @@ function productBrief(ag, d1, d7) {
   for (const k in age) { age[k].광고비 = age[k].광고비.map(R); age[k].매출 = age[k].매출.map(R); }
   const dg = c => c.a.gmv - c.b.gmv;
   const kill = C.filter(c => grade(c) === "KILL 검토").sort((x, y) => w7(y).s - w7(x).s);
-  const boost = C.filter(isBoost).sort((x, y) => w7(y).g - w7(x).g);
+  const onBoost = new Set((d1.boosts || []).filter(b => b.start <= a && a < b.end).map(b => b.cid));
+  const boost = C.filter(c => isBoost(c, onBoost)).sort((x, y) => w7(y).g - w7(x).g);
   const watchL = C.filter(isWatch).sort((x, y) => dg(x) - dg(y));
   const creators = (d1.topCreators || []).filter(t => t.topProducts[0] && t.topProducts[0].pid === ag.pid).map(t => ({ 크리에이터: "@" + t.h, "30일매출": t.gmv, 최근7일: t.last7, 이전7일: t.prev7, "새영상7일": t.posts7, 마지막포스팅: t.lastPost }));
   const lv = P.live ? { 매출: [R(P.live.b.gmv), R(P.live.a.gmv)], 주문: [R(P.live.b.orders), R(P.live.a.orders)] } : null;
@@ -111,7 +125,8 @@ function productBrief(ag, d1, d7) {
     "매출이 가장 빠진 소재": C.filter(c => dg(c) < 0).sort((x, y) => dg(x) - dg(y)).slice(0, 6).map(line),
     "새로 올라온 소재 (최근 7일 포스팅)": C.filter(c => ageOf(c.posted, a) === "신규").sort((x, y) => y.a.gmv - x.a.gmv).slice(0, 8).map(line),
     "KILL 검토 (최근 7일 ROI<1, 7일 광고비≥$30)": { 개수: kill.length, "7일광고비합": R(kill.reduce((s, c) => s + w7(c).s, 0)), 상위: kill.slice(0, 5).map(line) },
-    "부스팅 권장 (7일 ROI≥2, 하루 평균 광고비<$20, 7일 중 3일 이상 판매)": { 개수: boost.length, 상위: boost.slice(0, 5).map(line) },
+    "부스팅 권장 (7일 ROI≥5 또는 광고비 없이 매출, 하루 평균 광고비<$10, 7일 매출≥$100, 부스트 중 제외)": { 개수: boost.length, 상위: boost.slice(0, 5).map(line) },
+    "Creative Boost 진행 중 (최근 3일 ROI 기준 판정)": d1.boosts ? boostBrief(d1, ag.pid) : null,
     "확인 필요 (끌 소재는 아닌데 기준일 매출이 절반 아래로 급락)": { 개수: watchL.length, 상위: watchL.slice(0, 5).map(line) },
     "이 제품이 주력인 TOP 크리에이터": creators.slice(0, 10),
     "브랜드 라이브에서 이 제품 [전날, 기준일]": lv,
@@ -152,6 +167,7 @@ const SYSTEM = `너는 d'Alba US 틱톡샵의 데일리 분석 에이전트다. 
 - 원인은 숫자로 확인되는 것만 단정한다. 추정이면 "추정"이라고 쓴다.
 - 하루치는 흔들린다. 전날만 보고 판단하지 말고 지난주 같은 요일과 함께 본다.
 - 소재 판정은 최근 7일 ROI 기준이다. KILL 검토 = 7일 ROI 1 미만이고 7일 광고비 $30 이상, 주의 = 1~2, 좋음 = 2~3, 아주 좋음 = 3 이상. 기준일 하루만 나쁜 소재는 끄라고 하지 말고 "확인 필요"로 쓴다.
+- Creative Boost 규칙: 부스트 중 최근 3일 ROI 2.5 미만이면 종료, 2.5 이상 유지, 5 이상이면 증액 후보. 부스팅 권장은 잘 파는데 광고비가 하루 $10 미만으로 안 붙는 소재만이다(지출이 잘 타는 소재는 부스팅하지 않는다).
 - 광고 매출(GMV Max)은 해당 제품 전체 매출과 거의 같게 잡히는 지표다. ROI = 광고 매출 ÷ 광고비.
 - 소재는 크리에이터 이름과 영상ID를 함께 적는다.
 - 가격은 AF 주문의 개당 판매가 분포(points: 가격별 판매 개수)다. 가격대 비중이 바뀌었으면 할인·번들·쿠폰 변화로 본다.
