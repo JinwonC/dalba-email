@@ -194,11 +194,14 @@ module.exports = async (req, res) => {
       const type = String(r[13] || ""), pay = num(r[6]), qty = num(r[8]) || 1, cid = String(r[14] || "").trim(), h = String(r[12] || "").trim().toLowerCase(), pid = String(r[2] || "").trim();
       const ii = ti[k];
       if (ii !== undefined && h) {
-        const t = TC[h] || (TC[h] = { h, gmv: 0, video: 0, live: 0, other: 0, spark: tDates.map(() => 0), vids: {}, prods: {}, lastSale: k });
+        const t = TC[h] || (TC[h] = { h, gmv: 0, video: 0, live: 0, other: 0, spark: tDates.map(() => 0), vids: {}, prods: {}, lastSale: k, pa: 0, na: 0, la: 0, va: {}, pra: {}, vpid: {} });
         t.gmv += pay; t.spark[ii] += pay; if (k > t.lastSale) t.lastSale = k;
         if (/live/i.test(type)) t.live += pay; else if (/video/i.test(type)) t.video += pay; else t.other += pay;
         if (cid && /video/i.test(type)) t.vids[cid] = (t.vids[cid] || 0) + pay;
         t.prods[pid] = (t.prods[pid] || 0) + pay;
+        if (cid && pid && !t.vpid[cid]) t.vpid[cid] = pid;
+        // 기준 기간(A)의 크리에이터별 매출·영상·제품 (첫 매출 보기용)
+        if (per(k) === "a") { t.pa += pay; t.na++; t.pra[pid] = (t.pra[pid] || 0) + pay; if (/live/i.test(type)) t.la += pay; else if (cid && /video/i.test(type)) t.va[cid] = (t.va[cid] || 0) + pay; }
       }
       const p = per(k); if (!p) continue;
       // 가격: 주문 줄의 Price(판매가, 수량 합계 기준) → 개당 판매가 분포
@@ -251,6 +254,10 @@ module.exports = async (req, res) => {
       spark: { spend: e.ss.map(Math.round), gmv: e.sg.map(Math.round) }
     })).sort((x, y) => Math.abs(y.a.gmv - y.b.gmv) - Math.abs(x.a.gmv - x.b.gmv));
 
+    // ── 크리에이터 발굴: 첫 매출 · 자주 올리는 크리에이터. 여기서 오류가 나도 나머지 응답은 살린다
+    let cviews = { firstSales: null, posters: null }, cvErr = null;
+    try { cviews = creatorViews({ TC, dates: mv(3), meta: mv(4), vidsOf, a, a2, nameOf }); } catch (e) { cvErr = String((e && e.message) || e); }
+
     // ── Creative Boost (소재별 부스트 조정 내역). 탭이 없으면 null
     const boosts = T.boost ? buildBoosts(av(5), cre, sDates, creatorOf, nameOf) : null;
 
@@ -293,7 +300,7 @@ module.exports = async (req, res) => {
       periods: { a: [a, a2], b: [b, b2], days }, avail,
       store, ads, daily, trend, sparkDates: sDates, topCreators,
       products: Object.values(prods).map(p => ({ ...p, ads: adByPid[p.id] || null, price: { a: priceOf(price.a[p.id]), b: priceOf(price.b[p.id]) } })).sort((x, y) => (y.a.gmv + y.b.gmv) - (x.a.gmv + x.b.gmv)),
-      creatives, troi, boosts,
+      creatives, troi, boosts, firstSales: cviews.firstSales, posters: cviews.posters, ...(cvErr ? { creatorViewsError: cvErr } : {}),
       brandLive: { a: blive.a, b: blive.b, lastBeforeA: lastPrev, daily: bday },
       afLive: creators,
       source: { main: MAIN, ads: ADS, tabs: Object.fromEntries(Object.entries(T).map(([k, v]) => [k, v ? v.title : null])) }
@@ -326,6 +333,44 @@ function buildBoosts(rows, cre, sDates, creatorOf, nameOf) {
   return out;
 }
 module.exports.buildBoosts = buildBoosts;
+// 크리에이터 발굴용 집계 (첫 매출 · 자주 올리는 크리에이터).
+//  dates/meta: '주문별 AF 매출 RAW' 탭 전체의 날짜 열(A)과 크리에이터·콘텐츠 유형·콘텐츠 ID 열(M:O). 같은 행 번호끼리 짝.
+//  TC: 최근 30일 크리에이터별 집계 (기준 기간 A의 매출·영상·제품 포함)
+//  영상은 판매가 한 번이라도 난 것만 시트에 있다 → '새 영상'은 '판매가 난 새 영상'을 뜻한다.
+function creatorViews({ TC, dates, meta, vidsOf, a, a2, nameOf }) {
+  const firstC = {}, firstV = {};
+  for (let i = 1; i < meta.length; i++) {
+    const k = dkey((dates[i] || [])[0]); if (!k) continue;
+    const r = meta[i] || [], h = String(r[0] || "").trim().toLowerCase(), cid = String(r[2] || "").trim();
+    if (h && (!firstC[h] || k < firstC[h])) firstC[h] = k;
+    if (cid && /video/i.test(String(r[1] || "")) && (!firstV[cid] || k < firstV[cid])) firstV[cid] = k;
+  }
+  const inA = k => k && k >= a && k <= a2, R = v => Math.round(v);
+  const top = (o, n) => Object.entries(o).sort((x, y) => y[1] - x[1]).slice(0, n);
+  const vidOf = (t, cid, pay) => ({ cid, pay: R(pay), posted: postDate(cid), pid: t.vpid[cid] || "", product: nameOf(t.vpid[cid] || "") });
+  const L = Object.values(TC);
+  // 1) 기준 기간에 처음 매출이 난 크리에이터 / 처음 팔린 영상
+  const newC = L.filter(t => inA(firstC[t.h])).map(t => ({ h: t.h, pay: R(t.pa), orders: t.na, live: R(t.la),
+    products: top(t.pra, 3).map(([pid, v]) => ({ pid, name: nameOf(pid), pay: R(v) })),
+    videos: top(t.va, 5).map(([cid, v]) => vidOf(t, cid, v)) })).sort((x, y) => y.pay - x.pay);
+  const newV = [];
+  for (const t of L) for (const [cid, v] of Object.entries(t.va)) if (inA(firstV[cid])) newV.push({ ...vidOf(t, cid, v), h: t.h, newCreator: inA(firstC[t.h]), creatorSince: firstC[t.h] || null, gmv30: R(t.gmv) });
+  newV.sort((x, y) => y.pay - x.pay);
+  // 2) 최근 7일에 (판매가 난) 영상을 2개 이상 올린 크리에이터
+  const d7 = addDays(a2, -6), d14 = addDays(a2, -13), d30 = addDays(a2, -29);
+  const sum = (A, i0, i1) => A.slice(i0, i1).reduce((s, v) => s + v, 0);
+  const posters = L.map(t => {
+    const posts = [...(vidsOf[t.h] || [])].map(cid => ({ cid, d: postDate(cid) })).filter(x => x.d && x.d <= a2);
+    const p7 = posts.filter(x => x.d >= d7).sort((x, y) => (x.d < y.d ? 1 : x.d > y.d ? -1 : 0));
+    return { h: t.h, posts7: p7.length, posts14: posts.filter(x => x.d >= d14).length, posts30: posts.filter(x => x.d >= d30).length,
+      gmv30: R(t.gmv), last7: R(sum(t.spark, 23, 30)), prev7: R(sum(t.spark, 16, 23)), live30: R(t.live), since: firstC[t.h] || null,
+      videos: p7.slice(0, 8).map(x => vidOf(t, x.cid, t.vids[x.cid] || 0)),
+      topProducts: top(t.prods, 2).map(([pid, v]) => ({ pid, name: nameOf(pid), pay: R(v) })) };
+  }).filter(x => x.posts7 >= 2).sort((x, y) => y.posts7 - x.posts7 || y.last7 - x.last7);
+  return { firstSales: { nCreators: newC.length, nVideos: newV.length, creators: newC.slice(0, 150), videos: newV.slice(0, 200) },
+    posters: { n: posters.length, from: d7, list: posters.slice(0, 150) } };
+}
+module.exports.creatorViews = creatorViews;
 function send(res, out) {
   res.setHeader("Cache-Control", "s-maxage=600, stale-while-revalidate=3600");
   res.setHeader("Access-Control-Allow-Origin", "*");

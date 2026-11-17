@@ -361,13 +361,13 @@ function render(raw) {
   const adNote = Math.abs(D.ads.a.prodSpend * D.fa - D.ads.b.prodSpend * D.fb) < D.ads.b.prodSpend * D.fb * 0.05 ? " 상품 광고비는 거의 같습니다." : ` 상품 광고비는 ${sd(D.ads.a.prodSpend * D.fa - D.ads.b.prodSpend * D.fb)} 움직였습니다.`;
   $("#app").innerHTML = `
   <div class="headline">매출 <b class="num">${usd(n.gmv)}</b>, 비교 대비 <b class="num ${cls(TOT)}">${sd(TOT)} (${spc(o.gmv, n.gmv)})</b>. 가장 크게 움직인 건 <b style="color:var(${COL[top.id]})">${top.name} ${sd(top.d)}</b>입니다.${liveNote}${adNote}</div>
-  <div class="tabs" role="tablist">${[["ag", "에이전트 리포트"], ["sum", "요약"], ["cre", "광고 소재"], ["cb", "Creative Boost"], ["top", "크리에이터 TOP 30"], ["live", "라이브"]].map(([k, t]) => `<button class="tab" type="button" role="tab" data-tab="${k}" aria-selected="${k === TAB}">${t}</button>`).join("")}</div>
+  <div class="tabs" role="tablist">${[["ag", "에이전트 리포트"], ["sum", "요약"], ["cre", "광고 소재"], ["cb", "Creative Boost"], ["top", "크리에이터"], ["live", "라이브"]].map(([k, t]) => `<button class="tab" type="button" role="tab" data-tab="${k}" aria-selected="${k === TAB}">${t}</button>`).join("")}</div>
   <section data-panel="ag"><div class="box"><div class="bar"><div><h3 id="agTitle">에이전트 데일리 리포트</h3><p class="note" id="agNote" style="margin:2px 0 0"></p></div><div class="seg"><button class="btn" id="agRun" type="button">분석하기</button><button class="btn ghost" id="agRe" type="button">다시 분석</button></div></div></div><div class="box" id="agSumBox" hidden><div class="agsum" id="agSum"></div></div><div class="aggrid" id="agGrid"></div></section>
   <section data-panel="sum"><div class="box"><div class="adk" id="sumKpi"></div></div><div class="box"><h3>채널별 증감</h3><div id="wf"></div></div>
     <div class="main"><div class="mapbox" id="mapbox"><div class="bar" style="padding:6px 8px 2px"><h3>매출 원인 지도</h3><button class="chip" id="tourBtn" type="button">큰 원인부터 차례로 보기 ▶</button></div><div class="legend" id="legend"></div><div class="mhint">← 옆으로 밀어서 보기 →</div><svg id="map" role="img" aria-label="매출 원인 노선도"></svg></div><aside class="card" id="card" aria-live="polite"></aside></div></section>
   <section data-panel="cre"><div id="adtop"></div><div class="box"><div class="bar"><div><h3 id="lgd"></h3><p class="note" id="lgdNote" style="margin:2px 0 0"></p></div><div class="seg"><button class="chip" type="button" data-cv="prod" aria-pressed="true">제품별</button><button class="chip" type="button" data-cv="cre" aria-pressed="false">크리에이터별</button></div></div><div id="cview"></div></div></section>
   <section data-panel="cb"><div id="cbview" style="display:flex;flex-direction:column;gap:12px"></div></section>
-  <section data-panel="top"><div class="box"><div class="bar"><p class="note" id="tcnote" style="margin:0"></p><div class="seg" id="tcf"><button class="chip" type="button" data-f="all" aria-pressed="true">전체</button><button class="chip" type="button" data-f="slow" aria-pressed="false">매출 둔화</button><button class="chip" type="button" data-f="stop" aria-pressed="false">포스팅·라이브 멈춤</button></div></div><div class="ctable" id="top50"></div><div class="seg" id="tcpg" style="justify-content:center"></div></div></section>
+  <section data-panel="top"><div class="box"><div class="pchips" id="tcv"><button class="chip" type="button" data-tcv="top">TOP 30</button><button class="chip" type="button" data-tcv="first">첫 매출 (신규 크리에이터 · 새 영상)</button><button class="chip" type="button" data-tcv="post">자주 올리는 크리에이터</button></div></div><div class="box" id="tcTop"><div class="bar"><p class="note" id="tcnote" style="margin:0"></p><div class="seg" id="tcf"><button class="chip" type="button" data-f="all" aria-pressed="true">전체</button><button class="chip" type="button" data-f="slow" aria-pressed="false">매출 둔화</button><button class="chip" type="button" data-f="stop" aria-pressed="false">포스팅·라이브 멈춤</button></div></div><div class="ctable" id="top50"></div><div class="seg" id="tcpg" style="justify-content:center"></div></div><div id="tcx" style="display:flex;flex-direction:column;gap:12px" hidden></div></section>
   <section data-panel="live"><div class="box"><h2>브랜드 라이브</h2><div id="brandLive"></div></div>
     <div class="box"><div class="bar"><h2>어필리에이트 라이브: 누가 무엇을 팔았나</h2><div class="seg" id="aflv"><button class="chip" type="button" data-v="cr" aria-pressed="true">크리에이터별</button><button class="chip" type="button" data-v="pr" aria-pressed="false">제품별</button></div></div><div id="aflView"></div></div></section>
   <p class="note">데이터: 2026 US 틱톡샵 매출/지표, 틱톡샵 광고 대시보드. 소재 매출 = GMV Max 전체 매출. 포스팅일은 영상 ID 기준.</p>`;
@@ -375,7 +375,7 @@ function render(raw) {
   document.querySelectorAll("[data-goto]").forEach(b => b.onclick = () => { TAB = b.dataset.goto; showTab(); window.scrollTo({top: 0, behavior: "smooth"}); });
   $("#tourBtn").onclick = () => tour(0);
   showTab();
-  drawTop50(); drawSumKpi(); drawBoost(); drawWaterfall(); drawMap(); drawCView(); drawLive(); select("root"); loadAgents();
+  drawTop50(); drawSumKpi(); drawBoost(); drawCreatorTab(); drawWaterfall(); drawMap(); drawCView(); drawLive(); select("root"); loadAgents();
   fillHandles();
 }
 let TAB = new URLSearchParams(location.search).get("tab") || "ag";
@@ -1280,6 +1280,75 @@ function drawBoost() {
       ${ended.length ? `<ul class="crows" style="margin-top:6px">${me.body}</ul>${me.btn}` : `<p class="note">최근 14일 안에 끝난 부스트가 없습니다.</p>`}</div>`;
   bindCopy(el); bindMore(el); bindTips(el);
   el.querySelectorAll("[data-cbp]").forEach(b => b.onclick = () => { CBP = b.dataset.cbp; drawBoost(); });
+}
+// ---------------- 크리에이터 탭: TOP 30 / 첫 매출 / 자주 올리는 크리에이터
+let TCV = "top", FSP = "", PSF = "all";
+const pnm = (pid, full) => (D.prods.find(p => p.id === pid) || {}).name || short(full || "") || "기타 제품";
+const tk = h => `<a href="https://www.tiktok.com/@${h}" target="_blank" rel="noopener">@${h}</a>`;
+function drawCreatorTab() {
+  document.querySelectorAll("#tcv [data-tcv]").forEach(b => { b.setAttribute("aria-pressed", b.dataset.tcv === TCV); b.onclick = () => { TCV = b.dataset.tcv; drawCreatorTab(); }; });
+  $("#tcTop").hidden = TCV !== "top"; $("#tcx").hidden = TCV === "top";
+  if (TCV === "first") drawFirst(); else if (TCV === "post") drawPosters();
+}
+function drawFirst() {
+  const F = D.raw.firstSales, el = $("#tcx");
+  if (!F) { el.innerHTML = `<div class="box"><p class="note" style="margin:0">첫 매출 데이터를 불러오지 못했습니다.</p></div>`; return; }
+  const per = D.A[0] === D.A[1] ? `${md(D.A[0])}(${DOW(D.A[0])})` : `${md(D.A[0])}~${md(D.A[1])}`;
+  const names = [...new Set([...F.creators.flatMap(c => c.products.slice(0, 1).map(p => pnm(p.pid, p.name))), ...F.videos.map(v => pnm(v.pid, v.product))])]; if (FSP && !names.includes(FSP)) FSP = "";
+  const C = F.creators.filter(c => !FSP || c.products.some(p => pnm(p.pid, p.name) === FSP)), V = F.videos.filter(v => !FSP || pnm(v.pid, v.product) === FSP);
+  const sumC = C.reduce((s, c) => s + c.pay, 0), oldV = V.filter(v => !v.newCreator);
+  const vline = v => `<a href="${vlink(v.cid, v.h)}" target="_blank" rel="noopener">${v.posted ? md(v.posted) + " 포스팅" : "영상"}</a> <b>${usd(v.pay)}</b>`;
+  const crow1 = c => `<li class="crow brow"><div class="who">${tk(c.h)}${c.live > 0 ? `<span class="agetag">라이브 ${usd(c.live)}</span>` : ""}<span class="agetag new">주문 ${c.orders}건</span>
+      <div class="sub">${c.products.map(p => `${pnm(p.pid, p.name)} <b>${usd(p.pay)}</b>`).join(" · ") || "-"}</div>
+      ${c.videos.length ? `<div class="sub">영상: ${c.videos.map(v => vline({...v, h: c.h})).join(", ")}</div>` : ""}</div>
+      <span class="rchip up">${usd(c.pay)}</span>${c.videos.length ? copyBtn(c.videos.map(v => v.cid).join("\n"), "ID 복사", "이 크리에이터의 영상 ID 복사") : ""}${copyBtn("@" + c.h, "핸들 복사")}</li>`;
+  const crow2 = v => { const age = v.posted ? Math.round((Date.parse(D.A[1]) - Date.parse(v.posted)) / 86400000) : null;
+    return `<li class="crow brow"><div class="who">${tk(v.h)}<span class="agetag ${v.newCreator ? "new" : ""}">${v.newCreator ? "신규 크리에이터" : "기존 · 30일 " + usd(v.gmv30)}</span>
+      <div class="sub">${pnm(v.pid, v.product)} · <a href="${vlink(v.cid, v.h)}" target="_blank" rel="noopener">영상 보기</a>${v.posted ? ` · ${md(v.posted)} 포스팅${age != null && age >= 0 ? ` (${age === 0 ? "당일" : age + "일 전"})` : ""}` : ""}</div></div>
+      <span class="rchip up">${usd(v.pay)}</span>${idBtn(v)}</li>`; };
+  const m1 = more(C.slice(0, 60).map(crow1), 10, 10), m2 = more(V.slice(0, 60).map(crow2), 10, 10);
+  el.innerHTML = `<div class="box" style="display:flex;flex-direction:column;gap:12px">
+    <div class="pchips"><button class="chip" type="button" data-fsp="" aria-pressed="${!FSP}">전체 제품</button>${names.slice(0, 16).map(n => `<button class="chip" type="button" data-fsp="${n}" aria-pressed="${FSP === n}">${n}</button>`).join("")}</div>
+    <div class="say" style="font-size:15px">${per}에 <b>처음 매출이 난 크리에이터 ${C.length}명</b> (매출 합 <b class="num">${usd(sumC)}</b>), <b>처음 팔린 영상 ${V.length}개</b>입니다. 그중 ${oldV.length}개는 기존 크리에이터가 올린 새 영상입니다.</div>
+    <div class="adk">
+      <div><div class="t">처음 매출이 난 크리에이터</div><div class="v">${C.length}명</div><div class="s">매출 합 ${usd(sumC)}</div></div>
+      <div><div class="t">처음 팔린 영상</div><div class="v">${V.length}개</div><div class="s">매출 합 ${usd(V.reduce((s, v) => s + v.pay, 0))}</div></div>
+      <div><div class="t">기존 크리에이터의 새 영상</div><div class="v">${oldV.length}개</div><div class="s">매출 합 ${usd(oldV.reduce((s, v) => s + v.pay, 0))}</div></div>
+      <div><div class="t">첫날 $100 이상 판 영상</div><div class="v">${V.filter(v => v.pay >= 100).length}개</div><div class="s">부스트·추가 부킹 후보</div></div>
+    </div>
+    <p class="note" style="margin:0">"처음"은 주문 시트 전체 기록에서 이 크리에이터(또는 영상)의 첫 판매일이 기준 기간 안이라는 뜻입니다. 매출은 기준 기간의 결제액입니다.</p></div>
+    <div class="todo">
+      <div class="tcard boost"><h4><span>처음 매출이 난 크리에이터<em>${C.length}명</em></span>${C.length ? copyBtn(C.map(c => "@" + c.h).join("\n"), "핸들 모두 복사") : ""}</h4><p class="d"><b>추가 부킹 후보.</b> 누가, 어떤 제품을, 어떤 영상으로 팔았는지. 매출 큰 순서.</p>${C.length ? `<ul class="crows">${m1.body}</ul>${m1.btn}` : `<p class="note" style="margin:0">해당 크리에이터가 없습니다.</p>`}</div>
+      <div class="tcard watch"><h4><span>처음 팔린 영상<em>${V.length}개</em></span>${V.length ? copyBtn(V.map(v => v.cid).join("\n"), "ID 모두 복사") : ""}</h4><p class="d"><b>새로 터지는 영상.</b> 기존 크리에이터의 새 영상도 포함합니다. 매출 큰 순서.</p>${V.length ? `<ul class="crows">${m2.body}</ul>${m2.btn}` : `<p class="note" style="margin:0">해당 영상이 없습니다.</p>`}</div>
+    </div>`;
+  bindCopy(el); bindMore(el); bindTips(el);
+  el.querySelectorAll("[data-fsp]").forEach(b => b.onclick = () => { FSP = b.dataset.fsp; drawFirst(); });
+}
+function drawPosters() {
+  const P = D.raw.posters, el = $("#tcx");
+  if (!P) { el.innerHTML = `<div class="box"><p class="note" style="margin:0">데이터를 불러오지 못했습니다.</p></div>`; return; }
+  const T30 = new Set((D.raw.topCreators || []).slice(0, 30).map(t => t.h));
+  const F = {all: () => true, many: x => x.posts7 >= 3, out: x => !T30.has(x.h), newc: x => x.since && x.since >= addD(D.A[1], -29)};
+  const L = P.list.filter(F[PSF] || F.all);
+  const rows = L.map(x => { const d = x.last7 - x.prev7;
+    return `<tr><td>${tk(x.h)}${T30.has(x.h) ? ' <span class="tag good">TOP 30</span>' : ""}${x.since && x.since >= addD(D.A[1], -29) ? ' <span class="tag new">30일 내 첫 판매</span>' : ""}</td>
+      <td class="n"><b style="font-size:15px">${x.posts7}</b>개</td><td class="n note">${x.posts14} / ${x.posts30}</td>
+      <td class="n">${usd(x.last7)}<br><span class="pill ${cls(d)}">${sd(d)}</span></td><td class="n">${usd(x.gmv30)}</td>
+      <td style="white-space:normal;min-width:280px">${x.videos.map(v => `<a href="${vlink(v.cid, x.h)}" target="_blank" rel="noopener">${md(v.posted)}</a> ${pnm(v.pid, v.product)} <b class="num">${usd(v.pay)}</b>`).join("<br>")}</td>
+      <td>${copyBtn(x.videos.map(v => v.cid).join("\n"), "ID 복사", "최근 7일 영상 ID 복사")} ${copyBtn("@" + x.h, "핸들 복사")}</td></tr>`; });
+  const m = more(rows, 20, 20);
+  el.innerHTML = `<div class="box" style="display:flex;flex-direction:column;gap:12px">
+    <div class="bar"><div class="say" style="font-size:15px">최근 7일(${md(P.from)}~${md(D.A[1])})에 영상을 <b>2개 이상</b> 올린 크리에이터 <b>${P.n}명</b>입니다.</div>
+      <div class="seg" id="psf">${[["all", "전체"], ["many", "3개 이상"], ["out", "TOP 30 밖"], ["newc", "30일 내 첫 판매"]].map(([k, t]) => `<button class="chip" type="button" data-psf="${k}" aria-pressed="${PSF === k}">${t}</button>`).join("")}</div></div>
+    <div class="adk">
+      <div><div class="t">2개 이상 올린 크리에이터</div><div class="v">${P.n}명</div><div class="s">3개 이상 ${P.list.filter(F.many).length}명</div></div>
+      <div><div class="t">이들의 최근 7일 매출</div><div class="v">${usd(P.list.reduce((s, x) => s + x.last7, 0))}</div><div class="s">이전 7일 ${usd(P.list.reduce((s, x) => s + x.prev7, 0))}</div></div>
+      <div><div class="t">TOP 30 밖에서 자주 올리는</div><div class="v">${P.list.filter(F.out).length}명</div><div class="s">아직 매출은 작지만 열심히 올리는 크리에이터</div></div>
+    </div>
+    <p class="note" style="margin:0">영상은 <b>판매가 한 번이라도 난 것만</b> 셉니다. 판매가 없는 영상은 주문 시트에 없어서 보이지 않습니다. 영상별 금액은 최근 30일 매출입니다.</p>
+    <div class="ctable" style="display:flex;flex-direction:column"><table><tr><th>크리에이터</th><th class="n">7일 새 영상</th><th class="n">14일 / 30일</th><th class="n">최근 7일 매출 (이전 7일 대비)</th><th class="n">30일 매출</th><th>최근 7일에 올린 영상 (포스팅일 · 제품 · 매출)</th><th></th></tr>${m.body || '<tr><td colspan="7" class="note">해당 크리에이터가 없습니다.</td></tr>'}</table>${m.btn}</div></div>`;
+  bindCopy(el); bindMore(el);
+  el.querySelectorAll("[data-psf]").forEach(b => b.onclick = () => { PSF = b.dataset.psf; drawPosters(); });
 }
 // ---------------- 핵심 크리에이터 TOP 50
 let TCF = "all", TCP = 0;
