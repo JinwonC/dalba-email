@@ -92,7 +92,8 @@ module.exports = async (req, res) => {
       cre: tabs(am, t => t === "소재별광고성과" || t === "광고소재성과"),
       camp: tabs(am, t => t === "캠페인광고성과"),
       pid: tabs(am, t => t === "PID매칭"),
-      troi: tabs(am, t => t.includes("TROI") || (t.includes("타겟") && t.includes("ROI")))
+      troi: tabs(am, t => t.includes("TROI") || (t.includes("타겟") && t.includes("ROI"))),
+      boost: tabs(am, t => t.toLowerCase() === "creativeboost")
     };
     for (const k of ["prod", "blive", "ord", "cre", "camp"]) if (!T[k]) throw new Error(`필요한 탭을 찾지 못했습니다: ${k}`);
     const q1 = (p, r) => `'${p.title}'!${r}`;
@@ -103,7 +104,7 @@ module.exports = async (req, res) => {
       sheets.spreadsheets.values.batchGet({ spreadsheetId: MAIN, ranges: [
         q1(T.prod, "A1:A"), q1(T.blive, "A1:BH"), T.alive ? q1(T.alive, "E1:E") : q1(T.prod, "A1:A1"), q1(T.ord, "A1:A"), q1(T.ord, "M1:O")] }),
       sheets.spreadsheets.values.batchGet({ spreadsheetId: ADS, ranges: [
-        q1(T.cre, `A${creTail}:A`), q1(T.camp, "A1:G"), T.pid ? q1(T.pid, "A1:C") : q1(T.camp, "A1:A1"), T.troi ? q1(T.troi, "A1:E") : q1(T.camp, "A1:A1"), q1(T.cre, "A1:W1")] })
+        q1(T.cre, `A${creTail}:A`), q1(T.camp, "A1:G"), T.pid ? q1(T.pid, "A1:C") : q1(T.camp, "A1:A1"), T.troi ? q1(T.troi, "A1:E") : q1(T.camp, "A1:A1"), q1(T.cre, "A1:W1"), T.boost ? q1(T.boost, "A3:E") : q1(T.camp, "A1:A1")] })
     ]);
     const mv = i => (mainCols.data.valueRanges[i] && mainCols.data.valueRanges[i].values) || [];
     const av = i => (adsCols.data.valueRanges[i] && adsCols.data.valueRanges[i].values) || [];
@@ -250,6 +251,9 @@ module.exports = async (req, res) => {
       spark: { spend: e.ss.map(Math.round), gmv: e.sg.map(Math.round) }
     })).sort((x, y) => Math.abs(y.a.gmv - y.b.gmv) - Math.abs(x.a.gmv - x.b.gmv));
 
+    // ── Creative Boost (소재별 부스트 조정 내역). 탭이 없으면 null
+    const boosts = T.boost ? buildBoosts(av(5), cre, sDates, creatorOf, nameOf) : null;
+
     // ── 브랜드 라이브 세션
     const BL = mv(1), BH = BL[0] || [];
     const bi = n => colIndex(BH, n);
@@ -289,7 +293,7 @@ module.exports = async (req, res) => {
       periods: { a: [a, a2], b: [b, b2], days }, avail,
       store, ads, daily, trend, sparkDates: sDates, topCreators,
       products: Object.values(prods).map(p => ({ ...p, ads: adByPid[p.id] || null, price: { a: priceOf(price.a[p.id]), b: priceOf(price.b[p.id]) } })).sort((x, y) => (y.a.gmv + y.b.gmv) - (x.a.gmv + x.b.gmv)),
-      creatives, troi,
+      creatives, troi, boosts,
       brandLive: { a: blive.a, b: blive.b, lastBeforeA: lastPrev, daily: bday },
       afLive: creators,
       source: { main: MAIN, ads: ADS, tabs: Object.fromEntries(Object.entries(T).map(([k, v]) => [k, v ? v.title : null])) }
@@ -300,6 +304,28 @@ module.exports = async (req, res) => {
     res.status(500).json({ error: String((e && e.message) || e) });
   }
 };
+// 'Creative Boost' 탭 행(조정 일자, End Date, 캠페인명, 소재ID, 일 예산) → 최근 14일 창과 겹치는 조정만.
+// 소재별 14일 광고비·매출(같은 소재 ID의 모든 캠페인 합)을 함께 붙인다.
+function buildBoosts(rows, cre, sDates, creatorOf, nameOf) {
+  const w0 = sDates[0], byCid = {};
+  for (const e of Object.values(cre)) {
+    const o = byCid[e.cid] || (byCid[e.cid] = { ss: sDates.map(() => 0), sg: sDates.map(() => 0), pid: "", top: -1 });
+    let t = 0; e.ss.forEach((v, i) => { o.ss[i] += v; o.sg[i] += e.sg[i]; t += v + e.sg[i]; });
+    if (e.pid && t > o.top) { o.top = t; o.pid = e.pid; }
+  }
+  const out = [];
+  for (const r of rows || []) {
+    const s = dkey(r[0]), e = dkey(r[1]), cid = String(r[3] || "").trim();
+    if (!s || !/^\d{6,}$/.test(cid)) continue;
+    const end = e && e > s ? e : addDays(s, 3);
+    if (end <= w0) continue;
+    const c = byCid[cid];
+    out.push({ start: s, end, camp: String(r[2] || "").trim(), cid, budget: num(r[4]), pid: c ? c.pid : "", product: c && c.pid ? nameOf(c.pid) : "",
+      creator: creatorOf[cid] || null, posted: postDate(cid), spark: c ? { spend: c.ss.map(r2), gmv: c.sg.map(r2) } : null });
+  }
+  return out;
+}
+module.exports.buildBoosts = buildBoosts;
 function send(res, out) {
   res.setHeader("Cache-Control", "s-maxage=600, stale-while-revalidate=3600");
   res.setHeader("Access-Control-Allow-Origin", "*");

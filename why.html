@@ -249,6 +249,7 @@ section[data-panel]{display:flex;flex-direction:column;gap:12px}
 .crow .sub{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .crow .sub .vid{margin-left:0;font-size:10.5px}
 .crow .sub b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+.brow .who,.brow .sub{white-space:normal;overflow:visible} .brow .agetag{white-space:nowrap}
 .rchip{display:inline-block;min-width:72px;text-align:center;font-size:12px;font-weight:700;padding:3px 6px;border-radius:7px;font-variant-numeric:tabular-nums;white-space:nowrap}
 .rchip.kill{background:var(--down-bg);color:var(--down)} .rchip.warn{background:var(--soft);color:var(--warn)} .rchip.good,.rchip.best{background:var(--up-bg);color:var(--up)} .rchip.none{background:var(--soft);color:var(--muted)}
 .rchip.up{background:var(--up-bg);color:var(--up)} .rchip.down{background:var(--down-bg);color:var(--down)} .rchip.muted{background:var(--soft);color:var(--muted)}
@@ -359,11 +360,12 @@ function render(raw) {
   const adNote = Math.abs(D.ads.a.prodSpend * D.fa - D.ads.b.prodSpend * D.fb) < D.ads.b.prodSpend * D.fb * 0.05 ? " 상품 광고비는 거의 같습니다." : ` 상품 광고비는 ${sd(D.ads.a.prodSpend * D.fa - D.ads.b.prodSpend * D.fb)} 움직였습니다.`;
   $("#app").innerHTML = `
   <div class="headline">매출 <b class="num">${usd(n.gmv)}</b>, 비교 대비 <b class="num ${cls(TOT)}">${sd(TOT)} (${spc(o.gmv, n.gmv)})</b>. 가장 크게 움직인 건 <b style="color:var(${COL[top.id]})">${top.name} ${sd(top.d)}</b>입니다.${liveNote}${adNote}</div>
-  <div class="tabs" role="tablist">${[["ag", "에이전트 리포트"], ["sum", "요약"], ["cre", "광고 소재"], ["top", "크리에이터 TOP 30"], ["live", "라이브"]].map(([k, t]) => `<button class="tab" type="button" role="tab" data-tab="${k}" aria-selected="${k === TAB}">${t}</button>`).join("")}</div>
+  <div class="tabs" role="tablist">${[["ag", "에이전트 리포트"], ["sum", "요약"], ["cre", "광고 소재"], ["cb", "Creative Boost"], ["top", "크리에이터 TOP 30"], ["live", "라이브"]].map(([k, t]) => `<button class="tab" type="button" role="tab" data-tab="${k}" aria-selected="${k === TAB}">${t}</button>`).join("")}</div>
   <section data-panel="ag"><div class="box"><div class="bar"><div><h3 id="agTitle">에이전트 데일리 리포트</h3><p class="note" id="agNote" style="margin:2px 0 0"></p></div><div class="seg"><button class="btn" id="agRun" type="button">분석하기</button><button class="btn ghost" id="agRe" type="button">다시 분석</button></div></div></div><div class="box" id="agSumBox" hidden><div class="agsum" id="agSum"></div></div><div class="aggrid" id="agGrid"></div></section>
   <section data-panel="sum"><div class="box"><div class="adk" id="sumKpi"></div></div><div class="box"><h3>채널별 증감</h3><div id="wf"></div></div>
     <div class="main"><div class="mapbox" id="mapbox"><div class="bar" style="padding:6px 8px 2px"><h3>매출 원인 지도</h3><button class="chip" id="tourBtn" type="button">큰 원인부터 차례로 보기 ▶</button></div><div class="legend" id="legend"></div><div class="mhint">← 옆으로 밀어서 보기 →</div><svg id="map" role="img" aria-label="매출 원인 노선도"></svg></div><aside class="card" id="card" aria-live="polite"></aside></div></section>
   <section data-panel="cre"><div id="adtop"></div><div class="box"><div class="bar"><div><h3 id="lgd"></h3><p class="note" id="lgdNote" style="margin:2px 0 0"></p></div><div class="seg"><button class="chip" type="button" data-cv="prod" aria-pressed="true">제품별</button><button class="chip" type="button" data-cv="cre" aria-pressed="false">크리에이터별</button></div></div><div id="cview"></div></div></section>
+  <section data-panel="cb"><div id="cbview" style="display:flex;flex-direction:column;gap:12px"></div></section>
   <section data-panel="top"><div class="box"><div class="bar"><p class="note" id="tcnote" style="margin:0"></p><div class="seg" id="tcf"><button class="chip" type="button" data-f="all" aria-pressed="true">전체</button><button class="chip" type="button" data-f="slow" aria-pressed="false">매출 둔화</button><button class="chip" type="button" data-f="stop" aria-pressed="false">포스팅·라이브 멈춤</button></div></div><div class="ctable" id="top50"></div><div class="seg" id="tcpg" style="justify-content:center"></div></div></section>
   <section data-panel="live"><div class="box"><h2>브랜드 라이브</h2><div id="brandLive"></div></div>
     <div class="box"><div class="bar"><h2>어필리에이트 라이브: 누가 무엇을 팔았나</h2><div class="seg" id="aflv"><button class="chip" type="button" data-v="cr" aria-pressed="true">크리에이터별</button><button class="chip" type="button" data-v="pr" aria-pressed="false">제품별</button></div></div><div id="aflView"></div></div></section>
@@ -372,7 +374,7 @@ function render(raw) {
   document.querySelectorAll("[data-goto]").forEach(b => b.onclick = () => { TAB = b.dataset.goto; showTab(); window.scrollTo({top: 0, behavior: "smooth"}); });
   $("#tourBtn").onclick = () => tour(0);
   showTab();
-  drawTop50(); drawSumKpi(); drawWaterfall(); drawMap(); drawCView(); drawLive(); select("root"); loadAgents();
+  drawTop50(); drawSumKpi(); drawBoost(); drawWaterfall(); drawMap(); drawCView(); drawLive(); select("root"); loadAgents();
   fillHandles();
 }
 let TAB = new URLSearchParams(location.search).get("tab") || "ag";
@@ -1167,6 +1169,114 @@ function drawAdProd() {
   const V = $("#cview"); bindCopy(V); bindMore(V); bindTips(V);
   V.querySelectorAll("[data-open]").forEach(b => b.onclick = e => { e.preventDefault(); openDetail(b.dataset.open); });
 }
+// ---------------- Creative Boost: 소재별 부스트 성과와 결정 (증액 / 유지 / 삭감)
+// 시트 'Creative Boost'의 조정 행(시작일·종료일·일 예산)을 소재별로 이어 붙여 '부스트 구간'을 만들고,
+// 소재별 14일 광고비·매출로 최근 3일 ROI와 부스트 전 3일 대비 증분 ROAS를 계산한다.
+// 팀 규칙: ROI 3 이상 → $100 증액 · 2 이상 → 유지 · 1.5 이하 → 증분 ROI도 1.5 이하면 삭감
+let CBP = "";
+// 시트의 캠페인 약칭 → 화면 제품 이름 (소재 데이터에서 제품을 못 찾았을 때만 씀)
+const BOOST_NAME = {...Object.fromEntries(Object.entries(TROI_MAP).map(([k, v]) => [k.replace(/\s/g, ""), v])), "퍼스트5종": "퍼스트 기프트세트", "프로투엑스번들": "PRO2X 3번들", "톤업선크림5종": "톤업 홀리데이 세트", "톤업선크림번들": "톤업 홀리데이 세트"};
+const dayDiff = (a, b) => Math.round((Date.parse(a) - Date.parse(b)) / 86400000);
+function boostRuns() {
+  const E = D.A[1], DT = D.raw.sparkDates || [], ix = Object.fromEntries(DT.map((k, i) => [k, i]));
+  const by = {}; (D.raw.boosts || []).forEach(b => (by[b.cid + "|" + b.camp] = by[b.cid + "|" + b.camp] || []).push(b));
+  return Object.values(by).map(L => {
+    L.sort((x, y) => x.start < y.start ? -1 : x.start > y.start ? 1 : 0);
+    // 다음 조정이 시작되면 앞 조정은 거기서 끝난다
+    const seg = L.map((b, i) => ({...b, to: L[i + 1] && L[i + 1].start < b.end ? L[i + 1].start : b.end})).filter(s => s.to > s.start);
+    const b0 = L[L.length - 1], sp = L.map(b => b.spark).find(Boolean) || null;
+    const name = (D.prods.find(p => p.id === b0.pid) || {}).name || BOOST_NAME[b0.camp.replace(/\s/g, "")] || b0.camp;
+    const base = {cid: b0.cid, camp: b0.camp, pid: b0.pid, name, creator: b0.creator, posted: b0.posted, label: b0.creator ? "@" + b0.creator : "소재 …" + b0.cid.slice(-5), sp, seg};
+    const past = seg.filter(s => s.start <= E);
+    if (!past.length) return {...base, status: "soon", start: seg[0] ? seg[0].start : b0.start, budget: seg[0] ? seg[0].budget : b0.budget};
+    const cur = past[past.length - 1], active = E < cur.to;
+    let j = past.length - 1; while (j > 0 && past[j - 1].to >= past[j].start) j--;
+    const runStart = past[j].start, last = active ? E : addD(cur.to, -1);
+    const sum = (from, to) => { let s = 0, g = 0, n = 0; if (sp) for (let k = from; k <= to; k = addD(k, 1)) if (ix[k] !== undefined) { s += sp.spend[ix[k]] || 0; g += sp.gmv[ix[k]] || 0; n++; } return {s, g, n}; };
+    const r0 = addD(last, -2), run = sum(runStart, last), rec = sum(r0 > runStart ? r0 : runStart, last), pre = sum(addD(runStart, -3), addD(runStart, -1));
+    const roi = rec.s >= 1 ? rec.g / rec.s : null;
+    let inc = null; if (pre.n === 3 && run.n) { const dS = (run.s / run.n - pre.s / 3) * run.n, dG = (run.g / run.n - pre.g / 3) * run.n; inc = {...incr(dS, dG), dS, dG, r: Math.abs(dS) >= 20 ? dG / dS : null}; }
+    const hist = past.slice(j).map(s => s.budget), i0 = ix[runStart] !== undefined ? ix[runStart] : (runStart < DT[0] ? 0 : -1), i1 = ix[last] !== undefined ? ix[last] : -1;
+    return {...base, status: active ? "on" : "end", budget: cur.budget, hist, runStart, last, endDate: cur.to, days: dayDiff(last, runStart) + 1, left: active ? dayDiff(cur.to, E) - 1 : 0, run, rec, pre, roi, inc, band: [i0, i1]};
+  });
+}
+// 결정. k: up 증액 / keep 유지 / cut 삭감·끄기 / watch 지켜보기 / idle 집행 안 됨 / wait 판단 이름
+function boostCall(r) {
+  if (!r.sp) return {k: "wait", t: "데이터 없음", c: "none", why: "이 소재의 광고 데이터가 최근 14일에 없습니다."};
+  if (r.rec.s < 5 && r.days >= 2) return {k: "idle", t: "집행 안 됨", c: "none", why: `부스트 ${r.days}일째인데 최근 3일 광고비가 ${usd(r.rec.s)}뿐입니다. 부스트가 실제로 켜져 있는지 확인하세요.`};
+  if (r.days < 2) return {k: "wait", t: "판단 이름", c: "none", why: "부스트 1일째라 하루 더 봅니다."};
+  if (r.rec.s < 15) return {k: "wait", t: "판단 이름", c: "none", why: `광고비가 아직 ${usd(r.rec.s)}라 판단하기 이릅니다.`};
+  const x = r.roi, b = r.budget;
+  if (x >= 3) return {k: "up", t: "증액", c: "good", why: `최근 3일 ROI ${x.toFixed(2)} (3 이상). 규칙대로 $100 증액: $${b} → $${b + 100}.`};
+  if (x >= 2) return {k: "keep", t: "유지", c: "good", why: `최근 3일 ROI ${x.toFixed(2)} (2 이상). 유지.`};
+  if (x <= 1.5) {
+    if (r.inc && r.inc.r != null && r.inc.dS > 0 && r.inc.r > 1.5) return {k: "keep", t: "유지", c: "warn", why: `ROI는 ${x.toFixed(2)}로 낮지만 부스트 전 대비 증분 ROAS가 ${r.inc.r.toFixed(2)}라 유지.`};
+    const incTxt = r.inc ? (r.inc.r != null ? `증분 ROAS ${r.inc.t}` : "부스트 전보다 광고비가 거의 안 늘었음") : "증분은 계산 불가(부스트 전 3일 데이터가 14일 밖)";
+    return {k: "cut", t: b >= 100 ? "삭감" : "끄기 검토", c: "kill", why: `최근 3일 ROI ${x.toFixed(2)} (1.5 이하), ${incTxt}. ${b >= 100 ? `규칙대로 삭감: $${b} → $${Math.round(b / 2)}.` : `일 예산이 $${b}로 작아 삭감보다 끄기를 검토.`}`};
+  }
+  return {k: "watch", t: "지켜보기", c: "warn", why: `최근 3일 ROI ${x.toFixed(2)} (1.5~2 사이). 규칙에 없는 구간이라 하루 더 봅니다.`};
+}
+function boostRow(r, showProd) {
+  const q = r.call, chip = `<span class="rchip ${q.c}">${r.roi == null || q.k === "idle" || q.k === "wait" ? q.t : "ROI " + r.roi.toFixed(2)}</span>`;
+  const when = r.status === "on" ? `${r.days}일째 · ${r.left === 0 ? "오늘 끝" : md(addD(r.endDate, -1)) + "까지"}` : `${md(r.runStart)}~${md(r.last)} 종료`;
+  const incT = r.inc ? ` · 증분 ROAS <b class="${r.inc.c === "warnc" ? "" : r.inc.c}">${r.inc.t}</b>` : "";
+  return `<li class="crow brow" data-tip="${q.why}"><div class="who"><a href="${vlink(r.cid, r.creator)}" target="_blank" rel="noopener">${r.label}</a><span class="agetag ${r.status === "on" ? "new" : ""}">${when}</span>
+    <div class="sub">${showProd ? r.name + " · " : ""}일 예산 <b>$${r.budget}</b> · 최근 3일 광고비 <b>${usd(r.rec.s)}</b> · 매출 <b>${usd(r.rec.g)}</b>${incT}</div></div>${chip}${idBtn(r)}</li>`;
+}
+function boostCard(kind, title, verb, desc, list, showProd) {
+  const m = more(list.map(r => boostRow(r, showProd)), 10, 10);
+  return `<div class="tcard ${kind}"><h4><span>${title}<em>${list.length}개 · 일 예산 합 $${list.reduce((s, r) => s + r.budget, 0)}</em></span>${list.length ? copyBtn(list.map(r => r.cid).join("\n"), `ID ${list.length}개 모두 복사`) : ""}</h4>
+    <p class="d"><b>${verb}.</b> ${desc}</p>${list.length ? `<ul class="crows">${m.body}</ul>${m.btn}` : `<p class="note" style="margin:0">해당 소재가 없습니다.</p>`}</div>`;
+}
+function drawBoost() {
+  const el = $("#cbview"); if (!el) return;
+  if (!D.raw.boosts) { el.innerHTML = `<div class="box"><p class="note" style="margin:0">Creative Boost 시트를 읽지 못했습니다. 광고 시트에 "Creative Boost" 탭이 있는지 확인해 주세요.</p></div>`; return; }
+  const ALL = boostRuns().map(r => ({...r, call: r.status === "soon" ? null : boostCall(r)}));
+  const names = [...new Set(ALL.filter(r => r.status !== "soon").map(r => r.name))]; if (CBP && !names.includes(CBP)) CBP = "";
+  const R = ALL.filter(r => !CBP || r.name === CBP), on = R.filter(r => r.status === "on"), ended = R.filter(r => r.status === "end"), soon = R.filter(r => r.status === "soon");
+  const by = k => on.filter(r => r.call.k === k);
+  const up = by("up").sort((x, y) => y.rec.g - x.rec.g), cut = by("cut").sort((x, y) => y.rec.s - x.rec.s), chk = [...by("idle"), ...by("watch")].sort((x, y) => y.budget - x.budget), keep = by("keep").sort((x, y) => y.rec.g - x.rec.g), wait = by("wait");
+  const T = (L, f) => L.reduce((s, r) => s + f(r), 0), s3 = T(on, r => r.rec.s), g3 = T(on, r => r.rec.g), bud = T(on, r => r.budget);
+  const withInc = on.filter(r => r.inc), dS = T(withInc, r => r.inc.dS), dG = T(withInc, r => r.inc.dG), qi = incr(dS, dG), roi = s3 >= 1 ? g3 / s3 : 0;
+  const sparkOf = r => r.sp ? area(r.sp.gmv, 110, 26, {fixed: true, bands: r.band[1] >= 0 && r.band[0] >= 0 ? [[r.band[0], r.band[1], css("--accent-fill")]] : []}) : "";
+  const rows = [...on].sort((x, y) => ({cut: 0, idle: 1, watch: 2, up: 3, keep: 4, wait: 5}[x.call.k] - {cut: 0, idle: 1, watch: 2, up: 3, keep: 4, wait: 5}[y.call.k]) || y.rec.s - x.rec.s).map(r => { const q = r.call, a = v => r.pre.n === 3 ? usd(v / 3) : "-", d = v => r.run.n ? usd(v / r.run.n) : "-";
+    return `<tr><td><span class="tag ${q.c === "kill" ? "bad" : q.c === "none" ? "" : q.c}" data-tip="${q.why}">${q.t}</span></td><td><a href="${vlink(r.cid, r.creator)}" target="_blank" rel="noopener">${r.label}</a></td><td>${r.name}</td>
+      <td class="n" data-tip="조정 내역: ${r.hist.map(b => "$" + b).join(" → ")}">$${r.budget}${r.hist.length > 1 ? ` <span class="note">(${r.hist.length}번째)</span>` : ""}</td><td class="n">${r.days}일째 · ${md(addD(r.endDate, -1))}까지</td>
+      <td class="n">${a(r.pre.s)} → ${d(r.run.s)}</td><td class="n">${a(r.pre.g)} → ${d(r.run.g)}</td><td class="n">${r.pre.s >= 1 ? (r.pre.g / r.pre.s).toFixed(2) : "-"} → <b>${r.roi == null ? "-" : r.roi.toFixed(2)}</b></td>
+      <td class="n"><b class="${r.inc ? (r.inc.c === "warnc" ? "" : r.inc.c) : "muted"}">${r.inc ? r.inc.t : "-"}</b></td><td>${sparkOf(r)}</td><td>${idBtn(r)}</td></tr>`; });
+  const head = `<tr><th>판정</th><th>소재</th><th>제품</th><th class="n">일 예산</th><th class="n">기간</th><th class="n">하루 광고비 (전 → 부스트)</th><th class="n">하루 매출 (전 → 부스트)</th><th class="n">ROI (전 → 최근 3일)</th><th class="n">증분 ROAS</th><th>14일 매출 (색칠 = 부스트)</th><th></th></tr>`;
+  const mt = more(rows, 15, 20);
+  // 제품별 (최근 14일 안의 부스트 구간 합)
+  const P = {}; R.filter(r => r.status !== "soon" && r.sp).forEach(r => { const e = P[r.name] || (P[r.name] = {n: 0, on: 0, s: 0, g: 0, dS: 0, dG: 0, bud: 0}); e.n++; if (r.status === "on") { e.on++; e.bud += r.budget; } e.s += r.run.s; e.g += r.run.g; if (r.inc) { e.dS += r.inc.dS; e.dG += r.inc.dG; } });
+  const prow = Object.entries(P).sort((x, y) => y[1].s - x[1].s).map(([n, e]) => { const q = incr(e.dS, e.dG), x = e.s >= 1 ? e.g / e.s : null;
+    return `<tr><td><b>${n}</b></td><td class="n">${e.on} <span class="note">/ ${e.n}</span></td><td class="n">$${e.bud}</td><td class="n">${usd(e.s)}</td><td class="n">${usd(e.g)}</td><td class="n"><span class="rchip ${x == null ? "none" : roiGrade(e.g, e.s)}">${x == null ? "-" : "ROI " + x.toFixed(2)}</span></td><td class="n">${sd(e.dS)}</td><td class="n"><span class="${cls(e.dG)}">${sd(e.dG)}</span></td><td class="n"><b class="${q.c === "warnc" ? "" : q.c}">${q.t}</b></td></tr>`; }).join("");
+  const again = ended.filter(r => r.sp && r.run.s >= 15 && r.run.g / r.run.s >= 3).sort((x, y) => y.run.g - x.run.g);
+  const endRow = r => { const x = r.run.s >= 1 ? r.run.g / r.run.s : null;
+    return `<li class="crow brow"><div class="who"><a href="${vlink(r.cid, r.creator)}" target="_blank" rel="noopener">${r.label}</a><span class="agetag">${md(r.runStart)}~${md(r.last)} · ${r.days}일</span>
+      <div class="sub">${CBP ? "" : r.name + " · "}마지막 일 예산 <b>$${r.budget}</b> · 부스트 중 광고비 <b>${usd(r.run.s)}</b> · 매출 <b>${usd(r.run.g)}</b>${r.inc ? ` · 증분 ROAS <b class="${r.inc.c === "warnc" ? "" : r.inc.c}">${r.inc.t}</b>` : ""}</div></div><span class="rchip ${x == null ? "none" : roiGrade(r.run.g, r.run.s)}">${x == null ? "-" : "ROI " + x.toFixed(2)}</span>${idBtn(r)}</li>`; };
+  const me = more([...ended].sort((x, y) => (y.last > x.last ? 1 : y.last < x.last ? -1 : 0) || y.run.s - x.run.s).map(endRow), 10, 10);
+  el.innerHTML = `<div class="box" style="display:flex;flex-direction:column;gap:12px">
+    <div class="pchips"><button class="chip" type="button" data-cbp="" aria-pressed="${!CBP}">전체</button>${names.map(n => `<button class="chip" type="button" data-cbp="${n}" aria-pressed="${CBP === n}">${n}</button>`).join("")}</div>
+    <div class="say" style="font-size:15px">${md(D.A[1])} 기준 진행 중인 부스트 <b>${on.length}개</b> (일 예산 합 <b class="num">$${bud}</b>). 증액할 소재 <b class="up">${up.length}개</b>, 삭감·끄기 검토 <b class="down">${cut.length}개</b>, 확인 필요 <b>${chk.length}개</b>입니다.</div>
+    <div class="why" style="margin:0"><b>팀 규칙</b> · 소재 ROI 3 이상 → $100 증액 · 2 이상 → 유지 · 1.5 이하 → 증분 ROI도 1.5 이하면 삭감. 여기서는 부스트 중 <b>최근 3일</b> ROI와, <b>부스트 전 3일 대비</b> 증분 ROAS로 판정합니다.</div>
+    <div class="adk">
+      <div><div class="t">진행 중인 부스트</div><div class="v">${on.length}개</div><div class="s">일 예산 합 $${bud}${soon.length ? ` · 기준일 뒤 시작 ${soon.length}개` : ""}</div></div>
+      <div><div class="t">최근 3일 광고비 (부스트 소재)</div><div class="v">${usd(s3)}</div><div class="s">매출 ${usd(g3)}</div></div>
+      <div><div class="t">최근 3일 ROI</div><div class="v">${roi.toFixed(2)}</div><div class="s">부스트 중인 소재 합계</div></div>
+      <div data-tip="${qi.why}"><div class="t">증분 ROAS (부스트 전 3일 대비)</div><div class="v ${qi.c === "up" || qi.c === "down" ? qi.c : ""}"${qi.c === "warnc" ? ' style="color:var(--warn)"' : ""}>${qi.t}</div><div class="s">광고비 ${sd(dS)} · 매출 ${sd(dG)}</div></div>
+      <div><div class="t">판정</div><div class="v" style="font-size:18px;line-height:1.8"><span class="up">증액 ${up.length}</span> · 유지 ${keep.length} · <span class="down">삭감 ${cut.length}</span></div><div class="s">확인 ${chk.length} · 판단 이름 ${wait.length}</div></div>
+    </div></div>
+    <div class="todo">${boostCard("boost", "증액", "예산 올리기", "최근 3일 ROI 3 이상. 규칙은 $100 증액입니다. 매출 큰 순서.", up, !CBP)}${boostCard("kill", "삭감·끄기 검토", "예산 줄이거나 끄기", "최근 3일 ROI 1.5 이하이고 증분 ROAS도 1.5 이하. 광고비 많이 쓴 순서.", cut, !CBP)}${boostCard("watch", "확인 필요", "켜져 있는지, 하루 더 볼지 확인", "광고비가 거의 안 나가는 부스트(집행 안 됨)와 ROI 1.5~2 사이 소재.", chk, !CBP)}</div>
+    <div class="box"><h3>진행 중인 부스트 전체 <span class="note" style="font-weight:400">· ${on.length}개 · 판정에 마우스를 올리면 이유가 나옵니다</span></h3>
+      ${on.length ? `<div class="ctable" style="display:flex;flex-direction:column;margin-top:8px"><table class="mini">${head}${mt.body}</table>${mt.btn}</div>` : `<p class="note">기준일에 진행 중인 부스트가 없습니다.</p>`}</div>
+    <div class="box"><h3>제품별 부스트 성과 <span class="note" style="font-weight:400">· 최근 14일 안의 부스트 기간 합계</span></h3>
+      <div class="ctable" style="margin-top:8px"><table class="mini"><tr><th>제품</th><th class="n">진행 중 / 전체</th><th class="n">일 예산 합</th><th class="n">부스트 중 광고비</th><th class="n">부스트 중 매출</th><th class="n">ROI</th><th class="n">광고비 증분</th><th class="n">매출 증분</th><th class="n">증분 ROAS</th></tr>${prow || '<tr><td class="note" colspan="9">없음</td></tr>'}</table></div>
+      <p class="note" style="margin:6px 0 0">증분 = 부스트 전 3일 하루 평균과 부스트 기간 하루 평균의 차이 × 부스트 일수. 부스트 전 3일이 최근 14일 밖이면 증분에서 뺍니다.</p></div>
+    <div class="box"><div class="bar"><h3>최근 끝난 부스트 <span class="note" style="font-weight:400">· ${ended.length}개</span></h3>${again.length ? `<span class="note">다시 걸 만한 소재(부스트 중 ROI 3 이상) <b class="up">${again.length}개</b> ${copyBtn(again.map(r => r.cid).join("\n"), "ID 복사")}</span>` : ""}</div>
+      ${ended.length ? `<ul class="crows" style="margin-top:6px">${me.body}</ul>${me.btn}` : `<p class="note">최근 14일 안에 끝난 부스트가 없습니다.</p>`}</div>`;
+  bindCopy(el); bindMore(el); bindTips(el);
+  el.querySelectorAll("[data-cbp]").forEach(b => b.onclick = () => { CBP = b.dataset.cbp; drawBoost(); });
+}
 // ---------------- 핵심 크리에이터 TOP 50
 let TCF = "all", TCP = 0;
 function tcStatus(t, end) {
@@ -1338,7 +1448,7 @@ async function load() {
 }
 const mq = matchMedia("(prefers-color-scheme: dark)");
 let WIDE = innerWidth >= 700; addEventListener("resize", () => { const w = innerWidth >= 700; if (D && w !== WIDE) { WIDE = w; drawWaterfall(); } });
-const redraw = () => { if (D) { drawWaterfall(); drawTop50(); drawMap(); drawCView(); drawLive(); } };
+const redraw = () => { if (D) { drawWaterfall(); drawTop50(); drawMap(); drawCView(); drawLive(); drawBoost(); } };
 mq.addEventListener ? mq.addEventListener("change", redraw) : mq.addListener(redraw);
 new MutationObserver(redraw).observe(document.documentElement, {attributes: true, attributeFilter: ["data-theme"]});
 load();
