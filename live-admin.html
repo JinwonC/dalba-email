@@ -72,6 +72,12 @@
   .c-live{background:var(--champagne);color:#6B5000}
   .c-done{background:var(--ok-soft);color:var(--ok)}
   .c-late{background:var(--alert-soft);color:var(--alert)}
+  .c-now{background:var(--alert);color:#FFF8F2}
+  .c-now::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor;
+    margin-right:5px;animation:blink 1.4s ease-in-out infinite}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+  @media (prefers-reduced-motion:reduce){.c-now::before{animation:none}}
+  .od{display:block;margin-top:4px;font-size:10.5px;font-weight:600;color:var(--alert)}
 
   .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:11px;align-items:center}
   .tab{appearance:none;border:1px solid var(--line-2);background:var(--surface);color:var(--muted);
@@ -133,13 +139,13 @@
   <h2 class="sec">By creator</h2>
   <div class="panel"><div class="scroll"><table id="byCreator">
     <thead><tr><th>Creator</th><th class="r">Scheduled</th><th class="r">Wrapped</th>
-      <th class="r">Open</th><th class="r">Air time</th><th style="width:140px">Wrap rate</th></tr></thead>
+      <th class="r">Open</th><th class="r">Oldest open</th><th class="r">Air time</th><th style="width:140px">Wrap rate</th></tr></thead>
     <tbody></tbody></table></div></div>
 
   <h2 class="sec">All lives</h2>
   <div class="filters">
     <button class="tab" data-f="all" aria-selected="true">All</button>
-    <button class="tab" data-f="late" aria-selected="false">Needs wrap-up</button>
+    <button class="tab" data-f="late" aria-selected="false">Open / carried over</button>
     <button class="tab" data-f="plan" aria-selected="false">Upcoming</button>
     <button class="tab" data-f="done" aria-selected="false">Wrapped</button>
     <select id="whoSel"><option value="">All creators</option></select>
@@ -209,10 +215,23 @@
     try{localStorage.removeItem("lb_pw")}catch(x){} ME=null; LIVES=[]; showGate("") });
   document.getElementById("reload").addEventListener("click",function(){ load() });
 
-  function status(l){ if(l.endTime) return "done"; if(l.date<TODAY) return "late";
-    if(l.date===TODAY) return "today"; return "plan" }
-  var CHIP={done:["c-done","Wrapped"],late:["c-late","Needs wrap-up"],
+  function status(l){ if(l.endTime) return "done"; if(l.startedAt) return "live";
+    if(l.date<TODAY) return "late"; if(l.date===TODAY) return "today"; return "plan" }
+  var CHIP={done:["c-done","Wrapped"],live:["c-now","Live now"],late:["c-late","Overdue"],
             today:["c-live","Today"],plan:["c-plan","Upcoming"]};
+  // 이월: 마무리 안 된 건 예정일이 지나도 며칠째인지 센다
+  function dayNum(x){ var p=String(x||"").split("-"); return Date.UTC(+p[0],+p[1]-1,+p[2]) }
+  function carriedDays(l){
+    if(l.endTime) return 0;
+    var d=Math.round((dayNum(TODAY)-dayNum(l.date))/86400000);
+    return d>0?d:0;
+  }
+  function isOpen(l){ var st=status(l); return st==="live"||st==="late" }
+  function elapsedMin(l){
+    if(!l.startedAt) return 0;
+    var t=Date.parse(l.startedAt);
+    return isNaN(t)?0:Math.max(0,Math.round((Date.now()-t)/60000));
+  }
   function minutes(l){
     if(!l.endTime) return 0;
     var s=(l.actualStart||l.startTime).split(":"), e=l.endTime.split(":");
@@ -246,29 +265,36 @@
   function kpi(n,l,cls){ return '<div class="kpi '+cls+'"><div class="n num">'+n+'</div><div class="l">'+l+'</div></div>' }
   function renderKpis(){
     var done=LIVES.filter(function(l){return status(l)==="done"});
+    var live=LIVES.filter(function(l){return status(l)==="live"});
     var late=LIVES.filter(function(l){return status(l)==="late"});
+    var worst=late.reduce(function(a,l){return Math.max(a,carriedDays(l))},0);
     var mins=done.reduce(function(a,l){return a+minutes(l)},0);
     document.getElementById("kpis").innerHTML=
-      kpi(LIVES.length,"Lives scheduled","g")+kpi(done.length,"Wrapped up","o")
-     +kpi(late.length,"Needs wrap-up","a")+kpi(hm(mins),"Total air time","g");
+      kpi(LIVES.length,"Lives scheduled","g")+kpi(live.length,"Live right now",live.length?"a":"g")
+     +kpi(done.length,"Wrapped up","o")
+     +kpi(late.length,"Carried over"+(worst?" (up to "+worst+"d)":""),"a")
+     +kpi(hm(mins),"Total air time","g");
   }
   function renderByCreator(){
     var by={};
     LIVES.forEach(function(l){
       var k=l.ownerId||l.creator;
-      var o=by[k]||(by[k]={name:l.creator,handle:l.handle,total:0,done:0,late:0,mins:0});
+      var o=by[k]||(by[k]={name:l.creator,handle:l.handle,total:0,done:0,late:0,mins:0,oldest:0});
       o.total++; var s=status(l);
-      if(s==="done"){o.done++;o.mins+=minutes(l)} if(s==="late") o.late++;
+      if(s==="done"){o.done++;o.mins+=minutes(l)}
+      if(isOpen(l)){ o.late++; o.oldest=Math.max(o.oldest,carriedDays(l)) }
     });
     var arr=Object.keys(by).map(function(k){return by[k]})
       .sort(function(a,b){ return b.late-a.late || b.total-a.total });
     var tb=document.querySelector("#byCreator tbody");
-    if(!arr.length){ tb.innerHTML='<tr><td colspan="6"><div class="empty">No lives scheduled yet.</div></td></tr>'; return }
+    if(!arr.length){ tb.innerHTML='<tr><td colspan="7"><div class="empty">No lives scheduled yet.</div></td></tr>'; return }
     tb.innerHTML=arr.map(function(o){
       var pct=o.total?Math.round(o.done/o.total*100):0;
       return '<tr><td><div class="cname">'+esc(o.name)+'</div><div class="chandle">'+esc(o.handle||"")+'</div></td>'
        +'<td class="r num">'+o.total+'</td><td class="r num" style="color:var(--ok)">'+o.done+'</td>'
        +'<td class="r num" style="color:'+(o.late?"var(--alert)":"var(--faint)")+'">'+o.late+'</td>'
+       +'<td class="r num" style="color:'+(o.oldest?"var(--alert)":"var(--faint)")+'">'
+         +(o.oldest?o.oldest+"d":"-")+'</td>'
        +'<td class="r num">'+hm(o.mins)+'</td>'
        +'<td><div class="num" style="font-size:12px">'+pct+'%</div>'
        +'<div class="bar"><i style="width:'+pct+'%"></i></div></td></tr>';
@@ -279,7 +305,7 @@
     var q=document.getElementById("q").value.trim().toLowerCase();
     return LIVES.filter(function(l){
       var s=status(l);
-      if(FILTER==="late" && s!=="late") return false;
+      if(FILTER==="late" && !isOpen(l)) return false;
       if(FILTER==="done" && s!=="done") return false;
       if(FILTER==="plan" && !(s==="plan"||s==="today")) return false;
       if(who && l.ownerId!==who) return false;
@@ -292,14 +318,15 @@
     var list=visible(), tb=document.querySelector("#rows tbody");
     if(!list.length){ tb.innerHTML='<tr><td colspan="7"><div class="empty"><div class="big">Nothing matches those filters</div></div></td></tr>'; return }
     tb.innerHTML=list.map(function(l){
-      var c=CHIP[status(l)], m=minutes(l), ab=tzAbbr(l.tz,l.date);
+      var st=status(l), c=CHIP[st], m=minutes(l), ab=tzAbbr(l.tz,l.date), od=carriedDays(l);
       return '<tr><td class="num" style="white-space:nowrap">'
          +esc(new Date(l.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}))+'</td>'
        +'<td><div class="cname">'+esc(l.creator)+'</div><div class="chandle">'+esc(l.handle||"")+'</div></td>'
        +'<td class="num" style="white-space:nowrap">'+esc(t12(l.actualStart||l.startTime))
          +(l.endTime?' - '+esc(t12(l.endTime)):'')+' <span style="color:var(--faint);font-size:11px">'+esc(ab)+'</span></td>'
-       +'<td class="r num">'+(m?hm(m):'-')+'</td>'
-       +'<td><span class="chip '+c[0]+'">'+c[1]+'</span></td>'
+       +'<td class="r num">'+(m?hm(m):(st==="live"?hm(elapsedMin(l))+"\u2026":'-'))+'</td>'
+       +'<td><span class="chip '+c[0]+'">'+c[1]+'</span>'
+         +(od?'<span class="od">'+(od===1?"1 day overdue":od+" days overdue")+'</span>':'')+'</td>'
        +'<td style="min-width:160px;color:var(--muted);font-size:12.5px">'
          +esc([l.note,l.reportNote].filter(Boolean).join(" · "))+'</td>'
        +'<td>'+(l.shotSrc?'<a href="'+esc(l.shotSrc)+'" target="_blank" rel="noopener"><img class="thumb" src="'+esc(l.shotSrc)+'" alt="Screenshot"></a>':'<span class="noshot">-</span>')+'</td></tr>';
@@ -318,10 +345,11 @@
   document.getElementById("q").addEventListener("input",renderRows);
 
   document.getElementById("csvBtn").addEventListener("click",function(){
-    var rows=[["Date","Creator","Handle","Time zone","Planned start","Actual start","End","Minutes","Status","Notes","Wrap notes"]];
+    var rows=[["Date","Creator","Handle","Time zone","Planned start","Actual start","End","Minutes",
+      "Status","Days overdue","Notes","Wrap notes"]];
     visible().forEach(function(l){
       rows.push([l.date,l.creator,l.handle||"",l.tz||"",l.startTime,l.actualStart||"",l.endTime||"",
-        minutes(l)||"",CHIP[status(l)][1],l.note||"",l.reportNote||""]);
+        minutes(l)||"",CHIP[status(l)][1],carriedDays(l)||"",l.note||"",l.reportNote||""]);
     });
     var csv="﻿"+rows.map(function(r){return r.map(function(c){
       return '"'+String(c).replace(/"/g,'""')+'"'}).join(",")}).join("\n");

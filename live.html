@@ -77,6 +77,7 @@
   .dots{display:flex;gap:2.5px;height:5px;align-items:center}
   .dots i{width:5px;height:5px;border-radius:50%;display:block}
   .dt-plan{background:var(--gold-2)} .dt-done{background:var(--ok)} .dt-late{background:var(--alert)}
+  .dt-live{background:var(--champagne);outline:1.5px solid var(--alert);outline-offset:-1px}
 
   .daylist{margin-top:16px}
   .dayhead{font-size:12px;color:var(--muted);font-weight:500;margin-bottom:8px;display:flex;justify-content:space-between}
@@ -95,6 +96,16 @@
   .c-live{background:var(--champagne);color:#6B5000}
   .c-done{background:var(--ok-soft);color:var(--ok)}
   .c-late{background:var(--alert-soft);color:var(--alert)}
+  .c-now{background:var(--alert);color:#FFF8F2}
+  .c-now::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor;
+    margin-right:5px;animation:blink 1.4s ease-in-out infinite}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+  @media (prefers-reduced-motion:reduce){.c-now::before{animation:none}}
+  .pills{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+  .pill{display:inline-flex;align-items:center;font-size:10.5px;font-weight:600;
+    padding:3px 9px;border-radius:999px;background:var(--alert-soft);color:var(--alert)}
+  .pill.q{background:var(--gold-soft);color:var(--gold)}
+  .seclead{font-size:11.5px;color:var(--faint);margin:-4px 0 9px;line-height:1.55}
   .shot{margin-top:10px;border-radius:8px;overflow:hidden;border:1px solid var(--line);display:block}
   .shot img{display:block;width:100%}
   .acts{margin-top:11px;display:flex;gap:7px;flex-wrap:wrap}
@@ -151,7 +162,7 @@
     <h1>Live Board</h1>
     <div class="hsub" id="meLine"><span class="dot"></span>d'Alba TikTok Shop</div>
   </div>
-  <div class="hright"><b id="statNum" class="num">–</b>to wrap up
+  <div class="hright"><b id="statNum" class="num">–</b>still open
     <button class="lo" id="logout">Sign out</button></div>
 </header>
 
@@ -287,15 +298,38 @@
     document.getElementById("addWho").innerHTML='Posting as <b>'+esc(ME.name)+'</b>'
       +(ME.handle?' <span style="color:var(--faint)">'+esc(ME.handle)+'</span>':'');
   }
+  // 상태 4단계: plan(예정)/today(오늘) → live(진행중) → done(완료), 놓치면 late(이월)
   function status(l){
     if(l.endTime) return "done";
+    if(l.startedAt) return "live";
     var t=instant(l);
     if(t && t < Date.now()-60*60*1000) return "late";
     if(l.date===TODAY) return "today";
     return l.date<TODAY ? "late" : "plan";
   }
-  var CHIP={done:["c-done","Wrapped"],late:["c-late","Needs wrap-up"],today:["c-live","Today"],plan:["c-plan","Upcoming"]};
+  var CHIP={done:["c-done","Wrapped"],live:["c-now","Live now"],late:["c-late","Overdue"],
+            today:["c-live","Today"],plan:["c-plan","Upcoming"]};
   function mine(l){ return ME && l.ownerId===ME.id }
+
+  // ── 이월(carry-over): 마무리 안 된 건 예정일이 지나도 계속 올라온다 ──
+  function dayNum(s){ var p=String(s||"").split("-"); return Date.UTC(+p[0],+p[1]-1,+p[2]) }
+  function carriedDays(l){
+    if(l.endTime) return 0;
+    var d=Math.round((dayNum(TODAY)-dayNum(l.date))/86400000);
+    return d>0?d:0;
+  }
+  function overdueText(d){ return d===1 ? "1 day overdue" : d+" days overdue" }
+  function elapsedMs(l){
+    if(!l.startedAt) return 0;
+    var t=Date.parse(l.startedAt);
+    return isNaN(t)?0:Math.max(0,Date.now()-t);
+  }
+  function dur(ms){
+    var m=Math.round(ms/60000), h=Math.floor(m/60), r=m%60;
+    return h ? (h+"h"+(r?" "+r+"m":"")) : (m+"m");
+  }
+  function pool(){ return LIVES.filter(function(l){return (ME&&ME.admin)?true:mine(l)}) }
+  function carriedList(){ return pool().filter(function(l){return carriedDays(l)>0}) }
 
   function load(){
     api("GET").then(function(j){
@@ -308,8 +342,8 @@
   }
   function renderAll(){ renderStat(); renderCal(); renderDay(); renderRep() }
   function renderStat(){
-    var pool=LIVES.filter(function(l){return (ME&&ME.admin)?true:mine(l)});
-    document.getElementById("statNum").textContent=pool.filter(function(l){return status(l)==="late"}).length;
+    document.getElementById("statNum").textContent=pool().filter(function(l){
+      var s=status(l); return s==="live"||s==="late" }).length;
   }
   function renderCal(){
     var y=CUR.getFullYear(), m=CUR.getMonth();
@@ -322,8 +356,11 @@
     for(d=1;d<=days;d++){
       var key=y+"-"+pad(m+1)+"-"+pad(d), items=by[key]||[], kinds={};
       items.forEach(function(l){kinds[status(l)]=1});
-      var dots=""; ["late","today","plan","done"].forEach(function(k){
-        if(kinds[k]) dots+='<i class="dt-'+(k==="done"?"done":k==="late"?"late":"plan")+'"></i>' });
+      var DOTC={done:"done",late:"late",live:"live",today:"plan",plan:"plan"};
+      var dots=""; ["live","late","today","plan","done"].forEach(function(k){
+        if(kinds[k]) dots+='<i class="dt-'+DOTC[k]+'"></i>' });
+      // 밀린 게 있으면 오늘 칸에도 경고 점 — 지난 날짜에 묻히지 않게
+      if(key===TODAY && !kinds.late && carriedList().length) dots+='<i class="dt-late"></i>';
       h+='<button class="cell'+(key===TODAY?" today":"")+'" data-d="'+key+'" aria-pressed="'+(key===SEL)+'">'
        +'<span class="d num">'+d+'</span><span class="dots">'+dots+'</span></button>';
     }
@@ -332,20 +369,40 @@
       b.addEventListener("click",function(){SEL=b.getAttribute("data-d");renderCal();renderDay()}) });
   }
   function cardHTML(l,withActions){
-    var c=CHIP[status(l)], ab=tzAbbr(l.tz||DEFTZ,l.date);
+    var st=status(l), c=CHIP[st], ab=tzAbbr(l.tz||DEFTZ,l.date), od=carriedDays(l);
     var h='<div class="card'+((ME&&ME.admin&&mine(l))?" mine":"")+'"><div class="ctop"><div class="who">'+esc(l.creator)
       +'<div class="handle">'+esc(l.handle||"")+'</div></div><div style="text-align:right">'
       +'<div class="time num">'+esc(t12(l.startTime))+(l.endTime?' <span style="color:var(--muted)">– '+esc(t12(l.endTime))+'</span>':'')
       +' <span class="tzl">'+esc(ab)+'</span></div>'
       +'<span class="chip '+c[0]+'" style="margin-top:5px">'+c[1]+'</span></div></div>';
+    // 진행중 경과시간 · 이월 일수 · 원래 예정일
+    var pills=[];
+    if(st==="live"){
+      var ms=elapsedMs(l);
+      pills.push(ms>12*3600000
+        ? '<span class="pill">Running '+dur(ms)+' — still live?</span>'
+        : '<span class="pill q">Running '+dur(ms)+'</span>');
+    }
+    if(od>0) pills.push('<span class="pill">'+overdueText(od)+'</span>');
+    if(st!=="plan" && st!=="done" && l.date!==TODAY)
+      pills.push('<span class="pill q">Scheduled '
+        +esc(new Date(l.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}))+'</span>');
+    if(pills.length) h+='<div class="pills">'+pills.join("")+'</div>';
     var bits=[]; if(l.note) bits.push(esc(l.note)); if(l.reportNote) bits.push(esc(l.reportNote));
     if(bits.length) h+='<div class="meta"><span>'+bits.join('</span><span>')+'</span></div>';
     if(l.shotSrc) h+='<a class="shot" href="'+esc(l.shotSrc)+'" target="_blank" rel="noopener"><img src="'+esc(l.shotSrc)+'" alt="End-of-live screenshot"></a>';
-    if(withActions && (mine(l)||(ME&&ME.admin))){
+    if(withActions && (mine(l)||(ME&&ME.admin)) && st!=="done"){
+      var id=esc(l.id);
       h+='<div class="acts">';
-      if(!l.endTime) h+='<button class="btn sm" data-rep="'+esc(l.id)+'">Wrap up</button>'
-        +'<button class="btn sm ghost" data-edit="'+esc(l.id)+'">Edit</button>'
-        +'<button class="btn sm danger" data-del="'+esc(l.id)+'">Remove</button>';
+      if(st==="live"){
+        h+='<button class="btn sm" data-rep="'+id+'">End live</button>'
+          +'<button class="btn sm ghost" data-unstart="'+id+'">Not live yet</button>';
+      } else {
+        h+='<button class="btn sm" data-start="'+id+'">Start live</button>';
+        if(st!=="plan") h+='<button class="btn sm ghost" data-rep="'+id+'">Wrap up</button>';
+        h+='<button class="btn sm ghost" data-edit="'+id+'">Edit</button>'
+          +'<button class="btn sm danger" data-del="'+id+'">Remove</button>';
+      }
       h+='</div>';
     }
     return h+'</div>';
@@ -357,24 +414,44 @@
     lbl.textContent=dt.toLocaleDateString("en-US",{weekday:"short",month:"long",day:"numeric"})+(SEL===TODAY?" · today":"");
     var items=LIVES.filter(function(l){return l.date===SEL}).sort(function(a,b){return a.startTime<b.startTime?-1:1});
     cnt.textContent=items.length?items.length+(items.length>1?" lives":" live"):"";
-    box.innerHTML=items.length?items.map(function(l){return cardHTML(l,false)}).join("")
+    var h=items.length?items.map(function(l){return cardHTML(l,false)}).join("")
       :'<div class="empty"><p>You have nothing scheduled for this day.</p></div>';
+    // 오늘 칸에는 아직 마무리 안 된 지난 라이브(이월)도 함께
+    if(SEL===TODAY){
+      var carried=carriedList().sort(function(a,b){return a.date<b.date?-1:1});
+      if(carried.length) h+='<h3 class="sec">Carried over · '+carried.length+'</h3>'
+        +'<p class="seclead">Not wrapped up yet, so they keep moving forward with you.</p>'
+        +carried.map(function(l){return cardHTML(l,false)}).join("");
+    }
+    box.innerHTML=h;
   }
   function renderRep(){
-    var box=document.getElementById("repBody");
-    var pool=LIVES.filter(function(l){return (ME&&ME.admin)?true:mine(l)});
-    if(!pool.length){
+    var box=document.getElementById("repBody"), all=pool();
+    if(!all.length){
       box.innerHTML='<div class="empty"><div class="big">No lives yet</div>'
-        +'<p>Add one under <b>Schedule</b>.<br>After you go live, come back here to log how it went.</p></div>'; return;
+        +'<p>Add one under <b>Schedule</b>.<br>Tap <b>Start live</b> when you go on, '
+        +'<b>End live</b> when you are done.</p></div>'; return;
     }
-    var rank={late:0,today:1,plan:2,done:3};
-    var list=pool.slice().sort(function(a,b){
-      var ra=rank[status(a)],rb=rank[status(b)]; if(ra!==rb) return ra-rb; return a.date<b.date?1:-1 });
-    var need=list.filter(function(l){return !l.endTime && l.date<=TODAY});
-    var rest=list.filter(function(l){return need.indexOf(l)<0});
+    var g={live:[],late:[],today:[],plan:[],done:[]};
+    all.forEach(function(l){ g[status(l)].push(l) });
+    var asc =function(a,b){return (a.date+a.startTime)<(b.date+b.startTime)?-1:1};
+    var desc=function(a,b){return (a.date+a.startTime)<(b.date+b.startTime)?1:-1};
+    g.live.sort(asc); g.late.sort(asc); g.today.sort(asc); g.plan.sort(asc); g.done.sort(desc);
+
+    var SECS=[
+      ["live", "Live now",     "Tap End live when you go off air — that is what logs your end time."],
+      ["late", "Carried over", "Never started, or never wrapped up. These roll forward every day until you close them."],
+      ["today","Today",        ""],
+      ["plan", "Upcoming",     ""],
+      ["done", "Wrapped",      ""]
+    ];
     var h="";
-    if(need.length) h+='<h3 class="sec">Ready to wrap up · '+need.length+'</h3>'+need.map(function(l){return cardHTML(l,true)}).join("");
-    if(rest.length) h+='<h3 class="sec">'+(need.length?"Everything else":"Your lives")+'</h3>'+rest.map(function(l){return cardHTML(l,true)}).join("");
+    SECS.forEach(function(sec){
+      var arr=g[sec[0]]; if(!arr.length) return;
+      h+='<h3 class="sec">'+sec[1]+' · '+arr.length+'</h3>';
+      if(sec[2]) h+='<p class="seclead">'+sec[2]+'</p>';
+      h+=arr.map(function(l){return cardHTML(l,true)}).join("");
+    });
     box.innerHTML=h;
     bindActions(box);
   }
@@ -385,6 +462,22 @@
       b.addEventListener("click",function(){startEdit(b.getAttribute("data-edit"))}) });
     Array.prototype.forEach.call(box.querySelectorAll("[data-del]"),function(b){
       b.addEventListener("click",function(){confirmDelete(b.getAttribute("data-del"),b)}) });
+    Array.prototype.forEach.call(box.querySelectorAll("[data-start]"),function(b){
+      b.addEventListener("click",function(){
+        b.disabled=true; b.textContent="Starting…";
+        mark(b.getAttribute("data-start"),"start","You are live");
+      }) });
+    Array.prototype.forEach.call(box.querySelectorAll("[data-unstart]"),function(b){
+      b.addEventListener("click",function(){
+        b.disabled=true; mark(b.getAttribute("data-unstart"),"unstart","Set back to scheduled");
+      }) });
+  }
+  // 진행중 전환 / 되돌리기
+  function mark(id,action,msg){
+    api("PATCH",{id:id,action:action}).then(function(){ toast(msg); return api("GET") })
+      .then(function(j){ LIVES=j.lives||[]; renderAll() })
+      .catch(function(e){ if(e.auth){showGate(e.message);return}
+        toast("Couldn't save: "+e.message); renderRep() });
   }
 
   // ── 수정 ──
@@ -425,14 +518,14 @@
   // ── Wrap up ──
   function openWrap(id){
     var l=LIVES.filter(function(x){return x.id===id})[0]; if(!l) return;
-    var now=new Date();
-    document.getElementById("repBody").innerHTML='<h3 class="sec">Wrap up · '+esc(l.creator)+'</h3>'
+    var now=new Date(), isLive=!!l.startedAt;
+    document.getElementById("repBody").innerHTML='<h3 class="sec">'+(isLive?"End live":"Wrap up")+' · '+esc(l.creator)+'</h3>'
       +'<div class="card"><div class="meta"><span>'+esc(new Date(l.date+"T12:00:00").toLocaleDateString("en-US",{month:"long",day:"numeric"}))
       +' · planned '+esc(t12(l.startTime))+' '+esc(tzAbbr(l.tz||DEFTZ,l.date))+'</span>'
       +(l.note?'<span>'+esc(l.note)+'</span>':'')+'</div></div>'
       +'<form id="repForm" style="margin-top:14px">'
       +'<div class="row2">'
-      +'<div class="field"><label for="r-start">Actually started</label><input id="r-start" type="time" value="'+esc(l.startTime)+'" required></div>'
+      +'<div class="field"><label for="r-start">Actually started</label><input id="r-start" type="time" value="'+esc(l.actualStart||l.startTime)+'" required></div>'
       +'<div class="field"><label for="r-end">Ended at</label><input id="r-end" type="time" value="'+pad(now.getHours())+':'+pad(now.getMinutes())+'" required></div></div>'
       +'<div class="field"><label for="r-shot">Screenshot of your end screen</label><input id="r-shot" type="file" accept="image/*"></div>'
       +'<div class="field"><label for="r-memo">How did it go? (optional)</label><textarea id="r-memo" placeholder="Viewers, orders, anything worth noting"></textarea></div>'
@@ -506,6 +599,12 @@
     var ab=tzAbbr(t[0]); return '<option value="'+t[0]+'"'+(t[0]===DEFTZ?" selected":"")+'>'+t[1]+(ab?" ("+ab+")":"")+'</option>' }).join("");
   document.getElementById("f-date").value=TODAY; SEL=TODAY;
   renderCal(); renderDay(); renderRep();
+  // 진행중 라이브의 경과시간을 1분마다 갱신 (작성 중인 폼은 건드리지 않음)
+  setInterval(function(){
+    if(document.getElementById("repForm")) return;
+    if(pool().some(function(l){return status(l)==="live"})) renderAll();
+  },60000);
+
   if(cred("lb_id")&&cred("lb_pw")) load(); else showGate();
 })();
 </script>

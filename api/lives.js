@@ -147,6 +147,19 @@ const TZS = ["America/New_York","America/Chicago","America/Denver","America/Phoe
   "America/Los_Angeles","America/Anchorage","Pacific/Honolulu","Asia/Seoul","UTC"];
 const isTz = s => TZS.indexOf(s) >= 0;
 
+// 레코드 시간대 기준 현재 시각 HH:MM (라이브 시작 버튼이 실제 시작시간을 자동 기록)
+function hhmmInTz(tz) {
+  try {
+    const p = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz || "America/New_York", hour12: false,
+      hour: "2-digit", minute: "2-digit"
+    }).formatToParts(new Date());
+    const o = {}; p.forEach(x => { o[x.type] = x.value; });
+    const h = o.hour === "24" ? "00" : o.hour;
+    return h + ":" + o.minute;
+  } catch (e) { return ""; }
+}
+
 async function readBody(req) {
   if (req.body && typeof req.body === "object") return req.body;
   let raw = ""; for await (const c of req) raw += c;
@@ -204,6 +217,7 @@ module.exports = async (req, res) => {
         startTime: clean(body.startTime, 5),
         tz: isTz(body.tz) ? body.tz : "America/New_York",
         note: clean(body.note, 500),
+        startedAt: "",
         endTime: "", actualStart: "", reportNote: "", shotPath: "", reportedAt: "",
         createdAt: new Date().toISOString()
       };
@@ -224,6 +238,30 @@ module.exports = async (req, res) => {
       if (i < 0) { res.status(404).json({ error: "That live was not found." }); return; }
       if (!me.admin && rows[i].ownerId !== me.id) {
         res.status(403).json({ error: "You can only change your own lives." }); return;
+      }
+
+      // 라이브 시작 (진행중으로 전환) — 체크박스 대신 쓰는 버튼
+      if (body.action === "start") {
+        if (rows[i].endTime) { res.status(400).json({ error: "That live is already wrapped up." }); return; }
+        if (!rows[i].startedAt) {
+          rows[i] = Object.assign({}, rows[i], {
+            startedAt: new Date().toISOString(),
+            actualStart: hhmmInTz(rows[i].tz) || rows[i].startTime,
+            updatedAt: new Date().toISOString()
+          });
+          await writeAll(rows);
+        }
+        res.status(200).json({ ok: true, live: rows[i] });
+        return;
+      }
+
+      // 잘못 눌렀을 때 되돌리기
+      if (body.action === "unstart") {
+        if (rows[i].endTime) { res.status(400).json({ error: "That live is already wrapped up." }); return; }
+        rows[i] = Object.assign({}, rows[i], { startedAt: "", actualStart: "", updatedAt: new Date().toISOString() });
+        await writeAll(rows);
+        res.status(200).json({ ok: true, live: rows[i] });
+        return;
       }
 
       // 일정 수정
