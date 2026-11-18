@@ -580,6 +580,7 @@ function drawCView() {
 }
 
 // ---------------- 노선도
+const PIN_PRODS = ["1729492487438964444", "1732130103352136412", "1732302934578205404"]; // 더블라인, 멀티밤, 갈바닉 아이크림
 function laneData() {
   const lanes = [];
   const P = D.prods;
@@ -594,7 +595,10 @@ function laneData() {
       sub.push({id: "afl-down", name: "줄어든·결석 크리에이터", kind: "creator", beads: C.filter(c => c.d < 0).slice(0, 6).map(c => ({id: "cr-" + c.h, label: "@" + c.h, d: c.d, sub: c.n.gmv ? `${usd(c.o.gmv * D.fb)}→${usd(c.n.gmv * D.fa)}` : "결석", kind: "creator", data: c}))});
     } else if (ch.id === "video") {
       // 제품마다 같은 칸: 광고비 → 신규/최근/오래된 소재 → 가장 오른 소재 → 가장 빠진 소재
-      for (const x of by("cv").slice(0, 10)) {
+      // 많이 움직인 10개 제품 + 항상 보는 제품(더블라인·멀티밤·갈바닉 아이크림)은 변동이 작아도 넣는다
+      const vlist = by("cv").slice(0, 10);
+      PIN_PRODS.forEach(id => { if (vlist.some(x => x.p.id === id)) return; const q = P.find(z => z.id === id); if (q) vlist.push({p: q, d: q.a.cv - q.b.cv, o: q.b.cv, n: q.a.cv}); });
+      for (const x of vlist) {
         const L = D.cre.filter(c => c.pid === x.p.id), id = x.p.id;
         const grp = k => L.filter(c => ageOf(c) === k);
         const sumd = A => A.reduce((s, c) => s + c.dg, 0);
@@ -1568,7 +1572,7 @@ function drawProdPipes() {
       {name: "객단가", v: p.b.orders && p.a.orders ? `$${(p.b.gmv / p.b.orders).toFixed(0)}→$${(p.a.gmv / p.a.orders).toFixed(0)}` : "-", c: c[3]}])}</div></div>`;
   }).join("");
 }
-// ---------------- 에이전트 리포트 (제품 10명 + 라이브 1명, /api/agents)
+// ---------------- 에이전트 리포트 (제품별 + 라이브 1명, /api/agents)
 let AGL = [], AGS = {}, AGD = "";
 const esc = x => String(x == null ? "" : x).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
 function agKpi(k) {
@@ -1606,7 +1610,7 @@ function drawAgents() {
   $("#agGrid").querySelectorAll("[data-agre]").forEach(b => b.onclick = () => agRunOne(AGL.find(a => a.key === b.dataset.agre), true));
   const done = AGL.filter(a => AGS[a.key] && AGS[a.key].data).length, busy = AGL.filter(a => AGS[a.key] && AGS[a.key].loading).length;
   $("#agTitle").textContent = `${md(AGD)}(${DOW(AGD)}) 에이전트 데일리 리포트`;
-  $("#agNote").textContent = busy ? `분석 중… ${done}/${AGL.length} 완료` : `제품 10명 + 라이브 1명이 그날을 전날·지난주 같은 요일과 비교한 분석입니다. ${done ? "위 칸을 누르면 그 제품 카드로 갑니다." : "이 날짜는 아직 분석이 올라오지 않았습니다."}${D.A[0] !== D.A[1] ? " 기간을 고르면 마지막 날 리포트를 보여줍니다." : ""} (${done}/${AGL.length})`;
+  $("#agNote").textContent = busy ? `분석 중… ${done}/${AGL.length} 완료` : `제품 ${AGL.filter(a => a.key !== "live").length}명 + 라이브 1명이 그날을 전날·지난주 같은 요일과 비교한 분석입니다. ${done ? "위 칸을 누르면 그 제품 카드로 갑니다." : "이 날짜는 아직 분석이 올라오지 않았습니다."}${D.A[0] !== D.A[1] ? " 기간을 고르면 마지막 날 리포트를 보여줍니다." : ""} (${done}/${AGL.length})`;
   $("#agRun").disabled = $("#agRe").disabled = busy > 0; $("#agRun").hidden = $("#agRe").hidden = !AGRUN;
 }
 async function agRunOne(ag, force) {

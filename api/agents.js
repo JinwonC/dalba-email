@@ -1,5 +1,5 @@
 // Vercel Serverless Function — 배포 경로: /api/agents
-// 제품별 에이전트 10명 + 라이브 에이전트 1명이 하루 데이터를 분석한다.
+// 제품별 에이전트 12명 + 라이브 에이전트 1명이 하루 데이터를 분석한다.
 //   GET  /api/agents?a=2026-11-12               → 에이전트 목록 + 그날 저장된 분석 결과
 //   POST /api/agents?a=2026-11-12&agent=pro2x    → 그 에이전트 하나 실행 (저장된 결과가 있으면 그대로 반환, &force=1 이면 다시 실행)
 // 에이전트 하나 = Claude 호출 하나. 페이지가 11개를 동시에 호출해 각각 별도 함수로 돈다.
@@ -22,6 +22,8 @@ const AGENTS = [
   { key: "toneup", name: "톤업", pid: "1732057509504979676" },
   { key: "vita5", name: "비타 5종", pid: "1732268708636299996" },
   { key: "doubleline", name: "더블라인", pid: "1729492487438964444" },
+  { key: "multibalm", name: "멀티밤", pid: "1732130103352136412" },
+  { key: "galvanic", name: "갈바닉 아이크림", pid: "1732302934578205404" },
   { key: "banban", name: "반반패드", pid: "1732397321053967068" },
   { key: "toneupholiday", name: "톤업 홀리데이 세트", pid: "1732779015968363228" },
   { key: "live", name: "라이브", live: true }
@@ -228,7 +230,7 @@ function checkResult(r) {
 }
 
 // 예약 작업(Claude Code) 방식: 분석용 데이터를 내주고, 쓴 결과를 받아 저장한다.
-//   GET  /api/agents?a=날짜&brief=1           → 11명 각각에게 줄 데이터 + 규칙(SYSTEM)·결과 모양(SCHEMA)
+//   GET  /api/agents?a=날짜&brief=1           → 에이전트 각각에게 줄 데이터 + 규칙(SYSTEM)·결과 모양(SCHEMA)
 //   POST /api/agents?a=날짜&save=1  (헤더 x-agent-token = AGENT_SAVE_TOKEN)
 //        본문 { results: { 에이전트키: {headline, verdict, why, ...} } }
 async function briefs(req, res, a) {
