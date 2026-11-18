@@ -1454,30 +1454,44 @@ function drawPaid() {
   const rankP = Object.entries(typed.reduce((o, v) => { o[v.product] = (o[v.product] || 0) + v.cost; return o; }, {})).sort((x, y) => y[1] - x[1]).map(x => x[0]);
   const PCOLS = [...["--accent", "--c-video", "--c-sv", "--c-afl", "--up", "--warn", "--down", "--c-card"].map(css), "#d16ba5", "#8bc34a", "#5aa9e6"];
   const pcol = n => { const i = rankP.indexOf(n); return i < 0 || i >= PCOLS.length ? css("--neutral") : PCOLS[i]; }, dcolOf = q => q.etc ? css("--neutral") : pcol(q.name);
-  // 월별 제품별 꺾은선: 위 = 예산 사용액, 아래 = 그 달에 올린 영상의 누적 매출. 달 아래에 발행 영상 수
+  // 꺾은선 두 개 (같은 달 축):
+  //  ① 제품별 예산 사용액 — 선 색 = 제품
+  //  ② 발행 월별 매출 추이 — 선 색 = 영상을 올린 달. 6월에 올린 영상이 6월·7월·8월…에 각각 얼마 팔았는지 (누적 아님)
   let lineHtml = "";
   if (MS.length >= 2) {
     const cell = {}; typed.forEach(v => { const m = mon(v.posted); if (!MS.includes(m)) return; const e = cell[v.product + "|" + m] || (cell[v.product + "|" + m] = {c: 0, g: 0, n: 0}); e.c += v.cost; e.g += v.gmv; e.n++; });
     const tot = {}; Object.entries(cell).forEach(([k, e]) => { const n = k.slice(0, k.lastIndexOf("|")); tot[n] = (tot[n] || 0) + e.c; });
     const LP = Object.keys(tot).filter(n => tot[n] > 0).sort((x, y) => tot[y] - tot[x]).slice(0, 9), at = (n, m) => cell[n + "|" + m] || {c: 0, g: 0, n: 0};
-    const LW = 980, X0 = 56, XR = 14, lcw = (LW - X0 - XR) / MS.length, lx = i => X0 + lcw * i + lcw / 2, P1 = [34, 190], P2 = [232, 388], LH = 440;
-    const mxC = Math.max(1, ...LP.flatMap(n => MS.map(m => at(n, m).c))), mxG = Math.max(1, ...LP.flatMap(n => MS.map(m => at(n, m).g)));
-    const nice = v => { const p10 = Math.pow(10, Math.floor(Math.log10(v))), f = v / p10; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p10; }, tC = nice(mxC), tG = nice(mxG);
-    const yOf = (v, top, P) => P[1] - v / top * (P[1] - P[0]), mu2 = css("--muted"), ln2 = css("--line");
-    let g = "";
-    MS.forEach((m, i) => { const sel = m === PDM, A2 = M[i];
-      const rows = LP.map(nm => ({nm, ...at(nm, m)})).filter(x => x.c || x.g).sort((x, y) => y.c - x.c).map(x => `<span style='color:${pcol(x.nm)}'>●</span> ${esc(x.nm)} <b>${usd(x.c)}</b> · ${x.n}개 · 매출 ${usd(x.g)}`).join("<br>");
-      g += `<g class="st" data-pdm="${m}" tabindex="0" role="button" aria-label="${monLabel(m)}" data-tip="<b>${monLabel(m)}</b> · 예산 ${usd(A2.cost)} · 영상 ${A2.n}개 · 매출 ${usd(A2.gmv)}<br>${rows}"><rect x="${X0 + lcw * i + 2}" y="6" width="${lcw - 4}" height="${LH - 10}" rx="8" fill="${sel ? css("--accent-fill") : "transparent"}"/>
-        <text x="${lx(i)}" y="${P2[1] + 22}" text-anchor="middle" font-size="12" font-weight="${sel ? 700 : 500}" fill="${ink}">${monLabel(m)}</text><text x="${lx(i)}" y="${P2[1] + 38}" text-anchor="middle" font-size="11" class="num" fill="${mu2}">영상 ${A2.n}개</text></g>`; });
-    const panel = (title, P, top, key) => { let h = `<text x="0" y="${P[0] - 12}" font-size="12" font-weight="600" fill="${ink}">${title}</text>`;
-      [0, 0.5, 1].forEach(f => { const y = yOf(top * f, top, P); h += `<line x1="${X0}" x2="${LW - XR}" y1="${y}" y2="${y}" stroke="${ln2}"/><text x="${X0 - 6}" y="${y + 4}" text-anchor="end" font-size="10.5" class="num" fill="${mu2}">${top * f >= 1000 ? "$" + (top * f / 1000).toFixed(top * f % 1000 ? 1 : 0) + "k" : usd(top * f)}</text>`; });
-      [...LP].reverse().forEach(n => { const on = !PDP || PDP === n, col = pcol(n), pts = MS.map((m, i) => [lx(i), yOf(at(n, m)[key], top, P)]);
-        h += `<g opacity="${on ? 1 : 0.15}" pointer-events="none"><polyline points="${pts.map(q => q[0].toFixed(1) + "," + q[1].toFixed(1)).join(" ")}" fill="none" stroke="${col}" stroke-width="${PDP === n ? 3.2 : 2}" stroke-linejoin="round" stroke-linecap="round"/>
-          ${pts.map((q, i) => `<circle cx="${q[0].toFixed(1)}" cy="${q[1].toFixed(1)}" r="${PDP === n ? 4 : 3}" fill="${col}" stroke="${css("--surface")}" stroke-width="1.2"/>${PDP === n && at(n, MS[i])[key] > 0 ? `<text x="${q[0].toFixed(1)}" y="${(q[1] - 9).toFixed(1)}" text-anchor="middle" font-size="10.5" font-weight="700" class="num" fill="${ink}">${k$(at(n, MS[i])[key])}</text>` : ""}`).join("")}</g>`; });
-      return h; };
-    lineHtml = `<div><div class="bar" style="align-items:baseline"><h4 style="margin:0;font-size:14px">월별 제품별 추이 <span class="note" style="font-weight:400">· 달에 마우스를 올리면 제품별 금액, 제품을 누르면 그 선만 강조</span></h4></div>
+    const LW = 980, X0 = 56, XR = 14, lcw = (LW - X0 - XR) / MS.length, lx = i => X0 + lcw * i + lcw / 2, P1 = [20, 190], LH = 240;
+    const nice = v => { const p10 = Math.pow(10, Math.floor(Math.log10(v))), f = v / p10; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p10; };
+    const yOf = (v, top, P) => P[1] - v / top * (P[1] - P[0]), mu2 = css("--muted"), ln2 = css("--line"), tk$ = v => v >= 1000 ? "$" + (v / 1000).toFixed(v % 1000 ? 1 : 0) + "k" : usd(v);
+    const grid = (top, P) => [0, 0.5, 1].map(f => { const y = yOf(top * f, top, P); return `<line x1="${X0}" x2="${LW - XR}" y1="${y}" y2="${y}" stroke="${ln2}"/><text x="${X0 - 6}" y="${y + 4}" text-anchor="end" font-size="10.5" class="num" fill="${mu2}">${tk$(top * f)}</text>`; }).join("");
+    const cols = (tipOf, subOf) => MS.map((m, i) => { const sel = m === PDM;
+      return `<g class="st" data-pdm="${m}" tabindex="0" role="button" aria-label="${monLabel(m)}" data-tip="${tipOf(m, i)}"><rect x="${X0 + lcw * i + 2}" y="4" width="${lcw - 4}" height="${LH - 8}" rx="8" fill="${sel ? css("--accent-fill") : "transparent"}"/>
+        <text x="${lx(i)}" y="${P1[1] + 22}" text-anchor="middle" font-size="12" font-weight="${sel ? 700 : 500}" fill="${ink}">${monLabel(m)}</text><text x="${lx(i)}" y="${P1[1] + 38}" text-anchor="middle" font-size="11" class="num" fill="${mu2}">${subOf(m, i)}</text></g>`; }).join("");
+    const line = (pts, col, on, strong, labels) => `<g opacity="${on ? 1 : 0.15}" pointer-events="none">${pts.length > 1 ? `<polyline points="${pts.map(q => q[0].toFixed(1) + "," + q[1].toFixed(1)).join(" ")}" fill="none" stroke="${col}" stroke-width="${strong ? 3.2 : 2}" stroke-linejoin="round" stroke-linecap="round"/>` : ""}
+      ${pts.map((q, i) => `<circle cx="${q[0].toFixed(1)}" cy="${q[1].toFixed(1)}" r="${strong ? 4 : 3}" fill="${col}" stroke="${css("--surface")}" stroke-width="1.2"/>${labels && labels[i] ? `<text x="${q[0].toFixed(1)}" y="${(q[1] - 9).toFixed(1)}" text-anchor="middle" font-size="10.5" font-weight="700" class="num" fill="${ink}">${labels[i]}</text>` : ""}`).join("")}</g>`;
+    const wrap = (label, inner) => `<div style="overflow-x:auto;margin-top:8px;direction:rtl"><svg viewBox="0 0 ${LW} ${LH}" width="100%" style="min-width:${Math.max(420, MS.length * 86)}px;display:block;direction:ltr" role="img" aria-label="${label}">${inner}</svg></div>`;
+    // ① 제품별 예산
+    const tC = nice(Math.max(1, ...LP.flatMap(n => MS.map(m => at(n, m).c))));
+    const tip1 = (m, i) => `<b>${monLabel(m)}</b> · 예산 ${usd(M[i].cost)} · 영상 ${M[i].n}개<br>` + LP.map(nm => ({nm, ...at(nm, m)})).filter(x => x.c).sort((x, y) => y.c - x.c).map(x => `<span style='color:${pcol(x.nm)}'>●</span> ${esc(x.nm)} <b>${usd(x.c)}</b> · ${x.n}개`).join("<br>");
+    const svg1 = cols(tip1, (m, i) => `영상 ${M[i].n}개`) + grid(tC, P1) + [...LP].reverse().map(n => line(MS.map((m, i) => [lx(i), yOf(at(n, m).c, tC, P1)]), pcol(n), !PDP || PDP === n, PDP === n, PDP === n ? MS.map(m => at(n, m).c > 0 ? k$(at(n, m).c) : "") : null)).join("");
+    // ② 발행 월(코호트)별로, 판매가 난 달마다의 매출
+    const hasGm = L.length ? PD.videos.some(v => v.gm) : true, VS = typed.filter(v => !PDP || v.product === PDP);
+    const CH = {}; VS.forEach(v => { const c = mon(v.posted); if (!MS.includes(c) || !v.gm) return; const e = CH[c] || (CH[c] = {}); for (const k in v.gm) if (MS.includes(k) && k >= c) e[k] = (e[k] || 0) + v.gm[k]; });
+    const CCOL = ["#b4b8c7", "#f08a4b", "#22b3a3", "#d16ba5", "#4f7cf6", "#b87300", "#16a05d", "#7c6cf2"], ccol = c => CCOL[(MS.indexOf(c) + CCOL.length - MS.length % CCOL.length) % CCOL.length];
+    const cv = (c, m) => (CH[c] && CH[c][m]) || 0, tS = nice(Math.max(1, ...MS.flatMap(c => MS.map(m => cv(c, m)))));
+    const monthTot = m => MS.reduce((x, c) => x + cv(c, m), 0);
+    const tip2 = m => `<b>${monLabel(m)}에 팔린 금액</b> · ${usd(monthTot(m))}${m === mon(PD.dataEnd || "") ? " (" + md(PD.dataEnd) + "까지)" : ""}<br>` + MS.filter(c => c <= m && cv(c, m) > 0).reverse().map(c => `<span style='color:${ccol(c)}'>●</span> ${monLabel(c)}에 올린 영상 <b>${usd(cv(c, m))}</b>`).join("<br>");
+    const svg2 = cols(tip2, m => `매출 ${k$(monthTot(m))}`) + grid(tS, P1) + MS.map(c => { const idx = MS.map((m, i) => i).filter(i => MS[i] >= c), sel = PDM === c;
+      return line(idx.map(i => [lx(i), yOf(cv(c, MS[i]), tS, P1)]), ccol(c), true, sel, sel ? idx.map(i => cv(c, MS[i]) > 0 ? k$(cv(c, MS[i])) : "") : null); }).join("");
+    lineHtml = `<div><div class="bar" style="align-items:baseline"><h4 style="margin:0;font-size:14px">월별 제품별 예산 사용액 <span class="note" style="font-weight:400">· 선 색 = 제품 · 달에 마우스를 올리면 제품별 금액, 제품을 누르면 그 선만 강조</span></h4></div>
       <div class="pchips" style="margin-top:6px">${LP.map(n => `<button class="chip" type="button" data-pdp="${esc(n)}" aria-pressed="${PDP === n}"><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${pcol(n)};margin-right:5px;vertical-align:-1px"></i>${esc(n)}</button>`).join("")}</div>
-      <div style="overflow-x:auto;margin-top:8px;direction:rtl"><svg viewBox="0 0 ${LW} ${LH}" width="100%" style="min-width:${Math.max(420, MS.length * 86)}px;display:block;direction:ltr" role="img" aria-label="월별 제품별 예산과 누적 매출">${g}${panel("예산 사용액 (그 달에 올라온 영상의 비용)", P1, tC, "c")}${panel("누적 매출 (그 달에 올라온 영상이 지금까지 번 매출)", P2, tG, "g")}</svg></div></div>`;
+      ${wrap("월별 제품별 예산 사용액", svg1)}</div>
+    <div><div class="bar" style="align-items:baseline"><h4 style="margin:0;font-size:14px">올린 달별 영상의 월 매출 추이 <span class="note" style="font-weight:400">· 선 색 = 영상을 올린 달 · 누적이 아니라 그 달에 팔린 금액${PDP ? " · " + esc(PDP) + "만" : ""}</span></h4></div>
+      ${hasGm ? `<div class="pchips" style="margin-top:6px">${MS.map(c => `<button class="chip" type="button" data-pdm="${c}" aria-pressed="${PDM === c}"><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${ccol(c)};margin-right:5px;vertical-align:-1px"></i>${monLabel(c)}에 올린 영상</button>`).join("")}</div>
+      ${wrap("올린 달별 영상의 월 매출 추이", svg2)}
+      <p class="note" style="margin:4px 0 0">예: "6월에 올린 영상" 선은 그 영상들이 6월, 7월, 8월…에 각각 얼마 팔았는지입니다. 선이 오른쪽으로 갈수록 빨리 꺼지면 영상 수명이 짧다는 뜻입니다. 달 버튼을 누르면 그 달에 올린 영상의 선이 굵어지고 금액이 표시됩니다.</p>` : `<p class="note">월별 매출 데이터를 준비 중입니다. 몇 분 뒤 새로고침해 주세요.</p>`}</div>`;
   }
   // 제품별 예산 도넛: 선택한 달의 예산 사용액과 제품별 비중. 조각에 마우스를 올리면 금액·비율, 누르면 그 제품만 본다
   const DP0 = PR.filter(x => x.cost > 0), dpT = DP0.reduce((x, q) => x + q.cost, 0), DP = DP0.slice(0, 9), dRest = DP0.slice(9);

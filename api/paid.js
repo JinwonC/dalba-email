@@ -44,8 +44,8 @@ function salesByVideo(dates, pays, meta) {
     const r = meta[i] || [], cid = String(r[2] || "").trim(); if (!cid || !/video/i.test(String(r[1] || ""))) continue;
     const k = dkey((dates[i] || [])[0]); if (!k) continue;
     const pay = num((pays[i] || [])[0]);
-    const e = S[cid] || (S[cid] = { g: 0, n: 0, g7: 0, first: k, last: k });
-    e.g += pay; e.n++; if (d7 && k >= d7) e.g7 += pay; if (k < e.first) e.first = k; if (k > e.last) e.last = k;
+    const e = S[cid] || (S[cid] = { g: 0, n: 0, g7: 0, first: k, last: k, m: {} });
+    e.g += pay; e.n++; e.m[k.slice(0, 7)] = (e.m[k.slice(0, 7)] || 0) + pay; if (d7 && k >= d7) e.g7 += pay; if (k < e.first) e.first = k; if (k > e.last) e.last = k;
   }
   return { S, end };
 }
@@ -58,7 +58,8 @@ function buildVideos(rows, S) {
     const posted = dkey(r[6]), cid = vidOf(r[7], r[8]); if (!posted && !cid) continue;
     const t = norm(r[3]).toUpperCase(), s = S[cid];
     out.push({ h, round: String(r[1] || "").trim(), cost: r2(num(r[2])), paid: t === "PAID" || num(r[2]) > 0 ? 1 : 0, mgr: String(r[4] || "").trim(), product: String(r[5] || "").trim() || "(제품 미기입)",
-      posted, cid, concept: String(r[10] || "").trim().slice(0, 60), gmv: s ? r2(s.g) : 0, orders: s ? s.n : 0, gmv7: s ? r2(s.g7) : 0, lastSale: s ? s.last : null });
+      posted, cid, concept: String(r[10] || "").trim().slice(0, 60), gmv: s ? r2(s.g) : 0, orders: s ? s.n : 0, gmv7: s ? r2(s.g7) : 0, lastSale: s ? s.last : null,
+      gm: s ? Object.fromEntries(Object.entries(s.m).map(([k, x]) => [k, Math.round(x)])) : null });
   }
   return out;
 }
