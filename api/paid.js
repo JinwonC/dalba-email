@@ -50,13 +50,14 @@ function salesByVideo(dates, pays, meta) {
   return { S, end };
 }
 // '유/무가 성과 트래킹 (GMV)' 행 → 영상 목록
+// 유가 = PAID로 적혔거나 비용이 있는 영상. NON_PAID인데 비용이 적힌 행이 있고, 시트의 '월별 사용 예산'도 그 비용을 포함한다.
 function buildVideos(rows, S) {
   const out = [];
   for (const r of (rows || []).slice(1)) {
     const h = handleOf(r[0]); if (!h) continue;
     const posted = dkey(r[6]), cid = vidOf(r[7], r[8]); if (!posted && !cid) continue;
     const t = norm(r[3]).toUpperCase(), s = S[cid];
-    out.push({ h, round: String(r[1] || "").trim(), cost: r2(num(r[2])), paid: t === "PAID" ? 1 : 0, mgr: String(r[4] || "").trim(), product: String(r[5] || "").trim() || "(제품 미기입)",
+    out.push({ h, round: String(r[1] || "").trim(), cost: r2(num(r[2])), paid: t === "PAID" || num(r[2]) > 0 ? 1 : 0, mgr: String(r[4] || "").trim(), product: String(r[5] || "").trim() || "(제품 미기입)",
       posted, cid, concept: String(r[10] || "").trim().slice(0, 60), gmv: s ? r2(s.g) : 0, orders: s ? s.n : 0, gmv7: s ? r2(s.g7) : 0, lastSale: s ? s.last : null });
   }
   return out;
