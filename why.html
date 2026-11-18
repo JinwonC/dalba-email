@@ -1380,7 +1380,7 @@ function drawPaid() {
   const kind = PDT === "paid" ? "유가" : PDT === "free" ? "무가" : "유·무가";
   // 월별 추이 (최근 8개월)
   const MS = months.slice(-8), M = MS.map(m => ({m, ...paidAgg(typed.filter(v => mon(v.posted) === m && (!PDP || v.product === PDP)))}));
-  const W = 980, H = 210, X0 = 8, cw = (W - 16) / Math.max(1, M.length), mxv = Math.max(1, ...M.flatMap(x => [x.cost, x.gmv])), bh = v => v / mxv * 120, ink = css("--ink"), mu = css("--muted");
+  const W = 980, H = 222, X0 = 8, cw = (W - 16) / Math.max(1, M.length), mxv = Math.max(1, ...M.flatMap(x => [x.cost, x.gmv])), bh = v => v / mxv * 120, ink = css("--ink"), mu = css("--muted");
   const k$ = v => Math.abs(v) >= 10000 ? "$" + (v / 1000).toFixed(1) + "k" : usd(v);
   let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="min-width:${Math.max(360, M.length * 84)}px;display:block" role="img" aria-label="월별 예산과 매출">`;
   M.forEach((x, i) => { const cx = X0 + cw * i + cw / 2, sel = x.m === PDM, bw = Math.min(46, cw * 0.3), y0 = 160;
@@ -1388,7 +1388,8 @@ function drawPaid() {
       <rect x="${cx - bw - 2}" y="${y0 - bh(x.cost)}" width="${bw}" height="${Math.max(1, bh(x.cost))}" rx="3" fill="${css("--neutral")}"/><rect x="${cx + 2}" y="${y0 - bh(x.gmv)}" width="${bw}" height="${Math.max(1, bh(x.gmv))}" rx="3" fill="${css("--accent")}"/>
       <text x="${cx - bw / 2 - 2}" y="${y0 - bh(x.cost) - 5}" text-anchor="middle" font-size="10.5" class="num" fill="${mu}">${k$(x.cost)}</text><text x="${cx + bw / 2 + 2}" y="${y0 - bh(x.gmv) - 5}" text-anchor="middle" font-size="10.5" class="num" fill="${ink}">${k$(x.gmv)}</text>
       <text x="${cx}" y="${y0 + 17}" text-anchor="middle" font-size="12" font-weight="${sel ? 700 : 500}" fill="${ink}">${monLabel(x.m)}</text>
-      <text x="${cx}" y="${y0 + 34}" text-anchor="middle" font-size="11" class="num" fill="${mu}">영상 ${x.n}개${x.cost >= 1 ? " · ROAS " + (x.gmv / x.cost).toFixed(2) : ""}</text></g>`; });
+      <text x="${cx}" y="${y0 + 33}" text-anchor="middle" font-size="11" class="num" fill="${mu}">영상 ${x.n}개</text>
+      ${x.cost >= 1 ? `<text x="${cx}" y="${y0 + 48}" text-anchor="middle" font-size="11" font-weight="600" class="num" fill="${css(x.gmv / x.cost >= 2 ? "--up" : x.gmv / x.cost < 1 ? "--down" : "--warn")}">ROAS ${(x.gmv / x.cost).toFixed(2)}</text>` : ""}</g>`; });
   svg += "</svg>";
   // 제품별
   const byP = {}; inM.forEach(v => (byP[v.product] = byP[v.product] || []).push(v));
