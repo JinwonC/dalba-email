@@ -1375,7 +1375,9 @@ let PD = null, PDL = 0, PDM = "", PDP = "", PDT = "paid", PDG = "", PDS = "gmv";
 const mon = k => k ? k.slice(0, 7) : "", monLabel = m => m === "all" ? "전체 기간" : (+m.slice(5)) + "월" + (m.slice(0, 4) !== D.A[1].slice(0, 4) ? " (" + m.slice(2, 4) + "년)" : "");
 const roasChip = (g, c) => c >= 1 ? `<span class="rchip ${roiGrade(g, c)}">${(g / c).toFixed(2)}</span>` : `<span class="rchip none">-</span>`;
 async function loadPaid() {
-  if (PDL) return; PDL = 1;
+  if (PDL === 2) { drawPaid(); return; } // 기간을 바꿔 화면을 다시 그린 뒤에도 이미 받은 데이터로 바로 그린다
+  if (PDL === 1) { $("#pdview").innerHTML = `<div class="box"><div class="loading">협업 시트에서 불러오는 중…</div></div>`; return; }
+  PDL = 1;
   $("#pdview").innerHTML = `<div class="box"><div class="loading">협업 시트에서 불러오는 중…</div></div>`;
   try { const j = window.PAID_DATA || await fetch("/api/paid").then(r => r.json()); if (j.error) throw new Error(j.error); PD = j; PDL = 2; }
   catch (e) { PDL = 0; $("#pdview").innerHTML = `<div class="box"><p class="note" style="margin:0">유가 협업 데이터를 불러오지 못했습니다: ${esc(e.message)}</p></div>`; return; }
