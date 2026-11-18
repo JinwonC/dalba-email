@@ -55,6 +55,13 @@ d'Alba US 틱톡샵 매출이 왜 움직였는지 보여주는 웹페이지(`why
 - `/api/why`의 `posters`: 최근 7일에 영상을 2개 이상 올린 크리에이터. 영상은 판매가 한 번이라도 난 것만 셈(판매 없는 영상은 주문 시트에 없음).
 - 이 집계에서 오류가 나면 두 값은 null이고 `creatorViewsError`에 이유가 담긴다(나머지 응답은 정상).
 
+## 유가 협업 탭 (2026-11-18)
+- 새 API `api/paid.js` (`/api/paid`, 10분 캐시). 협업 시트 `1JFq6m2-rvSpiGKQsTpr91Hj-RckHpqFfEl_BLkQI_hs`(환경변수 `PAID_SHEET_ID`로 바꿀 수 있음)의 `유/무가 성과 트래킹 (GMV)` 탭(A 핸들, B 회차, C 비용, D PAID/NON_PAID, E 담당자, F 제품, G 포스팅일, H 영상 URL, K 콘셉트)과 `유가 캐스팅 (casting)` 탭(머리글 이름으로 열을 찾음)을 읽는다.
+- 영상 ID는 URL(H열)에서 뽑는다. I열 자동수식은 큰 숫자가 깨진 행이 있어 쓰지 않는다.
+- 영상별 매출은 매출 시트 `주문별 AF 매출 RAW` 전체에서 콘텐츠 ID가 같은 영상 주문의 결제액 합(누적, 최근 7일).
+- 화면(`why.html` 유가 협업 탭)은 탭을 처음 열 때 불러온다. 월(포스팅일 기준)·유가/무가·담당자·제품으로 거르고, 예산·발행 수·누적 매출·ROAS, 월별 그래프, 제품별·크리에이터별·소재별 표, 진행 중인 계약(계약 영상 수 대비 발행 수)을 보여준다.
+- 서비스 계정이 협업 시트를 볼 수 없으면 `/api/paid`가 `needShare: true`와 안내 문구를 돌려준다.
+
 ## 예약 작업 방식 (2026-11-14 전환)
 - API 키 없이 Claude Code(Max 요금제)가 분석을 쓰고 사이트에 올린다. Vercel의 `/api/agents?cron=1` cron은 뺐다.
 - `GET /api/agents?a=날짜&brief=1` → 11명에게 줄 데이터(`agents[].brief`) + 규칙(`system`) + 결과 모양(`schema`). `ready=false`면 그날 시트가 아직 비어 있다.
