@@ -272,6 +272,7 @@ section[data-panel]{display:flex;flex-direction:column;gap:12px}
   .prow .go{grid-column:4;grid-row:1}
 }
 @media (max-width:520px){.crow{grid-template-columns:max-content max-content 1fr;gap:6px 8px} .crow .who{grid-column:1/-1} .crow .sub{white-space:normal} .crow>.chip:last-child{justify-self:start}}
+.bar2x{display:flex;flex-direction:column;gap:2px} .bar2x i{display:block;height:7px;border-radius:3px;min-width:2px}
 .mhint{display:none;font-size:12px;color:var(--muted);padding:0 8px}
 @media (max-width:700px){.mhint{display:block}}
 .hb .dv{display:grid;grid-template-columns:1fr 1fr;height:16px}
@@ -1272,6 +1273,11 @@ function drawBoost() {
       <div data-tip="${qi.why}"><div class="t">증분 ROAS (부스트 전 3일 대비)</div><div class="v ${qi.c === "up" || qi.c === "down" ? qi.c : ""}"${qi.c === "warnc" ? ' style="color:var(--warn)"' : ""}>${qi.t}</div><div class="s">광고비 ${sd(dS)} · 매출 ${sd(dG)}</div></div>
       <div><div class="t">판정</div><div class="v" style="font-size:18px;line-height:1.8"><span class="down">종료 ${cut.length}</span> · 유지 ${keep.length} · <span class="up">증액 ${up.length}</span></div><div class="s">집행 안 됨 ${chk.length} · 판단 이름 ${wait.length}</div></div>
     </div></div>
+    ${(() => { const BK = [["end", "종료", "--down", "최근 3일 ROI 2.5 미만"], ["keep", "유지", "--up", "ROI 2.5 이상"], ["up", "증액", "--c-video", "ROI 5 이상 · 예산 소진"], ["idle", "집행 안 됨", "--warn", "광고비가 거의 안 나감"], ["wait", "판단 이름", "--neutral", "1일째이거나 광고비 $15 미만"]];
+      const g = k => on.filter(r => r.call.k === k), b = k => g(k).reduce((x, r) => x + r.budget, 0), tot = Math.max(1, bud);
+      return on.length ? `<div class="box"><div class="t note">진행 중인 부스트의 일 예산 $${bud}가 어떤 판정에 걸려 있나</div>
+        <div class="mix">${BK.map(([k, t, c]) => b(k) > 0 ? `<i data-tip="${t}<br>일 예산 $${b(k)} (${Math.round(b(k) / tot * 100)}%) · 소재 ${g(k).length}개" style="width:${(b(k) / tot * 100).toFixed(1)}%;background:var(${c})"></i>` : "").join("")}</div>
+        <div class="mixl" style="grid-template-columns:repeat(auto-fit,minmax(min(160px,100%),1fr))">${BK.map(([k, t, c, d2]) => `<div><i style="background:var(${c})"></i><b>${t}</b> <b class="num">$${b(k)}</b> <span class="note">${Math.round(b(k) / tot * 100)}% · ${g(k).length}개</span><small>${d2}</small></div>`).join("")}</div></div>` : ""; })()}
     <div class="todo">${boostCard("kill", "종료", "부스트 끄기", "2일 이상 지났고 최근 3일 ROI 2.5 미만. 광고비 많이 쓴 순서.", cut, !CBP)}${boostCard("boost", "증액", "예산 올리기", "최근 3일 ROI 5 이상이고 일 예산을 거의 다 쓰는 소재. 매출 큰 순서.", up, !CBP)}${boostCard("watch", "집행 안 됨", "켜져 있는지 확인", "2일 이상 됐는데 광고비가 거의 안 나가는 부스트.", chk, !CBP)}</div>
     <div class="box"><h3>진행 중인 부스트 전체 <span class="note" style="font-weight:400">· ${on.length}개 · 판정에 마우스를 올리면 이유가 나옵니다</span></h3>
       ${on.length ? `<div class="ctable" style="display:flex;flex-direction:column;margin-top:8px"><table class="mini">${head}${mt.body}</table>${mt.btn}</div>` : `<p class="note">기준일에 진행 중인 부스트가 없습니다.</p>`}</div>
@@ -1393,9 +1399,9 @@ function drawPaid() {
   svg += "</svg>";
   // 제품별
   const byP = {}; inM.forEach(v => (byP[v.product] = byP[v.product] || []).push(v));
-  const PR = Object.entries(byP).map(([name, V]) => ({name, ...paidAgg(V)})).sort((x, y) => y.cost - x.cost || y.gmv - x.gmv), mxc = Math.max(1, ...PR.map(p => p.cost));
+  const PR = Object.entries(byP).map(([name, V]) => ({name, ...paidAgg(V)})).sort((x, y) => y.cost - x.cost || y.gmv - x.gmv), mxc = Math.max(1, ...PR.map(p => p.cost)), mxp = Math.max(1, ...PR.flatMap(p => [p.cost, p.gmv]));
   const prow = PR.map(p => `<tr class="pick" data-pdp="${esc(p.name)}" style="cursor:pointer${PDP === p.name ? ";background:var(--accent-fill)" : ""}"><td><b>${esc(p.name)}</b></td>
-    <td class="n">${usd(p.cost)}</td><td style="min-width:120px"><span class="sbar" style="width:${Math.max(2, p.cost / mxc * 100).toFixed(0)}%;background:var(--neutral)"></span></td>
+    <td class="n">${usd(p.cost)}</td><td style="min-width:200px"><div class="bar2x" data-tip="${esc(p.name)}<br>예산 ${usd(p.cost)} · 누적 매출 ${usd(p.gmv)}"><i style="width:${(p.cost / mxp * 100).toFixed(1)}%;background:var(--neutral)"></i><i style="width:${(p.gmv / mxp * 100).toFixed(1)}%;background:var(${p.cost >= 1 && p.gmv < p.cost ? "--down" : "--accent"})"></i></div></td>
     <td class="n">${p.n}</td><td class="n">${p.cr.size}</td><td class="n"><b>${usd(p.gmv)}</b></td><td class="n">${roasChip(p.gmv, p.cost)}</td><td class="n">${usd(p.n ? p.gmv / p.n : 0)}</td><td class="n">${p.zero} <span class="note">(${p.n ? Math.round(p.zero / p.n * 100) : 0}%)</span></td></tr>`).join("");
   // 크리에이터별
   const cast = {}; (PD.casting || []).forEach(c => (cast[c.h] = cast[c.h] || []).push(c));
@@ -1421,9 +1427,12 @@ function drawPaid() {
   const mDiff = (a, b) => (+a.slice(0, 4) - +b.slice(0, 4)) * 12 + (+a.slice(5, 7) - +b.slice(5, 7));
   // 월별 계약과 발행: 그 달에 한 계약(건수·영상 수·금액)과 그 달에 실제로 올라온 영상(개수·비용). 예산 사용은 발행 기준
   const nowM = mon(PD.dataEnd || D.A[1]), CMS = [...new Set([...CT.map(c => c.cm), ...typed.map(v => mon(v.posted))].filter(m => m && m <= nowM))].sort().slice(-8);
-  const cmHtml = CMS.map(m => { const K = CT.filter(c => c.cm === m), P2 = typed.filter(v => mon(v.posted) === m), kn = K.reduce((a, c) => a + c.n, 0), kr = K.reduce((a, c) => a + c.rate, 0), pc = P2.reduce((a, v) => a + v.cost, 0);
-    return `<tr class="pick" data-pdm="${m}" style="cursor:pointer${PDM === m ? ";background:var(--accent-fill)" : ""}"><td><b>${monLabel(m)}</b></td><td class="n">${K.length}</td><td class="n">${kn}</td><td class="n">${usd(kr)}</td>
-      <td style="border-left:2px solid var(--line)" class="n"><b>${P2.length}</b></td><td class="n"><b>${usd(pc)}</b></td><td class="n">${P2.length ? usd(pc / P2.length) : "-"}</td></tr>`; }).join("");
+  const cmR = CMS.map(m => { const K = CT.filter(c => c.cm === m), P2 = typed.filter(v => mon(v.posted) === m);
+    return {m, k: K.length, kn: K.reduce((x, c) => x + c.n, 0), kr: K.reduce((x, c) => x + c.rate, 0), pn: P2.length, pc: P2.reduce((x, v) => x + v.cost, 0)}; });
+  const mxm = Math.max(1, ...cmR.flatMap(o => [o.kr, o.pc])), mbar = (v, c) => `<span class="sbar" style="width:${Math.max(1, v / mxm * 72).toFixed(0)}%;background:var(${c});margin:0 0 0 6px;height:10px"></span>`;
+  const cmHtml = cmR.map(o => `<tr class="pick" data-pdm="${o.m}" style="cursor:pointer${PDM === o.m ? ";background:var(--accent-fill)" : ""}"><td><b>${monLabel(o.m)}</b></td><td class="n">${o.k}</td><td class="n">${o.kn}</td>
+      <td style="min-width:200px;white-space:nowrap"><span class="num" style="display:inline-block;min-width:64px;text-align:right">${usd(o.kr)}</span>${mbar(o.kr, "--neutral")}</td>
+      <td style="border-left:2px solid var(--line)" class="n"><b>${o.pn}</b></td><td style="min-width:200px;white-space:nowrap"><b class="num" style="display:inline-block;min-width:64px;text-align:right">${usd(o.pc)}</b>${mbar(o.pc, "--accent")}</td><td class="n">${o.pn ? usd(o.pc / o.pn) : "-"}</td></tr>`).join("");
   const OPEN = CT.filter(c => c.open).sort((x, y) => y.left - x.left);
   const orow = OPEN.map(c => { const left = Math.max(0, c.n - c.done), p = c.n ? Math.min(100, c.done / c.n * 100) : 0;
     return `<tr><td>${tk(c.h)}</td><td>${esc(c.mgr)}</td><td>${esc(c.status)}</td><td class="n">${esc(c.round) || "-"}</td><td class="n">${c.n || "-"}</td><td class="n">${c.done}</td>
@@ -1431,6 +1440,14 @@ function drawPaid() {
       <td class="n">${c.leftCost ? usd(c.leftCost) : "-"}</td><td class="n">${c.unit ? usd(c.unit) : "-"}</td><td class="note">${c.cm ? monLabel(c.cm) : "-"}${c.date ? " (" + md(c.date) + ")" : ""}</td></tr>`; });
   const mo = more(orow, 15, 20);
   const roas = A.cost >= 1 ? A.gmv / A.cost : null;
+  // 영상 결과별로 예산이 얼마나 들어갔나: 매출 없음 / 예산보다 적게 팖 / 본전~2배 / 2배 이상
+  const OUT = [["zero", "매출 없음", "--down", "아직 한 건도 안 팔린 영상"], ["low", "예산보다 적게 팖", "--warn", "매출이 비용보다 적음 (ROAS 1 미만)"], ["mid", "본전 ~ 2배", "--c-video", "ROAS 1~2"], ["good", "2배 이상", "--up", "ROAS 2 이상"]];
+  const OB = {zero: {c: 0, n: 0, g: 0}, low: {c: 0, n: 0, g: 0}, mid: {c: 0, n: 0, g: 0}, good: {c: 0, n: 0, g: 0}};
+  L.forEach(v => { if (!v.cost) return; const e = OB[!v.gmv ? "zero" : v.gmv < v.cost ? "low" : v.gmv < v.cost * 2 ? "mid" : "good"]; e.c += v.cost; e.n++; e.g += v.gmv; });
+  const obT = Math.max(1, OUT.reduce((x, [k]) => x + OB[k].c, 0));
+  const outHtml = A.cost >= 1 ? `<div><div class="t note">예산이 어떤 결과의 영상에 쓰였나 <span style="opacity:.8">· 영상 하나하나의 매출 ÷ 비용 기준</span></div>
+      <div class="mix">${OUT.map(([k, t, c]) => OB[k].c > 0 ? `<i data-tip="${t}<br>예산 ${usd(OB[k].c)} (${Math.round(OB[k].c / obT * 100)}%) · 영상 ${OB[k].n}개 · 매출 ${usd(OB[k].g)}" style="width:${(OB[k].c / obT * 100).toFixed(1)}%;background:var(${c})"></i>` : "").join("")}</div>
+      <div class="mixl">${OUT.map(([k, t, c, d2]) => `<div><i style="background:var(${c})"></i><b>${t}</b> <b class="num">${usd(OB[k].c)}</b> <span class="note">${Math.round(OB[k].c / obT * 100)}% · ${OB[k].n}개</span><small>${d2} · 매출 ${usd(OB[k].g)}</small></div>`).join("")}</div></div>` : "";
   el.innerHTML = `<div class="box" style="display:flex;flex-direction:column;gap:12px">
     <div class="bar"><div class="pchips">${[...months.slice(-8), "all"].map(m => `<button class="chip" type="button" data-pdm="${m}" aria-pressed="${PDM === m}">${monLabel(m)}</button>`).join("")}</div>
       <div class="seg">${[["paid", "유가"], ["free", "무가"], ["all", "전체"]].map(([k, t]) => `<button class="chip" type="button" data-pdt="${k}" aria-pressed="${PDT === k}">${t}</button>`).join("")}
@@ -1443,18 +1460,19 @@ function drawPaid() {
       <div><div class="t">ROAS (매출 ÷ 예산)</div><div class="v ${roas == null ? "" : roas >= 2 ? "up" : roas < 1 ? "down" : ""}">${roas == null ? "-" : roas.toFixed(2)}</div><div class="s">영상당 매출 ${usd(A.n ? A.gmv / A.n : 0)}</div></div>
       <div class="${A.n && A.zero / A.n >= 0.5 ? "leak" : ""}"><div class="t">매출 없는 영상</div><div class="v">${A.zero}개</div><div class="s">${A.n ? Math.round(A.zero / A.n * 100) : 0}%</div></div>
     </div>
+    ${outHtml}
     <div><div class="bar" style="align-items:baseline"><h4 style="margin:0;font-size:14px">월별 예산과 매출 <span class="note" style="font-weight:400">· 그 달에 올린 영상 기준 · 달을 누르면 그 달만 봅니다</span></h4><div class="lgd"><span><i style="background:var(--neutral)"></i>예산</span><span><i style="background:var(--accent)"></i>누적 매출</span></div></div>
       <div style="overflow-x:auto;margin-top:6px;direction:rtl"><div style="direction:ltr">${svg}</div></div></div>
     <p class="note" style="margin:0">매출은 주문 시트(주문별 AF 매출)에서 그 영상 ID로 잡힌 결제액 합계입니다 (${PD.dataEnd ? md(PD.dataEnd) + "까지" : ""}). 최근에 올린 영상일수록 아직 매출이 덜 쌓였습니다. 영상 ID가 없거나 URL이 잘못된 행은 매출이 0으로 나옵니다.</p></div>
     <div class="box"><h3>제품별 <span class="note" style="font-weight:400">· ${monLabel(PDM)} · 줄을 누르면 그 제품만 봅니다${PDP ? ' · <button class="chip" type="button" data-pdp="">제품 필터 풀기</button>' : ""}</span></h3>
-      <div class="ctable" style="margin-top:8px"><table class="mini"><tr><th>제품</th><th class="n">예산</th><th></th><th class="n">영상</th><th class="n">크리에이터</th><th class="n">누적 매출</th><th class="n">ROAS</th><th class="n">영상당 매출</th><th class="n">매출 없는 영상</th></tr>${prow || '<tr><td colspan="9" class="note">없음</td></tr>'}</table></div></div>
+      <div class="ctable" style="margin-top:8px"><table class="mini"><tr><th>제품</th><th class="n">예산</th><th>예산(회색) vs 매출(색) · 빨강은 매출이 예산보다 적음</th><th class="n">영상</th><th class="n">크리에이터</th><th class="n">누적 매출</th><th class="n">ROAS</th><th class="n">영상당 매출</th><th class="n">매출 없는 영상</th></tr>${prow || '<tr><td colspan="9" class="note">없음</td></tr>'}</table></div></div>
     <div class="box"><h3>크리에이터별 <span class="note" style="font-weight:400">· ${CR.length}명 · 매출 큰 순서</span></h3>
       <div class="ctable" style="display:flex;flex-direction:column;margin-top:8px"><table class="mini"><tr><th>크리에이터</th><th>담당자</th><th>제품</th><th class="n">영상</th><th class="n">비용</th><th class="n">누적 매출</th><th class="n">ROAS</th><th class="n">최고 영상</th><th>최근 계약</th><th></th></tr>${mc.body || '<tr><td colspan="10" class="note">없음</td></tr>'}</table>${mc.btn}</div></div>
     <div class="box"><div class="bar"><h3>소재별 성과 <span class="note" style="font-weight:400">· ${VL.length}개</span></h3><div class="seg">${[["gmv", "매출순"], ["roas", "ROAS순"], ["cost", "비용순"], ["new", "최신순"], ["zero", "매출 없음"]].map(([k, t]) => `<button class="chip" type="button" data-pds="${k}" aria-pressed="${PDS === k}">${t}</button>`).join("")}</div></div>
       <div class="ctable" style="display:flex;flex-direction:column;margin-top:8px"><table class="mini"><tr><th>포스팅</th><th>크리에이터 (영상 링크)</th><th>제품</th><th>콘셉트</th><th class="n">비용</th><th class="n">누적 매출</th><th class="n">최근 7일</th><th class="n">주문</th><th class="n">ROAS</th><th></th></tr>${mv2.body || '<tr><td colspan="10" class="note">없음</td></tr>'}</table>${mv2.btn}</div></div>
     <div class="box" style="display:flex;flex-direction:column;gap:8px"><h3>월별 계약과 발행 <span class="note" style="font-weight:400">· 계약은 캐스팅한 달, 발행과 예산 사용은 영상이 올라온 달 기준</span></h3>
       <div class="ctable"><table class="mini"><tr><th></th><th class="n" colspan="3" style="text-align:center;color:var(--ink)">그 달에 한 계약</th><th class="n" colspan="3" style="text-align:center;color:var(--ink);border-left:2px solid var(--line)">그 달에 올라온 영상 (예산 사용)</th></tr>
-        <tr><th>월</th><th class="n">계약</th><th class="n">계약 영상</th><th class="n">계약 금액</th><th class="n" style="border-left:2px solid var(--line)">발행 영상</th><th class="n">사용 예산</th><th class="n">영상당 비용</th></tr>${cmHtml || '<tr><td colspan="7" class="note">없음</td></tr>'}</table></div>
+        <tr><th>월</th><th class="n">계약</th><th class="n">계약 영상</th><th>계약 금액</th><th class="n" style="border-left:2px solid var(--line)">발행 영상</th><th>사용 예산</th><th class="n">영상당 비용</th></tr>${cmHtml || '<tr><td colspan="7" class="note">없음</td></tr>'}</table></div>
       <p class="note" style="margin:0">11월에 계약했더라도 영상이 12월에 올라오면 그 비용은 12월 사용 예산으로 잡힙니다. 줄을 누르면 그 달로 바뀝니다.${PDP ? " 이 표는 제품 필터와 상관없이 전체 제품 기준입니다." : ""}</p></div>
     <div class="box"><h3>진행·확정된 계약 <span class="note" style="font-weight:400">· ${OPEN.length}건 · 남은 영상 많은 순서</span></h3>
       <div class="ctable" style="display:flex;flex-direction:column;margin-top:8px"><table class="mini"><tr><th>크리에이터</th><th>담당자</th><th>진행 현황</th><th class="n">회차</th><th class="n">계약 영상</th><th class="n">발행</th><th>진행률</th><th class="n">남은 영상</th><th class="n">남은 예산</th><th class="n">개당 단가</th><th>캐스팅 월</th></tr>${mo.body || '<tr><td colspan="11" class="note">진행 중인 계약이 없습니다.</td></tr>'}</table>${mo.btn}</div>
