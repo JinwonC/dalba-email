@@ -1397,7 +1397,7 @@ function drawPaid() {
   const typed = PD.videos.filter(v => v.posted && (PDT === "all" || (PDT === "paid") === !!v.paid) && (!PDG || v.mgr === PDG));
   const months = [...new Set(typed.map(v => mon(v.posted)))].sort(); if (!PDM || (PDM !== "all" && !months.includes(PDM))) PDM = months.includes(mon(D.A[1])) ? mon(D.A[1]) : months[months.length - 1] || "all";
   const inM = typed.filter(v => PDM === "all" || mon(v.posted) === PDM);
-  const prodsAll = [...new Set(inM.map(v => v.product))]; if (PDP && !prodsAll.includes(PDP)) PDP = "";
+  const prodsAll = [...new Set(inM.map(v => v.product))]; if (PDP && !typed.some(v => v.product === PDP)) PDP = ""; // 고른 달에 그 제품 영상이 없어도 제품 선택은 유지 (추이 그래프용)
   const L = inM.filter(v => !PDP || v.product === PDP), A = paidAgg(L), mgrs = [...new Set(PD.videos.map(v => v.mgr).filter(Boolean))].sort();
   const kind = PDT === "paid" ? "유가" : PDT === "free" ? "무가" : "유·무가";
   // 월별 추이 (최근 8개월)
@@ -1488,8 +1488,9 @@ function drawPaid() {
     lineHtml = `<div><div class="bar" style="align-items:baseline"><h4 style="margin:0;font-size:14px">월별 제품별 예산 사용액 <span class="note" style="font-weight:400">· 선 색 = 제품 · 달에 마우스를 올리면 제품별 금액, 제품을 누르면 그 선만 강조</span></h4></div>
       <div class="pchips" style="margin-top:6px">${LP.map(n => `<button class="chip" type="button" data-pdp="${esc(n)}" aria-pressed="${PDP === n}"><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${pcol(n)};margin-right:5px;vertical-align:-1px"></i>${esc(n)}</button>`).join("")}</div>
       ${wrap("월별 제품별 예산 사용액", svg1)}</div>
-    <div><div class="bar" style="align-items:baseline"><h4 style="margin:0;font-size:14px">올린 달별 영상의 월 매출 추이 <span class="note" style="font-weight:400">· 선 색 = 영상을 올린 달 · 누적이 아니라 그 달에 팔린 금액${PDP ? " · " + esc(PDP) + "만" : ""}</span></h4></div>
-      ${hasGm ? `<div class="pchips" style="margin-top:6px">${MS.map(c => `<button class="chip" type="button" data-pdm="${c}" aria-pressed="${PDM === c}"><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${ccol(c)};margin-right:5px;vertical-align:-1px"></i>${monLabel(c)}에 올린 영상</button>`).join("")}</div>
+    <div><div class="bar" style="align-items:baseline"><h4 style="margin:0;font-size:14px">올린 달별 영상의 월 매출 추이 <span class="note" style="font-weight:400">· 선 색 = 영상을 올린 달 · 누적이 아니라 그 달에 팔린 금액 · <b style="color:var(--ink)">${PDP ? esc(PDP) : "전체 제품"}</b></span></h4></div>
+      <div class="pchips" style="margin-top:6px"><span class="note" style="align-self:center">제품</span><button class="chip" type="button" data-pdp="" aria-pressed="${!PDP}">전체 제품</button>${LP.map(n => `<button class="chip" type="button" data-pdp="${esc(n)}" aria-pressed="${PDP === n}"><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${pcol(n)};margin-right:5px;vertical-align:-1px"></i>${esc(n)}</button>`).join("")}</div>
+      ${hasGm ? `<div class="pchips" style="margin-top:6px"><span class="note" style="align-self:center">올린 달</span>${MS.map(c => `<button class="chip" type="button" data-pdm="${c}" aria-pressed="${PDM === c}"><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${ccol(c)};margin-right:5px;vertical-align:-1px"></i>${monLabel(c)}에 올린 영상</button>`).join("")}</div>
       ${wrap("올린 달별 영상의 월 매출 추이", svg2)}
       <p class="note" style="margin:4px 0 0">예: "6월에 올린 영상" 선은 그 영상들이 6월, 7월, 8월…에 각각 얼마 팔았는지입니다. 선이 오른쪽으로 갈수록 빨리 꺼지면 영상 수명이 짧다는 뜻입니다. 달 버튼을 누르면 그 달에 올린 영상의 선이 굵어지고 금액이 표시됩니다.</p>` : `<p class="note">월별 매출 데이터를 준비 중입니다. 몇 분 뒤 새로고침해 주세요.</p>`}</div>`;
   }
