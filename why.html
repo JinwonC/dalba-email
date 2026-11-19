@@ -1032,8 +1032,8 @@ const TODO = {
 function incr(dS, dG) {
   if (Math.abs(dS) < 20) return {t: "-", c: "muted", why: "광고비 변화가 $20 미만이라 계산하지 않음"};
   const r = dG / dS;
-  if (dS > 0 && dG < 0) return {t: "매출↓", c: "down", why: "광고비를 늘렸는데 매출이 줄었음"};
-  if (dS < 0 && dG >= 0) return {t: "매출↑", c: "up", why: "광고비를 줄였는데 매출은 늘었음"};
+  if (dS > 0 && dG < 0) return {t: r.toFixed(2), c: "down", why: "광고비를 늘렸는데 매출이 줄었음 (그래서 음수)"};
+  if (dS < 0 && dG >= 0) return {t: r.toFixed(2), c: "up", why: "광고비를 줄였는데 매출은 늘었음 (그래서 음수 또는 0)"};
   if (dS > 0) return {t: r.toFixed(2), c: r >= 2 ? "up" : r >= 1 ? "warnc" : "down", why: `광고비 $1 더 쓸 때마다 매출 $${r.toFixed(2)} 늘었음`};
   return {t: r.toFixed(2), c: r <= 1 ? "up" : r <= 2 ? "warnc" : "down", why: `광고비 $1 줄일 때마다 매출 $${r.toFixed(2)} 줄었음`};
 }
@@ -1096,7 +1096,7 @@ function incrChart(L, name) {
   return `<div><div class="bar" style="align-items:center"><h4 style="margin:0;font-size:14px">최근 14일 일별 추이 <span class="note" style="font-weight:400">· 보고 싶은 지표를 누르면 그래프가 추가됩니다</span></h4></div>
     <div class="pchips" style="margin-top:6px">${chips}</div>
     ${any ? `<div style="overflow-x:auto;margin-top:8px;direction:rtl"><svg viewBox="0 0 ${W} ${H}" width="100%" style="min-width:760px;display:block;direction:ltr" role="img" aria-label="최근 14일 일별 광고 지표">${head}${body}${tips}</svg></div>` : `<p class="note" style="margin:10px 0 0">위에서 지표를 하나 이상 골라 주세요.</p>`}
-    ${ADM.has("inc") ? `<p class="note" style="margin:4px 0 0">증분 ROAS = 매출 증감 ÷ 광고비 증감. 광고비를 늘린 날은 2 이상이면 초록, 줄인 날은 잃은 매출이 적을수록 초록입니다. 광고비 변화가 $20 미만인 날은 계산하지 않습니다. 보라색 칸은 기준일, 점선 칸은 비교일입니다.</p>` : ""}</div>`;
+    ${ADM.has("inc") ? `<p class="note" style="margin:4px 0 0">증분 ROAS = 매출 증감 ÷ 광고비 증감. 광고비를 늘린 날은 2 이상이면 초록, 줄인 날은 잃은 매출이 적을수록 초록입니다. 광고비와 매출이 반대로 움직인 날은 음수입니다(색으로 좋고 나쁨을 구분). 광고비 변화가 $20 미만인 날은 계산하지 않습니다. 보라색 칸은 기준일, 점선 칸은 비교일입니다.</p>` : ""}</div>`;
 }
 function todoCard(kind, list, pref, showProd) {
   const [title, verb, desc, val, unit] = TODO[kind];
@@ -1196,6 +1196,21 @@ let CBP = "";
 // 시트의 캠페인 약칭 → 화면 제품 이름 (소재 데이터에서 제품을 못 찾았을 때만 씀)
 const BOOST_NAME = {...Object.fromEntries(Object.entries(TROI_MAP).map(([k, v]) => [k.replace(/\s/g, ""), v])), "퍼스트5종": "퍼스트 기프트세트", "프로투엑스번들": "PRO2X 3번들", "톤업선크림5종": "톤업 홀리데이 세트", "톤업선크림번들": "톤업 홀리데이 세트"};
 const dayDiff = (a, b) => Math.round((Date.parse(a) - Date.parse(b)) / 86400000);
+const DONUT_COLS = ["--accent", "--c-video", "--c-sv", "--c-afl", "--up", "--warn", "--down", "--c-card"], DONUT_X = ["#d16ba5", "#8bc34a", "#5aa9e6"];
+function donutBlock(items, centerLabel, fmt, attr, sel) {
+  const tot = items.reduce((x, q) => x + q.v, 0); if (!(tot > 0)) return "";
+  const colOf = (q, i) => q.etc ? css("--neutral") : i < DONUT_COLS.length ? css(DONUT_COLS[i]) : DONUT_X[(i - DONUT_COLS.length) % DONUT_X.length];
+  const cx = 110, cy = 110, R = 100, r = 62, pt = (rad, ang) => (cx + rad * Math.cos(ang)).toFixed(2) + "," + (cy + rad * Math.sin(ang)).toFixed(2);
+  let a0 = -Math.PI / 2, g = "";
+  items.forEach((q, i) => { const fr = q.v / tot, a1 = a0 + fr * Math.PI * 2, big = fr > 0.5 ? 1 : 0, dim = sel && sel !== q.name, col = colOf(q, i);
+    const shape = fr >= 0.999 ? `<circle cx="${cx}" cy="${cy}" r="${(R + r) / 2}" fill="none" stroke="${col}" stroke-width="${R - r}"/>` : `<path d="M${pt(R, a0)} A${R},${R} 0 ${big} 1 ${pt(R, a1)} L${pt(r, a1)} A${r},${r} 0 ${big} 0 ${pt(r, a0)} Z" fill="${col}" stroke="${css("--surface")}" stroke-width="2"/>`;
+    g += `<g class="st"${q.etc ? "" : ` ${attr}="${esc(q.name)}" tabindex="0" role="button"`} aria-label="${esc(q.name)} ${fmt(q.v)} ${(fr * 100).toFixed(1)}%" data-tip="${q.tip}" opacity="${dim ? 0.3 : 1}">${shape}</g>`;
+    if (fr >= 0.06) { const am = (a0 + a1) / 2; g += `<text x="${(cx + (R + r) / 2 * Math.cos(am)).toFixed(1)}" y="${(cy + (R + r) / 2 * Math.sin(am) + 4).toFixed(1)}" text-anchor="middle" font-size="11.5" font-weight="700" fill="#fff" pointer-events="none" opacity="${dim ? 0.4 : 1}">${Math.round(fr * 100)}%</text>`; }
+    a0 = a1; });
+  return `<div class="dnt"><svg viewBox="0 0 220 220" width="220" height="220" role="img" aria-label="${centerLabel}">${g}
+      <text x="110" y="100" text-anchor="middle" font-size="12" fill="${css("--muted")}">${centerLabel}</text><text x="110" y="124" text-anchor="middle" font-size="21" font-weight="700" class="num" fill="${css("--ink")}">${fmt(tot)}</text></svg>
+    <div class="dleg">${items.map((q, i) => `<${q.etc ? "div" : "button"} class="dl${sel === q.name ? " on" : ""}"${q.etc ? "" : ` type="button" ${attr}="${esc(q.name)}"`} data-tip="${q.tip}"><i style="background:${colOf(q, i)}"></i><span class="nm">${esc(q.name)}</span><b class="num">${(q.v / tot * 100).toFixed(1)}%</b><span class="num am">${fmt(q.v)}</span></${q.etc ? "div" : "button"}>`).join("")}</div></div>`;
+}
 function boostRuns() {
   const E = D.A[1], DT = D.raw.sparkDates || [], ix = Object.fromEntries(DT.map((k, i) => [k, i]));
   const by = {}; (D.raw.boosts || []).forEach(b => (by[b.cid + "|" + b.camp] = by[b.cid + "|" + b.camp] || []).push(b));
@@ -1253,6 +1268,11 @@ function drawBoost() {
   const el = $("#cbview"); if (!el) return;
   if (!D.raw.boosts) { el.innerHTML = `<div class="box"><p class="note" style="margin:0">Creative Boost 시트를 읽지 못했습니다. 광고 시트에 "Creative Boost" 탭이 있는지 확인해 주세요.</p></div>`; return; }
   const ALL = boostRuns().map(r => ({...r, call: r.status === "soon" ? null : boostCall(r)}));
+  // 제품별 비중: 최근 14일 안의 부스트 기간에 그 제품 부스트 소재가 쓴 광고비
+  const PA = {}; ALL.filter(r => r.status !== "soon" && r.sp).forEach(r => { const e = PA[r.name] || (PA[r.name] = {s: 0, g: 0, bud: 0, on: 0, n: 0}); e.n++; e.s += r.run.s; e.g += r.run.g; if (r.status === "on") { e.on++; e.bud += r.budget; } });
+  const PAL = Object.entries(PA).filter(([, e]) => e.s > 0).sort((x, y) => y[1].s - x[1].s), paT = PAL.reduce((x, [, e]) => x + e.s, 0);
+  const bItems = PAL.slice(0, 9).map(([n, e]) => ({name: n, v: e.s, tip: `<b>${esc(n)}</b><br>부스트 중 광고비 ${usd(e.s)} · ${(e.s / paT * 100).toFixed(1)}%<br>매출 ${usd(e.g)} · ROI ${e.s >= 1 ? (e.g / e.s).toFixed(2) : "-"}<br>진행 중 ${e.on}개 · 일 예산 $${e.bud}`}));
+  if (PAL.length > 9) { const rest = PAL.slice(9), v = rest.reduce((x, [, e]) => x + e.s, 0); bItems.push({name: "기타 " + rest.length + "개 제품", etc: 1, v, tip: `기타 ${rest.length}개 제품<br>부스트 중 광고비 ${usd(v)} · ${(v / paT * 100).toFixed(1)}%`}); }
   const names = [...new Set(ALL.filter(r => r.status !== "soon").map(r => r.name))]; if (CBP && !names.includes(CBP)) CBP = "";
   const R = ALL.filter(r => !CBP || r.name === CBP), on = R.filter(r => r.status === "on"), ended = R.filter(r => r.status === "end"), soon = R.filter(r => r.status === "soon");
   const by = k => on.filter(r => r.call.k === k);
@@ -1280,13 +1300,14 @@ function drawBoost() {
     <div class="pchips"><button class="chip" type="button" data-cbp="" aria-pressed="${!CBP}">전체</button>${names.map(n => `<button class="chip" type="button" data-cbp="${n}" aria-pressed="${CBP === n}">${n}</button>`).join("")}</div>
     <div class="say" style="font-size:15px">${md(D.A[1])} 기준 진행 중인 부스트 <b>${on.length}개</b> (일 예산 합 <b class="num">$${bud}</b>). 종료할 소재 <b class="down">${cut.length}개</b>, 증액할 소재 <b class="up">${up.length}개</b>, 집행이 안 되는 소재 <b>${chk.length}개</b>입니다.</div>
     <div class="why" style="margin:0"><b>규칙</b> · 부스트 중 <b>최근 3일 ROI</b>가 2.5 미만 → 종료 · 2.5 이상 → 유지 · 5 이상이고 예산을 거의 다 쓰는 중 → 증액. 1일째이거나 광고비 $15 미만이면 판단을 미룹니다. 증분 ROAS는 참고용입니다.</div>
+    <div class="pdtop">${paT > 0 ? `<div><div class="t note" style="margin-bottom:6px">부스트 광고비 · 제품별 비중 <span style="opacity:.8">· 최근 14일 부스트 기간 · 조각에 마우스를 올리면 금액, 누르면 그 제품만</span></div>${donutBlock(bItems, "부스트 광고비", usd, "data-cbp", CBP)}</div>` : ""}
     <div class="adk">
       <div><div class="t">진행 중인 부스트</div><div class="v">${on.length}개</div><div class="s">일 예산 합 $${bud}${soon.length ? ` · 기준일 뒤 시작 ${soon.length}개` : ""}</div></div>
       <div><div class="t">최근 3일 광고비 (부스트 소재)</div><div class="v">${usd(s3)}</div><div class="s">매출 ${usd(g3)}</div></div>
       <div><div class="t">최근 3일 ROI</div><div class="v">${roi.toFixed(2)}</div><div class="s">부스트 중인 소재 합계</div></div>
       <div data-tip="${qi.why}"><div class="t">증분 ROAS (부스트 전 3일 대비)</div><div class="v ${qi.c === "up" || qi.c === "down" ? qi.c : ""}"${qi.c === "warnc" ? ' style="color:var(--warn)"' : ""}>${qi.t}</div><div class="s">광고비 ${sd(dS)} · 매출 ${sd(dG)}</div></div>
       <div><div class="t">판정</div><div class="v" style="font-size:18px;line-height:1.8"><span class="down">종료 ${cut.length}</span> · 유지 ${keep.length} · <span class="up">증액 ${up.length}</span></div><div class="s">집행 안 됨 ${chk.length} · 판단 이름 ${wait.length}</div></div>
-    </div></div>
+    </div></div></div>
     ${(() => { const BK = [["end", "종료", "--down", "최근 3일 ROI 2.5 미만"], ["keep", "유지", "--up", "ROI 2.5 이상"], ["up", "증액", "--c-video", "ROI 5 이상 · 예산 소진"], ["idle", "집행 안 됨", "--warn", "광고비가 거의 안 나감"], ["wait", "판단 이름", "--neutral", "1일째이거나 광고비 $15 미만"]];
       const g = k => on.filter(r => r.call.k === k), b = k => g(k).reduce((x, r) => x + r.budget, 0), tot = Math.max(1, bud);
       return on.length ? `<div class="box"><div class="t note">진행 중인 부스트의 일 예산 $${bud}가 어떤 판정에 걸려 있나</div>
@@ -1301,7 +1322,7 @@ function drawBoost() {
     <div class="box"><div class="bar"><h3>최근 끝난 부스트 <span class="note" style="font-weight:400">· ${ended.length}개</span></h3>${again.length ? `<span class="note">다시 걸 만한 소재(부스트 중 ROI 5 이상) <b class="up">${again.length}개</b> ${copyBtn(again.map(r => r.cid).join("\n"), "ID 복사")}</span>` : ""}</div>
       ${ended.length ? `<ul class="crows" style="margin-top:6px">${me.body}</ul>${me.btn}` : `<p class="note">최근 14일 안에 끝난 부스트가 없습니다.</p>`}</div>`;
   bindCopy(el); bindMore(el); bindTips(el);
-  el.querySelectorAll("[data-cbp]").forEach(b => b.onclick = () => { CBP = b.dataset.cbp; drawBoost(); });
+  el.querySelectorAll("[data-cbp]").forEach(b => b.onclick = () => { const v = b.getAttribute("data-cbp"); CBP = CBP === v && b.closest(".dnt") ? "" : v; drawBoost(); });
 }
 // ---------------- 크리에이터 탭: TOP 30 / 첫 매출 / 자주 올리는 크리에이터
 let TCV = "top", FSP = "", PSF = "all";
