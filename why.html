@@ -1199,7 +1199,7 @@ const dayDiff = (a, b) => Math.round((Date.parse(a) - Date.parse(b)) / 86400000)
 const DONUT_COLS = ["--accent", "--c-video", "--c-sv", "--c-afl", "--up", "--warn", "--down", "--c-card"], DONUT_X = ["#d16ba5", "#8bc34a", "#5aa9e6"];
 function donutBlock(items, centerLabel, fmt, attr, sel) {
   const tot = items.reduce((x, q) => x + q.v, 0); if (!(tot > 0)) return "";
-  const colOf = (q, i) => q.etc ? css("--neutral") : i < DONUT_COLS.length ? css(DONUT_COLS[i]) : DONUT_X[(i - DONUT_COLS.length) % DONUT_X.length];
+  const colOf = (q, i) => q.col ? q.col : q.etc ? css("--neutral") : i < DONUT_COLS.length ? css(DONUT_COLS[i]) : DONUT_X[(i - DONUT_COLS.length) % DONUT_X.length];
   const cx = 110, cy = 110, R = 100, r = 62, pt = (rad, ang) => (cx + rad * Math.cos(ang)).toFixed(2) + "," + (cy + rad * Math.sin(ang)).toFixed(2);
   let a0 = -Math.PI / 2, g = "";
   items.forEach((q, i) => { const fr = q.v / tot, a1 = a0 + fr * Math.PI * 2, big = fr > 0.5 ? 1 : 0, dim = sel && sel !== q.name, col = colOf(q, i);
@@ -1268,11 +1268,29 @@ function drawBoost() {
   const el = $("#cbview"); if (!el) return;
   if (!D.raw.boosts) { el.innerHTML = `<div class="box"><p class="note" style="margin:0">Creative Boost 시트를 읽지 못했습니다. 광고 시트에 "Creative Boost" 탭이 있는지 확인해 주세요.</p></div>`; return; }
   const ALL = boostRuns().map(r => ({...r, call: r.status === "soon" ? null : boostCall(r)}));
-  // 제품별 비중: 최근 14일 안의 부스트 기간에 그 제품 부스트 소재가 쓴 광고비
-  const PA = {}; ALL.filter(r => r.status !== "soon" && r.sp).forEach(r => { const e = PA[r.name] || (PA[r.name] = {s: 0, g: 0, bud: 0, on: 0, n: 0}); e.n++; e.s += r.run.s; e.g += r.run.g; if (r.status === "on") { e.on++; e.bud += r.budget; } });
-  const PAL = Object.entries(PA).filter(([, e]) => e.s > 0).sort((x, y) => y[1].s - x[1].s), paT = PAL.reduce((x, [, e]) => x + e.s, 0);
-  const bItems = PAL.slice(0, 9).map(([n, e]) => ({name: n, v: e.s, tip: `<b>${esc(n)}</b><br>부스트 중 광고비 ${usd(e.s)} · ${(e.s / paT * 100).toFixed(1)}%<br>매출 ${usd(e.g)} · ROI ${e.s >= 1 ? (e.g / e.s).toFixed(2) : "-"}<br>진행 중 ${e.on}개 · 일 예산 $${e.bud}`}));
-  if (PAL.length > 9) { const rest = PAL.slice(9), v = rest.reduce((x, [, e]) => x + e.s, 0); bItems.push({name: "기타 " + rest.length + "개 제품", etc: 1, v, tip: `기타 ${rest.length}개 제품<br>부스트 중 광고비 ${usd(v)} · ${(v / paT * 100).toFixed(1)}%`}); }
+  // 부스팅에 쓰는 돈 = 시트에 적힌 일 예산. 날짜마다 그날 켜져 있던 부스트의 일 예산을 제품별로 더한다 (최근 14일)
+  const BDT = D.raw.sparkDates || [], dayB = {}, dayN = {};
+  BDT.forEach(k => { dayB[k] = {}; dayN[k] = 0; });
+  ALL.forEach(r => (r.seg || []).forEach(sg => BDT.forEach(k => { if (sg.start <= k && k < sg.to) { dayB[k][r.name] = (dayB[k][r.name] || 0) + sg.budget; dayN[k]++; } })));
+  const bE = dayB[D.A[1]] || {}, bOrd = Object.entries(bE).sort((x, y) => y[1] - x[1]), paT = bOrd.reduce((x, q) => x + q[1], 0), bFmt = v => "$" + Math.round(v).toLocaleString("en-US");
+  // 제품 색: 14일 동안의 부스트 예산 합계 순위로 고정 (도넛과 막대가 같은 색)
+  const b14 = {}; BDT.forEach(k => Object.entries(dayB[k]).forEach(([n, v]) => { b14[n] = (b14[n] || 0) + v; }));
+  const bRank = Object.keys(b14).sort((x, y) => b14[y] - b14[x]), bPal = [...DONUT_COLS.map(css), ...DONUT_X];
+  const bCol = n => { const i = bRank.indexOf(n); return i < 0 || i >= bPal.length ? css("--neutral") : bPal[i]; };
+  const bCnt = n => ALL.filter(r => r.status === "on" && r.name === n).length;
+  const bItems = bOrd.slice(0, 9).map(([n, v]) => ({name: n, v, col: bCol(n), tip: `<b>${esc(n)}</b><br>하루 부스트 예산 ${bFmt(v)} · ${(v / paT * 100).toFixed(1)}%<br>진행 중인 부스트 ${bCnt(n)}개`}));
+  if (bOrd.length > 9) { const rest = bOrd.slice(9), v = rest.reduce((x, q) => x + q[1], 0); bItems.push({name: "기타 " + rest.length + "개 제품", etc: 1, v, tip: `기타 ${rest.length}개 제품<br>하루 부스트 예산 ${bFmt(v)} · ${(v / paT * 100).toFixed(1)}%`}); }
+  // 일별 부스트 예산 막대 (제품 색은 도넛과 같은 순서)
+
+  let dayChart = "";
+  if (BDT.length) { const W = 980, H = 190, X0 = 8, cw = (W - 16) / BDT.length, tots = BDT.map(k => Object.values(dayB[k]).reduce((x, v) => x + v, 0)), mx = Math.max(1, ...tots), y0 = 142, hh = v => v / mx * 108;
+    let g = ""; BDT.forEach((k, i) => { const cx = X0 + cw * i + cw / 2, bw = Math.min(40, cw * 0.56), base = k === D.A[1], parts = Object.entries(dayB[k]).sort((x, y) => bRank.indexOf(x[0]) - bRank.indexOf(y[0]));
+      let y = y0, bars = ""; parts.forEach(([n, v]) => { const h2 = hh(v); y -= h2; bars += `<rect x="${cx - bw / 2}" y="${y.toFixed(1)}" width="${bw}" height="${Math.max(0.5, h2).toFixed(1)}" fill="${bCol(n)}" opacity="${CBP && CBP !== n ? 0.25 : 1}"/>`; });
+      g += `<g data-tip="<b>${md(k)}(${DOW(k)})</b> · 하루 부스트 예산 ${bFmt(tots[i])} · 부스트 ${dayN[k]}개<br>${parts.map(([n, v]) => `<span style='color:${bCol(n)}'>●</span> ${esc(n)} <b>${bFmt(v)}</b>`).join("<br>")}">${base ? `<rect x="${X0 + cw * i + 2}" y="2" width="${cw - 4}" height="${H - 4}" rx="8" fill="${css("--accent-fill")}"/>` : `<rect x="${X0 + cw * i + 2}" y="2" width="${cw - 4}" height="${H - 4}" fill="transparent"/>`}${bars}
+        <text x="${cx}" y="${(y0 - hh(tots[i]) - 6).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="${base ? 700 : 500}" class="num" fill="${css("--ink")}">${bFmt(tots[i])}</text>
+        <text x="${cx}" y="${y0 + 17}" text-anchor="middle" font-size="11" font-weight="${base ? 700 : 400}" fill="${css(base ? "--ink" : "--muted")}">${md(k)}(${DOW(k)})</text><text x="${cx}" y="${y0 + 33}" text-anchor="middle" font-size="10.5" class="num" fill="${css("--muted")}">${dayN[k]}개</text></g>`; });
+    dayChart = `<div><div class="t note">일별 부스트 예산 <span style="opacity:.8">· 그날 켜져 있던 부스트의 일 예산 합계 · 색 = 제품 · 아래 숫자는 부스트 수</span></div>
+      <div style="overflow-x:auto;margin-top:6px;direction:rtl"><svg viewBox="0 0 ${W} ${H}" width="100%" style="min-width:${Math.max(420, BDT.length * 62)}px;display:block;direction:ltr" role="img" aria-label="일별 부스트 예산">${g}</svg></div></div>`; }
   const names = [...new Set(ALL.filter(r => r.status !== "soon").map(r => r.name))]; if (CBP && !names.includes(CBP)) CBP = "";
   const R = ALL.filter(r => !CBP || r.name === CBP), on = R.filter(r => r.status === "on"), ended = R.filter(r => r.status === "end"), soon = R.filter(r => r.status === "soon");
   const by = k => on.filter(r => r.call.k === k);
@@ -1300,14 +1318,15 @@ function drawBoost() {
     <div class="pchips"><button class="chip" type="button" data-cbp="" aria-pressed="${!CBP}">전체</button>${names.map(n => `<button class="chip" type="button" data-cbp="${n}" aria-pressed="${CBP === n}">${n}</button>`).join("")}</div>
     <div class="say" style="font-size:15px">${md(D.A[1])} 기준 진행 중인 부스트 <b>${on.length}개</b> (일 예산 합 <b class="num">$${bud}</b>). 종료할 소재 <b class="down">${cut.length}개</b>, 증액할 소재 <b class="up">${up.length}개</b>, 집행이 안 되는 소재 <b>${chk.length}개</b>입니다.</div>
     <div class="why" style="margin:0"><b>규칙</b> · 부스트 중 <b>최근 3일 ROI</b>가 2.5 미만 → 종료 · 2.5 이상 → 유지 · 5 이상이고 예산을 거의 다 쓰는 중 → 증액. 1일째이거나 광고비 $15 미만이면 판단을 미룹니다. 증분 ROAS는 참고용입니다.</div>
-    <div class="pdtop">${paT > 0 ? `<div><div class="t note" style="margin-bottom:6px">부스트 광고비 · 제품별 비중 <span style="opacity:.8">· 최근 14일 부스트 기간 · 조각에 마우스를 올리면 금액, 누르면 그 제품만</span></div>${donutBlock(bItems, "부스트 광고비", usd, "data-cbp", CBP)}</div>` : ""}
+    <div class="pdtop">${paT > 0 ? `<div><div class="t note" style="margin-bottom:6px">${md(D.A[1])} 하루 부스트 예산 · 제품별 비중 <span style="opacity:.8">· 조각에 마우스를 올리면 금액, 누르면 그 제품만</span></div>${donutBlock(bItems, "하루 부스트 예산", bFmt, "data-cbp", CBP)}</div>` : ""}
     <div class="adk">
       <div><div class="t">진행 중인 부스트</div><div class="v">${on.length}개</div><div class="s">일 예산 합 $${bud}${soon.length ? ` · 기준일 뒤 시작 ${soon.length}개` : ""}</div></div>
       <div><div class="t">최근 3일 광고비 (부스트 소재)</div><div class="v">${usd(s3)}</div><div class="s">매출 ${usd(g3)}</div></div>
       <div><div class="t">최근 3일 ROI</div><div class="v">${roi.toFixed(2)}</div><div class="s">부스트 중인 소재 합계</div></div>
       <div data-tip="${qi.why}"><div class="t">증분 ROAS (부스트 전 3일 대비)</div><div class="v ${qi.c === "up" || qi.c === "down" ? qi.c : ""}"${qi.c === "warnc" ? ' style="color:var(--warn)"' : ""}>${qi.t}</div><div class="s">광고비 ${sd(dS)} · 매출 ${sd(dG)}</div></div>
       <div><div class="t">판정</div><div class="v" style="font-size:18px;line-height:1.8"><span class="down">종료 ${cut.length}</span> · 유지 ${keep.length} · <span class="up">증액 ${up.length}</span></div><div class="s">집행 안 됨 ${chk.length} · 판단 이름 ${wait.length}</div></div>
-    </div></div></div>
+    </div></div>
+    ${dayChart}</div>
     ${(() => { const BK = [["end", "종료", "--down", "최근 3일 ROI 2.5 미만"], ["keep", "유지", "--up", "ROI 2.5 이상"], ["up", "증액", "--c-video", "ROI 5 이상 · 예산 소진"], ["idle", "집행 안 됨", "--warn", "광고비가 거의 안 나감"], ["wait", "판단 이름", "--neutral", "1일째이거나 광고비 $15 미만"]];
       const g = k => on.filter(r => r.call.k === k), b = k => g(k).reduce((x, r) => x + r.budget, 0), tot = Math.max(1, bud);
       return on.length ? `<div class="box"><div class="t note">진행 중인 부스트의 일 예산 $${bud}가 어떤 판정에 걸려 있나</div>
