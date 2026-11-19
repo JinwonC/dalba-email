@@ -1625,7 +1625,7 @@ function drawAgents() {
   $("#agGrid").querySelectorAll("[data-agre]").forEach(b => b.onclick = () => agRunOne(AGL.find(a => a.key === b.dataset.agre), true));
   const done = AGL.filter(a => AGS[a.key] && AGS[a.key].data).length, busy = AGL.filter(a => AGS[a.key] && AGS[a.key].loading).length;
   $("#agTitle").innerHTML = `${md(AGD)}(${DOW(AGD)}) 에이전트 데일리 리포트` + (AGMISS ? ` <span class="tag warn" style="font-weight:600">${md(AGMISS)} 분석은 아직 올라오지 않아 가장 최근 리포트를 보여줍니다</span>` : "");
-  $("#agNote").textContent = busy ? `분석 중… ${done}/${AGL.length} 완료` : `제품 ${AGL.filter(a => a.key !== "live").length}명 + 라이브 1명이 그날을 전날·지난주 같은 요일과 비교한 분석입니다. ${done ? "위 칸을 누르면 그 제품 카드로 갑니다." : "이 날짜와 그 전 3일은 분석이 올라오지 않았습니다. 분석은 매일 오후 1시 15분쯤(한국 시간) 이틀 전 날짜까지 올라옵니다."}${D.A[0] !== D.A[1] ? " 기간을 고르면 마지막 날 리포트를 보여줍니다." : ""} (${done}/${AGL.length})`;
+  $("#agNote").textContent = busy ? `분석 중… ${done}/${AGL.length} 완료` : `제품 ${AGL.filter(a => a.key !== "live").length}명 + 라이브 1명이 그날을 전날·지난주 같은 요일과 비교한 분석입니다. ${done ? "위 칸을 누르면 그 제품 카드로 갑니다." : "이 날짜와 그 전 3일은 분석이 올라오지 않았습니다. 분석은 매일 오전 11시쯤(한국 시간), 시트에 데이터가 들어온 가장 최근 날짜로 올라옵니다."}${D.A[0] !== D.A[1] ? " 기간을 고르면 마지막 날 리포트를 보여줍니다." : ""} (${done}/${AGL.length})`;
   $("#agRun").disabled = $("#agRe").disabled = busy > 0; $("#agRun").hidden = $("#agRe").hidden = !AGRUN;
 }
 async function agRunOne(ag, force) {

@@ -65,6 +65,9 @@ d'Alba US 틱톡샵 매출이 왜 움직였는지 보여주는 웹페이지(`why
 - 서비스 계정이 협업 시트를 볼 수 없으면 `/api/paid`가 `needShare: true`와 안내 문구를 돌려준다.
 
 ## 예약 작업 방식 (2026-11-14 전환)
+- **2026-11-19부터**: claude.ai 클라우드 예약 작업 "달바 에이전트 데일리 리포트"가 매일 한국 시간 오전 11:05에 새 세션으로 돈다(환경 `dalba-email`: 사이트 접속 허용 + 저장 토큰이 네트워크 비밀로 등록됨, 헤더 `x-agent-token`은 프록시가 넣음). 어제 → 그제 → 3일 전 순서로 `ready`인 가장 최근 날짜를 골라 에이전트 전원 분석을 써서 저장한다. 시트 데이터는 보통 오전 10:30에 올라온다.
+- 이전 PC의 예약 작업(오후 1:15)은 꺼야 한다. 켜 두면 같은 날짜를 다시 써서 덮어쓴다.
+- 화면은 고른 날짜에 분석이 없으면 최대 3일 전까지 가장 최근 리포트를 대신 보여준다.
 - API 키 없이 Claude Code(Max 요금제)가 분석을 쓰고 사이트에 올린다. Vercel의 `/api/agents?cron=1` cron은 뺐다.
 - `GET /api/agents?a=날짜&brief=1` → 에이전트 13명에게 줄 데이터(`agents[].brief`) + 규칙(`system`) + 결과 모양(`schema`). `ready=false`면 그날 시트가 아직 비어 있다.
 - `POST /api/agents?a=날짜&save=1`, 헤더 `x-agent-token` = Vercel `AGENT_SAVE_TOKEN`, 본문 `{"results": {"grinding": {...}, ...}}`. 카드 위 숫자(kpi)는 서버가 다시 계산한다.
