@@ -9,23 +9,23 @@
 <style>
 /* Layout: 모든 정보가 파이프라인 — 상단 스토어 파이프 → 노선도(매출 → 채널 → 제품/방송/크리에이터 → 소재 구슬) + 원인 카드 → 소재 파이프 보드 · 라이브 파이프 · 제품 파이프 */
 :root{
-  --bg:#f7f7f9; --surface:#ffffff; --ink:#1d1f2e; --muted:#8a8fa3; --line:#ececf2; --soft:#f4f3fb;
-  --accent:#7c6cf2; --accent-fill:#ede9fe;
+  --bg:#f9f9f7; --surface:#ffffff; --ink:#141414; --muted:#6f6c62; --line:#e3e1d8; --soft:#f4f2ea;
+  --accent:#141414; --accent-fill:#fbefc4; --accent-ink:#ffffff;
   --up:#16a05d; --up-bg:#e7f6ee; --down:#e0483e; --down-bg:#fdeceb; --neutral:#b4b8c7;
-  --c-live:#7c6cf2; --c-video:#4f7cf6; --c-afl:#f08a4b; --c-card:#9aa1b2; --c-sv:#22b3a3;
+  --c-live:#d9a514; --c-video:#4f7cf6; --c-afl:#f08a4b; --c-card:#9aa1b2; --c-sv:#22b3a3;
   --f-body:"Inter","IBM Plex Sans KR",system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
   --f-num:"Inter","IBM Plex Sans KR",system-ui,sans-serif;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#121319; --surface:#1b1d26; --ink:#eceef5; --muted:#9499ad; --line:#2a2d3a; --soft:#23253a;
-  --accent:#9d90ff; --accent-fill:#2c2850;
+  --bg:#141414; --surface:#1e1e1c; --ink:#f3f1ea; --muted:#a09c90; --line:#33312b; --soft:#26251f;
+  --accent:#f2c029; --accent-fill:#3a3212; --accent-ink:#141414;
   --up:#3fcf8a; --up-bg:#16362a; --down:#ff7a6e; --down-bg:#3d1e1d; --neutral:#5c6175;
-  --c-live:#9d90ff; --c-video:#7ea1ff; --c-afl:#ffaa73; --c-card:#a9afbf; --c-sv:#4fd1c0; color-scheme:dark}}
+  --c-live:#f2c029; --c-video:#7ea1ff; --c-afl:#ffaa73; --c-card:#a9afbf; --c-sv:#4fd1c0; color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#121319; --surface:#1b1d26; --ink:#eceef5; --muted:#9499ad; --line:#2a2d3a; --soft:#23253a;
-  --accent:#9d90ff; --accent-fill:#2c2850;
+  --bg:#141414; --surface:#1e1e1c; --ink:#f3f1ea; --muted:#a09c90; --line:#33312b; --soft:#26251f;
+  --accent:#f2c029; --accent-fill:#3a3212; --accent-ink:#141414;
   --up:#3fcf8a; --up-bg:#16362a; --down:#ff7a6e; --down-bg:#3d1e1d; --neutral:#5c6175;
-  --c-live:#9d90ff; --c-video:#7ea1ff; --c-afl:#ffaa73; --c-card:#a9afbf; --c-sv:#4fd1c0; color-scheme:dark}
+  --c-live:#f2c029; --c-video:#7ea1ff; --c-afl:#ffaa73; --c-card:#a9afbf; --c-sv:#4fd1c0; color-scheme:dark}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{margin:0}
@@ -59,7 +59,7 @@ h3{font-size:15px;margin:0}
 .period input{font:inherit;font-family:var(--f-num);font-size:13px;border:1px solid var(--line);border-radius:6px;padding:3px 6px;background:var(--bg);color:var(--ink)}
 .chip{font:inherit;font-size:12.5px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:3px 10px;cursor:pointer}
 .chip[aria-pressed="true"]{background:var(--accent-fill);color:var(--accent);border-color:var(--accent)}
-.btn{font:inherit;font-weight:600;border:0;border-radius:8px;padding:8px 14px;background:var(--accent);color:#fff;cursor:pointer}
+.btn{font:inherit;font-weight:600;border:0;border-radius:8px;padding:8px 14px;background:var(--accent);color:var(--accent-ink);cursor:pointer}
 .btn.ghost{background:var(--surface);color:var(--ink);border:1px solid var(--line)}
 button:focus-visible{outline:2px solid var(--c-video);outline-offset:2px}
 .headline{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;font-size:16px}
@@ -1521,7 +1521,7 @@ function drawPaid() {
     // ② 발행 월(코호트)별로, 판매가 난 달마다의 매출
     const hasGm = L.length ? PD.videos.some(v => v.gm) : true, VS = typed.filter(v => !PDP || v.product === PDP);
     const CH = {}; VS.forEach(v => { const c = mon(v.posted); if (!MS.includes(c) || !v.gm) return; const e = CH[c] || (CH[c] = {}); for (const k in v.gm) if (MS.includes(k) && k >= c) e[k] = (e[k] || 0) + v.gm[k]; });
-    const CCOL = ["#b4b8c7", "#f08a4b", "#22b3a3", "#d16ba5", "#4f7cf6", "#b87300", "#16a05d", "#7c6cf2"], ccol = c => CCOL[(MS.indexOf(c) + CCOL.length - MS.length % CCOL.length) % CCOL.length];
+    const CCOL = ["#b4b8c7", "#f08a4b", "#22b3a3", "#d16ba5", "#4f7cf6", "#b87300", "#16a05d", "#d9a514"], ccol = c => CCOL[(MS.indexOf(c) + CCOL.length - MS.length % CCOL.length) % CCOL.length];
     const cv = (c, m) => (CH[c] && CH[c][m]) || 0, tS = nice(Math.max(1, ...MS.flatMap(c => MS.map(m => cv(c, m)))));
     const monthTot = m => MS.reduce((x, c) => x + cv(c, m), 0);
     const tip2 = m => `<b>${monLabel(m)}에 팔린 금액</b> · ${usd(monthTot(m))}${m === mon(PD.dataEnd || "") ? " (" + md(PD.dataEnd) + "까지)" : ""}<br>` + MS.filter(c => c <= m && cv(c, m) > 0).reverse().map(c => `<span style='color:${ccol(c)}'>●</span> ${monLabel(c)}에 올린 영상 <b>${usd(cv(c, m))}</b>`).join("<br>");
