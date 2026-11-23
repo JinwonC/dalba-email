@@ -51,15 +51,21 @@ function salesByVideo(dates, pays, meta) {
 }
 // '유/무가 성과 트래킹 (GMV)' 행 → 영상 목록
 // 유가 = PAID로 적혔거나 비용이 있는 영상. NON_PAID인데 비용이 적힌 행이 있고, 시트의 '월별 사용 예산'도 그 비용을 포함한다.
-function buildVideos(rows, S) {
+// 영상 ID 앞 32비트 = 올린 시각(초) → 미국 서부 날짜
+const idDate = cid => { try { return new Date(Number(BigInt(cid) >> 32n) * 1000 - 8 * 3600000).toISOString().slice(0, 10); } catch (e) { return null; } };
+function buildVideos(rows, S, end) {
+  // 시트 포스팅일이 비었거나 말이 안 되면(2025년 이전, 또는 주문 마지막 날짜보다 7일 넘게 뒤) 영상 ID의 날짜를 쓴다
+  const hi = end ? addDays(end, 7) : "2100-01-01", ok = k => !!k && k >= "2025-01-01" && k <= hi;
   const out = [];
   for (const r of (rows || []).slice(1)) {
     const h = handleOf(r[0]); if (!h) continue;
-    const posted = dkey(r[6]), cid = vidOf(r[7], r[8]); if (!posted && !cid) continue;
+    const cid = vidOf(r[7], r[8]), sheetDate = dkey(r[6]), byId = cid ? idDate(cid) : null;
+    const posted = ok(sheetDate) ? sheetDate : ok(byId) ? byId : null; if (!posted && !cid) continue;
     const t = norm(r[3]).toUpperCase(), s = S[cid];
     out.push({ h, round: String(r[1] || "").trim(), cost: r2(num(r[2])), paid: t === "PAID" || num(r[2]) > 0 ? 1 : 0, mgr: String(r[4] || "").trim(), product: String(r[5] || "").trim() || "(제품 미기입)",
       posted, cid, concept: String(r[10] || "").trim().slice(0, 60), gmv: s ? r2(s.g) : 0, orders: s ? s.n : 0, gmv7: s ? r2(s.g7) : 0, lastSale: s ? s.last : null,
-      gm: s ? Object.fromEntries(Object.entries(s.m).map(([k, x]) => [k, Math.round(x)])) : null });
+      gm: s ? Object.fromEntries(Object.entries(s.m).map(([k, x]) => [k, Math.round(x)])) : null,
+      ...(sheetDate && sheetDate !== posted ? { sheetDate } : {}) });
   }
   return out;
 }
@@ -102,7 +108,7 @@ module.exports = async (req, res) => {
     ]);
     const v = (b, i) => (b.data.valueRanges[i] && b.data.valueRanges[i].values) || [];
     const { S, end } = salesByVideo(v(mv, 0), v(mv, 1), v(mv, 2));
-    const out = { dataEnd: end, videos: buildVideos(v(pv, 0), S), casting: T.cast ? buildCasting(v(pv, 1)) : [], source: { paid: PAID, main: MAIN, tabs: T } };
+    const out = { dataEnd: end, videos: buildVideos(v(pv, 0), S, end), casting: T.cast ? buildCasting(v(pv, 1)) : [], source: { paid: PAID, main: MAIN, tabs: T } };
     MEM.val = out; MEM.ts = Date.now();
     send(res, out);
   } catch (e) {

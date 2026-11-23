@@ -1151,21 +1151,32 @@ function drawAdTop() {
     drawAdTop(); });
 }
 function drawAds() {
-  if (ADP) { drawAdProd(); return; }
+  if (ADP || ADQ) { drawAdProd(); return; }
   $("#lgd").textContent = "제품별 광고 성과"; $("#lgdNote").textContent = "광고비 많이 쓴 순서. 막대의 빨간 부분이 7일 내내 손해인 소재에 쓴 광고비입니다. 줄을 누르면 그 제품만 봅니다.";
   const items = adGroups(), mx = Math.max(1, ...items.map(x => x.t));
-  $("#cview").innerHTML = `<div class="plist"><div class="phead"><span>제품</span><span class="n">광고비</span><span>어디에 쓰였나</span><span>ROI (비교)</span><span class="n">매출 변화</span><span class="n">할 일</span><span></span></div>` + (items.length ? items.map(x => `<button class="prow" type="button" data-pid="${x.pid}">
+  $("#cview").innerHTML = `<div class="bar" style="margin-bottom:6px">${adqBox()}<span class="note">영상 ID로 전체 제품에서 소재를 찾습니다</span></div><div class="plist"><div class="phead"><span>제품</span><span class="n">광고비</span><span>어디에 쓰였나</span><span>ROI (비교)</span><span class="n">매출 변화</span><span class="n">할 일</span><span></span></div>` + (items.length ? items.map(x => `<button class="prow" type="button" data-pid="${x.pid}">
       <span class="nm" title="${x.name}">${x.name}</span>
       <span class="n sp">${usd(x.t)}</span>
       <div class="bar2"><div class="track" style="width:${Math.max(4, x.t / mx * 100).toFixed(1)}%">${GC.map(([k, t, c]) => x.m[k] > 0 ? `<i data-tip="${x.name} · ${t}<br>광고비 ${usd(x.m[k])} (${Math.round(x.m[k] / x.t * 100)}%)" style="width:${(x.m[k] / x.t * 100).toFixed(1)}%;background:var(${c})"></i>` : "").join("")}</div></div>
       <span class="roi"><span class="rchip ${roiGrade(x.ga, x.t)}">ROI ${roiTxt(x.ga, x.t)}</span><small>${roiTxt(x.gb, x.sb)}</small></span>
       <span class="n dl"><b class="${cls(x.d)}">${sd(x.d)}</b></span>
       <span class="n pact"><b class="k">KILL ${x.nk}</b> · <b class="b">부스팅 ${x.nb}</b> · <b class="w">확인 ${x.nw}</b></span><span class="go">›</span></button>`).join("") : `<p class="note">광고 소재가 없습니다.</p>`) + `</div>`;
-  bindTips($("#cview"));
+  bindTips($("#cview")); bindAdq();
   $("#cview").querySelectorAll("[data-pid]").forEach(b => b.onclick = () => { ADP = b.dataset.pid; drawCView(); $("#adtop").scrollIntoView({behavior: "smooth", block: "start"}); });
 }
 // 제품을 고른 화면: 소재 전체를 표 하나로. 열 제목을 누르면 정렬(다시 누르면 반대), 위 버튼으로 판정별로 거른다.
-let ADS = {k: "s7", d: -1}, ADF = "all";
+let ADS = {k: "s7", d: -1}, ADF = "all", ADQ = "";
+const adqBox = () => `<input id="adq" type="search" value="${esc(ADQ)}" placeholder="영상 ID 또는 @크리에이터 검색 (여러 개 붙여넣기 가능)" aria-label="영상 ID 검색" style="font:inherit;font-size:13px;border:1px solid var(--line);border-radius:999px;padding:5px 12px;background:var(--surface);color:var(--ink);min-width:min(320px,100%);flex:1 1 260px;max-width:420px">`;
+// 검색어 → 판별 함수. 숫자 덩어리는 영상 ID(부분 일치), 그 밖의 글자는 크리에이터 이름
+function adqMatch() {
+  const parts = ADQ.toLowerCase().split(/[\s,;]+/).map(x => x.replace(/^@/, "")).filter(Boolean); if (!parts.length) return null;
+  return c => parts.some(q => /^\d+$/.test(q) ? c.cid.includes(q) : (c.creator || "").toLowerCase().includes(q) || c.label.toLowerCase().includes(q));
+}
+// 입력할 때마다 다시 그리되, 글자를 치는 중에 커서가 풀리지 않게 한다
+function bindAdq() {
+  const el = $("#adq"); if (!el) return; let t = null;
+  el.oninput = () => { clearTimeout(t); t = setTimeout(() => { ADQ = el.value.trim(); drawAds(); const n = $("#adq"); if (n) { n.focus(); const L = n.value.length; try { n.setSelectionRange(L, L); } catch (e) {} } }, 250); };
+}
 // 14일 미니 그래프: 광고비(주황 선)와 매출(파랑 면)을 같은 금액 눈금으로 한 칸에. 마우스를 올리면 그날 수치
 function sp2(c) {
   const S = c.spark.spend, G = c.spark.gmv, n = S.length, w = 150, h = 34, mx = Math.max(1, ...S, ...G), x = i => 2 + i * (w - 4) / Math.max(1, n - 1), y = v => h - 3 - v / mx * (h - 7);
@@ -1175,12 +1186,12 @@ function sp2(c) {
     <polyline points="${pts(S)}" fill="none" stroke="${css("--c-afl")}" stroke-width="1.5" stroke-linejoin="round"/><line class="cur" x1="0" x2="0" y1="0" y2="${h}" stroke="${css("--ink")}" stroke-width="1" opacity="0"/></svg>`;
 }
 function drawAdProd() {
-  const L = D.cre.filter(inP), name = adName(ADP), E = D.A[1];
-  $("#lgd").textContent = name + " · 소재 전체"; $("#lgdNote").textContent = "최근 7일에 광고비 $1 이상이거나 매출 $1 이상인 소재입니다. 열 제목을 누르면 정렬됩니다.";
+  const L = D.cre.filter(inP), name = ADP ? adName(ADP) : "전체 제품", E = D.A[1], qf = adqMatch(), allP = !ADP;
+  $("#lgd").textContent = name + (qf ? " · 검색 결과" : " · 소재 전체"); $("#lgdNote").textContent = qf ? "검색한 소재는 광고비·매출이 없어도 모두 보여줍니다. 열 제목을 누르면 정렬됩니다." : "최근 7일에 광고비 $1 이상이거나 매출 $1 이상인 소재입니다. 열 제목을 누르면 정렬됩니다.";
   const T30 = (D.raw.topCreators || []).slice(0, 30);
   const crs = T30.filter(t => t.topProducts[0] && t.topProducts[0].pid === ADP).map(t => ({t, st: tcStatus(t, E)})).filter(x => x.st.stop || x.st.slow);
   const sp = ageSplit(L), GO = {kill: 0, warn: 1, good: 2, best: 3};
-  const act = L.filter(c => c.s7 >= 1 || c.g7 >= 1);
+  const act = qf ? L.filter(qf) : L.filter(c => c.s7 >= 1 || c.g7 >= 1);
   const F = {all: () => true, kill: c => grade(c) === "kill", warn: c => grade(c) === "warn", good: c => grade(c) === "good" || grade(c) === "best", boost, watch, new: c => ageOf(c) === "new"};
   const FL = [["all", "전체"], ["kill", "KILL 검토"], ["warn", "주의"], ["good", "좋음 이상"], ["boost", "부스팅 권장"], ["watch", "확인 필요"], ["new", "신규 (7일 이내)"]];
   if (!F[ADF]) ADF = "all";
@@ -1191,22 +1202,24 @@ function drawAdProd() {
     const id = "td-" + i; NODES[id] = {type: "bead", lane: {id: "video", name: "AF 영상"}, sub: {name: c.name}, bead: {label: c.label, d: c.dg, kind: "creative", data: c}};
     const gr = GRADE.find(z => z.k === grade(c)), age = c.posted ? Math.round((Date.parse(E) - Date.parse(c.posted)) / 86400000) : null;
     return `<tr><td>${gr ? `<span class="tag ${gr.c}">${gr.t}</span>` : '<span class="note">-</span>'}${boost(c) ? ' <span class="tag new">부스팅 권장</span>' : ""}${watch(c) ? ' <span class="tag warn">확인 필요</span>' : ""}</td>
-      <td><a href="${vlink(c.cid, c.creator)}" target="_blank" rel="noopener">${c.label}</a></td>
+      <td><a href="${vlink(c.cid, c.creator)}" target="_blank" rel="noopener">${c.label}</a>${qf ? vid(c) : ""}</td>${allP ? `<td>${esc(c.name || "기타")}</td>` : ""}
       <td class="n">${c.posted ? md(c.posted) : "-"}${age != null && age >= 0 ? ` <span class="note">${age === 0 ? "당일" : age + "일 전"}</span>` : ""}</td>
       <td>${sp2(c)}</td>
       <td class="n">${usd(c.s7)}</td><td class="n">${usd(c.g7)}</td><td class="n"><span class="rchip ${grade(c) || "none"}" style="min-width:52px">${roiTxt(c.g7, c.s7)}</span></td>
       <td class="n">${usd(c.sa)}</td><td class="n">${usd(c.ga)}</td><td class="n"><b class="${cls(c.dg)}">${sd(c.dg)}</b></td>
       <td>${idBtn(c)} <button class="chip" type="button" data-open="${id}">상세</button></td></tr>`; }).join("");
   $("#cview").innerHTML = `<div style="display:flex;flex-direction:column;gap:12px">
-    <div class="agebar">${["new", "mid", "old"].map(k => `<div class="age"><div class="t">${AGE[k]} 소재 ${sp[k].n}개 <span class="note">(${k === "new" ? "7일 이내" : k === "mid" ? "8~30일" : "30일 넘음"})</span></div><div class="v ${cls(sp[k].d)}">${sd(sp[k].d)}</div><div class="s">매출 변화 · 광고비 ${sd(sp[k].s)}</div></div>`).join("")}</div>
-    ${crs.length ? `<div class="why" style="margin:0"><b>이 제품이 주력인 TOP 30 크리에이터 중 멈추거나 둔화</b> · ${crs.map(({t, st}) => `<a href="https://www.tiktok.com/@${t.h}" target="_blank" rel="noopener">@${t.h}</a> <span class="note">${st.label[0]}${t.lastPost ? ", 마지막 포스팅 " + md(t.lastPost) : ""}</span>`).join(" · ")}</div>` : ""}
+    ${allP ? "" : `<div class="agebar">${["new", "mid", "old"].map(k => `<div class="age"><div class="t">${AGE[k]} 소재 ${sp[k].n}개 <span class="note">(${k === "new" ? "7일 이내" : k === "mid" ? "8~30일" : "30일 넘음"})</span></div><div class="v ${cls(sp[k].d)}">${sd(sp[k].d)}</div><div class="s">매출 변화 · 광고비 ${sd(sp[k].s)}</div></div>`).join("")}</div>`}
+    ${crs.length && !allP ? `<div class="why" style="margin:0"><b>이 제품이 주력인 TOP 30 크리에이터 중 멈추거나 둔화</b> · ${crs.map(({t, st}) => `<a href="https://www.tiktok.com/@${t.h}" target="_blank" rel="noopener">@${t.h}</a> <span class="note">${st.label[0]}${t.lastPost ? ", 마지막 포스팅 " + md(t.lastPost) : ""}</span>`).join(" · ")}</div>` : ""}
+    <div class="bar">${adqBox()}${qf ? `<button class="chip" type="button" id="adqx">검색 지우기</button>` : ""}<span class="note">${qf ? `${act.length}개 찾음` : ""}</span></div>
     <div class="bar"><div class="pchips">${FL.map(([k, t]) => `<button class="chip" type="button" data-adf="${k}" aria-pressed="${ADF === k}">${t} ${act.filter(F[k]).length}</button>`).join("")}</div>
       <div class="lgd"><span><i style="background:var(--c-afl);height:3px;width:14px;vertical-align:middle"></i>광고비</span><span><i style="background:var(--c-video);height:3px;width:14px;vertical-align:middle"></i>매출</span><span>${rowsL.length ? copyBtn(rowsL.map(c => c.cid).join("\n"), `보이는 ${rowsL.length}개 ID 복사`) : ""}</span></div></div>
-    <div class="ctable"><table class="mini adt"><thead><tr>${th("grade", "판정")}${th("label", "소재")}${th("posted", "포스팅", 1)}<th>14일 광고비 · 매출</th>${th("s7", "7일 광고비", 1)}${th("g7", "7일 매출", 1)}${th("roi", "7일 ROI", 1)}${th("sa", "기준일 광고비", 1)}${th("ga", "기준일 매출", 1)}${th("dg", "매출 변화", 1, "기준 기간 매출 − 비교 기간 매출")}<th></th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="11" class="note">해당 소재가 없습니다.</td></tr>'}</tbody></table></div></div>`;
+    <div class="ctable"><table class="mini adt"><thead><tr>${th("grade", "판정")}${th("label", "소재")}${allP ? "<th>제품</th>" : ""}${th("posted", "포스팅", 1)}<th>14일 광고비 · 매출</th>${th("s7", "7일 광고비", 1)}${th("g7", "7일 매출", 1)}${th("roi", "7일 ROI", 1)}${th("sa", "기준일 광고비", 1)}${th("ga", "기준일 매출", 1)}${th("dg", "매출 변화", 1, "기준 기간 매출 − 비교 기간 매출")}<th></th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="12" class="note">${qf ? "검색한 영상 ID나 크리에이터에 해당하는 광고 소재가 없습니다. 최근 14일 안에 광고 기록이 있는 소재만 찾을 수 있습니다." : "해당 소재가 없습니다."}</td></tr>`}</tbody></table></div></div>`;
   const V = $("#cview"); bindCopy(V); bindTips(V);
   V.querySelectorAll("[data-open]").forEach(b => b.onclick = e => { e.preventDefault(); openDetail(b.dataset.open); });
   V.querySelectorAll("[data-adf]").forEach(b => b.onclick = () => { ADF = b.dataset.adf; drawAdProd(); });
+  bindAdq(); if ($("#adqx")) $("#adqx").onclick = () => { ADQ = ""; ADF = "all"; drawAds(); };
   V.querySelectorAll("[data-sort]").forEach(h => h.onclick = () => { const k = h.dataset.sort; ADS = ADS.k === k ? {k, d: -ADS.d} : {k, d: k === "label" ? 1 : -1}; drawAdProd(); });
   // 미니 그래프 위에서 마우스가 있는 날짜의 광고비·매출을 보여준다 (표 전체에 한 번만 건다)
   const tb = V.querySelector(".adt"), tip = $("#tip"), DT = D.raw.sparkDates || [];
