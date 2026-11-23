@@ -282,6 +282,10 @@ section[data-panel]{display:flex;flex-direction:column;gap:12px}
 .dleg button.dl{cursor:pointer} .dleg .dl:hover,.dleg .dl.on{background:var(--soft)}
 .dleg .dl i{display:block;width:12px;height:12px;border-radius:3px}
 .dleg .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap} .dleg b,.dleg .am{text-align:right} .dleg .am{color:var(--muted)}
+.adt th.sortable{cursor:pointer;user-select:none} .adt th.sortable:hover{color:var(--ink)}
+.adt th .ar{margin-left:3px;font-size:10px;opacity:.55} .adt th[aria-sort="ascending"],.adt th[aria-sort="descending"]{color:var(--accent);font-weight:700} .adt th[aria-sort="ascending"] .ar,.adt th[aria-sort="descending"] .ar{opacity:1}
+.adt thead th{position:sticky;top:0;background:var(--surface);z-index:1} .adt td{padding:4px 6px} .adt tbody tr:hover{background:var(--soft)}
+.adt svg.sp2{display:block;cursor:crosshair}
 .bar2x{display:flex;flex-direction:column;gap:2px} .bar2x i{display:block;height:7px;border-radius:3px;min-width:2px}
 .mhint{display:none;font-size:12px;color:var(--muted);padding:0 8px}
 @media (max-width:700px){.mhint{display:block}}
@@ -1160,35 +1164,60 @@ function drawAds() {
   bindTips($("#cview"));
   $("#cview").querySelectorAll("[data-pid]").forEach(b => b.onclick = () => { ADP = b.dataset.pid; drawCView(); $("#adtop").scrollIntoView({behavior: "smooth", block: "start"}); });
 }
+// 제품을 고른 화면: 소재 전체를 표 하나로. 열 제목을 누르면 정렬(다시 누르면 반대), 위 버튼으로 판정별로 거른다.
+let ADS = {k: "s7", d: -1}, ADF = "all";
+// 14일 미니 그래프: 광고비(주황 선)와 매출(파랑 면)을 같은 금액 눈금으로 한 칸에. 마우스를 올리면 그날 수치
+function sp2(c) {
+  const S = c.spark.spend, G = c.spark.gmv, n = S.length, w = 150, h = 34, mx = Math.max(1, ...S, ...G), x = i => 2 + i * (w - 4) / Math.max(1, n - 1), y = v => h - 3 - v / mx * (h - 7);
+  const pts = A => A.map((v, i) => x(i).toFixed(1) + "," + y(v).toFixed(1)).join(" ");
+  return `<svg class="sp2" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" data-s="${S.join(",")}" data-g="${G.join(",")}" role="img" aria-label="14일 광고비와 매출">
+    <path d="M${x(0)},${h - 3} L${pts(G).replace(/ /g, " L")} L${x(n - 1)},${h - 3} Z" fill="${css("--c-video")}" opacity=".16"/><polyline points="${pts(G)}" fill="none" stroke="${css("--c-video")}" stroke-width="1.6" stroke-linejoin="round"/>
+    <polyline points="${pts(S)}" fill="none" stroke="${css("--c-afl")}" stroke-width="1.5" stroke-linejoin="round"/><line class="cur" x1="0" x2="0" y1="0" y2="${h}" stroke="${css("--ink")}" stroke-width="1" opacity="0"/></svg>`;
+}
 function drawAdProd() {
-  const L = D.cre.filter(inP), name = adName(ADP);
-  $("#lgd").textContent = name + " · 소재별"; $("#lgdNote").textContent = "기준 기간에 매출이 크게 움직인 소재와 전체 소재 목록입니다.";
-  const T30 = (D.raw.topCreators || []).slice(0, 30), end = D.A[1], ORD = {kill: 0, warn: 1, good: 2, best: 3};
-  const warn = L.filter(c => grade(c) === "warn").sort((x, y) => y.s7 - x.s7);
-  const crs = T30.filter(t => t.topProducts[0] && t.topProducts[0].pid === ADP).map(t => ({t, st: tcStatus(t, end)})).filter(x => x.st.stop || x.st.slow);
-  const active = L.filter(c => c.s7 >= 0.5 || c.g7 >= 1).sort((x, y) => { const gx = grade(x), gy = grade(y); return (gx ? ORD[gx] : 9) - (gy ? ORD[gy] : 9) || y.s7 - x.s7; });
-  const up = L.filter(c => c.dg >= 5).sort((u, v) => v.dg - u.dg).slice(0, 5), dn = L.filter(c => c.dg <= -5).sort((u, v) => u.dg - v.dg).slice(0, 5);
-  const sp = ageSplit(L);
-  const dlist = (A, pref) => A.length ? `<ul class="crows">${A.map((c, i) => crow(c, pref + i, "delta")).join("")}</ul>` : `<p class="note" style="margin:0">없음</p>`;
-  const block = (title, cls2, list, render) => { if (!list.length) return ""; const m = more(list.map(render), 5, 10);
-    return `<div class="grp"><h4><span><span class="tag ${cls2}">${title}</span> ${list.length}</span></h4><ul>${m.body}</ul>${m.btn}</div>`; };
-  const rows = active.map((c, i) => {
+  const L = D.cre.filter(inP), name = adName(ADP), E = D.A[1];
+  $("#lgd").textContent = name + " · 소재 전체"; $("#lgdNote").textContent = "최근 7일에 광고비 $1 이상이거나 매출 $1 이상인 소재입니다. 열 제목을 누르면 정렬됩니다.";
+  const T30 = (D.raw.topCreators || []).slice(0, 30);
+  const crs = T30.filter(t => t.topProducts[0] && t.topProducts[0].pid === ADP).map(t => ({t, st: tcStatus(t, E)})).filter(x => x.st.stop || x.st.slow);
+  const sp = ageSplit(L), GO = {kill: 0, warn: 1, good: 2, best: 3};
+  const act = L.filter(c => c.s7 >= 1 || c.g7 >= 1);
+  const F = {all: () => true, kill: c => grade(c) === "kill", warn: c => grade(c) === "warn", good: c => grade(c) === "good" || grade(c) === "best", boost, watch, new: c => ageOf(c) === "new"};
+  const FL = [["all", "전체"], ["kill", "KILL 검토"], ["warn", "주의"], ["good", "좋음 이상"], ["boost", "부스팅 권장"], ["watch", "확인 필요"], ["new", "신규 (7일 이내)"]];
+  if (!F[ADF]) ADF = "all";
+  const KEY = {grade: c => (grade(c) in GO ? GO[grade(c)] : 9), label: c => c.label.toLowerCase(), posted: c => c.posted || "", s7: c => c.s7, g7: c => c.g7, roi: c => c.s7 >= 1 ? c.g7 / c.s7 : (c.g7 > 0 ? 1e9 : -1), sa: c => c.sa, ga: c => c.ga, dg: c => c.dg};
+  const kf = KEY[ADS.k] || KEY.s7, rowsL = act.filter(F[ADF]).sort((a, b) => { const x = kf(a), y = kf(b); return (x < y ? -1 : x > y ? 1 : 0) * ADS.d || b.s7 - a.s7; });
+  const th = (k, t, num, tip) => `<th class="${num ? "n " : ""}sortable" data-sort="${k}"${tip ? ` title="${tip}"` : ""} aria-sort="${ADS.k === k ? (ADS.d > 0 ? "ascending" : "descending") : "none"}">${t}<span class="ar">${ADS.k === k ? (ADS.d > 0 ? "▲" : "▼") : "↕"}</span></th>`;
+  const rows = rowsL.map((c, i) => {
     const id = "td-" + i; NODES[id] = {type: "bead", lane: {id: "video", name: "AF 영상"}, sub: {name: c.name}, bead: {label: c.label, d: c.dg, kind: "creative", data: c}};
-    const gr = GRADE.find(z => z.k === grade(c));
-    return `<tr><td>${gr ? `<span class="tag ${gr.c}">${gr.t}</span>` : '<span class="note">-</span>'}${boost(c) ? ' <span class="tag new">부스팅 권장</span>' : ""}</td>
-      <td><a href="${vlink(c.cid, c.creator)}" target="_blank" rel="noopener">${c.label}</a>${vid(c)}</td>
-      <td class="n">${usd(c.s7)}</td><td class="n">${usd(c.g7)}</td><td class="n">${roiTxt(c.g7, c.s7)}</td><td class="n">${usd(c.sa)}</td><td class="n">${usd(c.ga)}</td>
-      <td>${idBtn(c)} <button class="chip" type="button" data-open="${id}">상세</button></td></tr>`;
-  });
-  const m = more([`<tr><th>판정</th><th>소재 · 영상 ID</th><th class="n">7일 광고비</th><th class="n">7일 매출</th><th class="n">7일 ROI</th><th class="n">기준일 광고비</th><th class="n">기준일 매출</th><th></th></tr>`, ...rows], 0, 21);
+    const gr = GRADE.find(z => z.k === grade(c)), age = c.posted ? Math.round((Date.parse(E) - Date.parse(c.posted)) / 86400000) : null;
+    return `<tr><td>${gr ? `<span class="tag ${gr.c}">${gr.t}</span>` : '<span class="note">-</span>'}${boost(c) ? ' <span class="tag new">부스팅 권장</span>' : ""}${watch(c) ? ' <span class="tag warn">확인 필요</span>' : ""}</td>
+      <td><a href="${vlink(c.cid, c.creator)}" target="_blank" rel="noopener">${c.label}</a></td>
+      <td class="n">${c.posted ? md(c.posted) : "-"}${age != null && age >= 0 ? ` <span class="note">${age === 0 ? "당일" : age + "일 전"}</span>` : ""}</td>
+      <td>${sp2(c)}</td>
+      <td class="n">${usd(c.s7)}</td><td class="n">${usd(c.g7)}</td><td class="n"><span class="rchip ${grade(c) || "none"}" style="min-width:52px">${roiTxt(c.g7, c.s7)}</span></td>
+      <td class="n">${usd(c.sa)}</td><td class="n">${usd(c.ga)}</td><td class="n"><b class="${cls(c.dg)}">${sd(c.dg)}</b></td>
+      <td>${idBtn(c)} <button class="chip" type="button" data-open="${id}">상세</button></td></tr>`; }).join("");
   $("#cview").innerHTML = `<div style="display:flex;flex-direction:column;gap:12px">
     <div class="agebar">${["new", "mid", "old"].map(k => `<div class="age"><div class="t">${AGE[k]} 소재 ${sp[k].n}개 <span class="note">(${k === "new" ? "7일 이내" : k === "mid" ? "8~30일" : "30일 넘음"})</span></div><div class="v ${cls(sp[k].d)}">${sd(sp[k].d)}</div><div class="s">매출 변화 · 광고비 ${sd(sp[k].s)}</div></div>`).join("")}</div>
-    <div class="todo"><div class="tcard"><h4 class="up">매출 올린 소재</h4>${dlist(up, "pu-")}</div><div class="tcard"><h4 class="down">매출 깎은 소재</h4>${dlist(dn, "pd-")}</div></div>
-    <div class="roll">${block("주의", "warn", warn, c => `<li><a href="${vlink(c.cid, c.creator)}" target="_blank" rel="noopener">${c.label}</a> <span class="note">7일 광고비 ${usd(c.s7)} · 매출 ${usd(c.g7)} · ROI ${roiTxt(c.g7, c.s7)}</span></li>`)}
-      ${block("멈춘·둔화 TOP 30 크리에이터", "bad", crs, ({t, st}) => `<li><a href="https://www.tiktok.com/@${t.h}" target="_blank" rel="noopener">@${t.h}</a> <span class="note">${st.label[0]} · 마지막 포스팅 ${t.lastPost ? md(t.lastPost) : "-"}</span></li>`)}</div>
-    <div style="display:flex;flex-direction:column;overflow-x:auto"><table class="mini">${m.body}</table>${m.btn.replace(/더보기 \(\d+개 남음\)/, `광고 소재 ${rows.length}개 전체 보기`)}</div></div>`;
-  const V = $("#cview"); bindCopy(V); bindMore(V); bindTips(V);
+    ${crs.length ? `<div class="why" style="margin:0"><b>이 제품이 주력인 TOP 30 크리에이터 중 멈추거나 둔화</b> · ${crs.map(({t, st}) => `<a href="https://www.tiktok.com/@${t.h}" target="_blank" rel="noopener">@${t.h}</a> <span class="note">${st.label[0]}${t.lastPost ? ", 마지막 포스팅 " + md(t.lastPost) : ""}</span>`).join(" · ")}</div>` : ""}
+    <div class="bar"><div class="pchips">${FL.map(([k, t]) => `<button class="chip" type="button" data-adf="${k}" aria-pressed="${ADF === k}">${t} ${act.filter(F[k]).length}</button>`).join("")}</div>
+      <div class="lgd"><span><i style="background:var(--c-afl);height:3px;width:14px;vertical-align:middle"></i>광고비</span><span><i style="background:var(--c-video);height:3px;width:14px;vertical-align:middle"></i>매출</span><span>${rowsL.length ? copyBtn(rowsL.map(c => c.cid).join("\n"), `보이는 ${rowsL.length}개 ID 복사`) : ""}</span></div></div>
+    <div class="ctable"><table class="mini adt"><thead><tr>${th("grade", "판정")}${th("label", "소재")}${th("posted", "포스팅", 1)}<th>14일 광고비 · 매출</th>${th("s7", "7일 광고비", 1)}${th("g7", "7일 매출", 1)}${th("roi", "7일 ROI", 1)}${th("sa", "기준일 광고비", 1)}${th("ga", "기준일 매출", 1)}${th("dg", "매출 변화", 1, "기준 기간 매출 − 비교 기간 매출")}<th></th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="11" class="note">해당 소재가 없습니다.</td></tr>'}</tbody></table></div></div>`;
+  const V = $("#cview"); bindCopy(V); bindTips(V);
   V.querySelectorAll("[data-open]").forEach(b => b.onclick = e => { e.preventDefault(); openDetail(b.dataset.open); });
+  V.querySelectorAll("[data-adf]").forEach(b => b.onclick = () => { ADF = b.dataset.adf; drawAdProd(); });
+  V.querySelectorAll("[data-sort]").forEach(h => h.onclick = () => { const k = h.dataset.sort; ADS = ADS.k === k ? {k, d: -ADS.d} : {k, d: k === "label" ? 1 : -1}; drawAdProd(); });
+  // 미니 그래프 위에서 마우스가 있는 날짜의 광고비·매출을 보여준다 (표 전체에 한 번만 건다)
+  const tb = V.querySelector(".adt"), tip = $("#tip"), DT = D.raw.sparkDates || [];
+  let last = null; const off = () => { if (last) last.querySelector(".cur").setAttribute("opacity", 0); last = null; tip.hidden = true; };
+  tb.addEventListener("pointermove", e => { const g = e.target.closest ? e.target.closest("svg.sp2") : null; if (!g) { off(); return; }
+    const r = g.getBoundingClientRect(), S = g.dataset.s.split(","), G = g.dataset.g.split(","), n = S.length, i = Math.max(0, Math.min(n - 1, Math.round((e.clientX - r.left - 2) / (r.width - 4) * (n - 1))));
+    if (last && last !== g) last.querySelector(".cur").setAttribute("opacity", 0); last = g;
+    const cx = 2 + i * (150 - 4) / Math.max(1, n - 1), c = g.querySelector(".cur"); c.setAttribute("x1", cx); c.setAttribute("x2", cx); c.setAttribute("opacity", .35);
+    tip.hidden = false; tip.innerHTML = `<b>${DT[i] ? md(DT[i]) + "(" + DOW(DT[i]) + ")" : ""}</b><br><span style='color:${css("--c-afl")}'>●</span> 광고비 ${usd(+S[i])} · <span style='color:${css("--c-video")}'>●</span> 매출 ${usd(+G[i])}${+S[i] >= 1 ? " · ROI " + (G[i] / S[i]).toFixed(2) : ""}`;
+    tip.style.left = Math.min(innerWidth - 230, e.clientX + 12) + "px"; tip.style.top = (e.clientY + 14) + "px"; });
+  tb.addEventListener("pointerleave", off);
 }
 // ---------------- Creative Boost: 소재별 부스트 성과와 결정 (증액 / 유지 / 삭감)
 // 시트 'Creative Boost'의 조정 행(시작일·종료일·일 예산)을 소재별로 이어 붙여 '부스트 구간'을 만들고,
